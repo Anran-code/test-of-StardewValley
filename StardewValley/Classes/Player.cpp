@@ -5,7 +5,7 @@ USING_NS_CC;
 Player* Player::create(const std::string& filename, float tileHeight)
 {
     Player* ret = new (std::nothrow) Player();
-    if (ret && ret->initWithFile(filename))
+    if (ret && ret->initWithFile("player.png"))
     {
         ret->autorelease();
 
@@ -28,10 +28,6 @@ Player* Player::create(const std::string& filename, float tileHeight)
             }
             ret->setScale(scale);
         }
-
-        auto debugNode = DrawNode::create();
-        debugNode->drawSolidRect(Vec2(-8.0f, -8.0f), Vec2(8.0f, 8.0f), Color4F::RED);
-        ret->addChild(debugNode);
 
         return ret;
     }

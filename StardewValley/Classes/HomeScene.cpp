@@ -69,6 +69,9 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 _facingDebug = DrawNode::create();
                 _map->addChild(_facingDebug, 100);
 
+                auto follow = Follow::create(_player);
+                this->runAction(follow);
+
                 setScale(_zoom);
                 scheduleUpdate();
 
@@ -166,9 +169,6 @@ void BackgroundLayer::update(float dt)
         return;
     }
 
-    auto director = Director::getInstance();
-    Size visibleSize = director->getVisibleSize();
-
     Size mapSizeTiles = _map->getMapSize();
     Size tileSize = _map->getTileSize();
     float mapWidth = mapSizeTiles.width * tileSize.width;
@@ -186,15 +186,6 @@ void BackgroundLayer::update(float dt)
         _player->setPosition(pos);
     }
 
-    Vec2 playerPos = _player->getPosition();
-
-    float zoom = _zoom;
-    Vec2 center(visibleSize.width * 0.5f, visibleSize.height * 0.5f);
-
-    Vec2 desiredPos = center - playerPos * zoom;
-
-    setPosition(desiredPos);
-
     if (_facingDebug && _groundLayer)
     {
         _facingDebug->clear();
@@ -202,12 +193,17 @@ void BackgroundLayer::update(float dt)
         if (tileIndex.x >= 0 && tileIndex.y >= 0)
         {
             Size tileSize2 = _map->getTileSize();
+
             Vec2 tilePos = _groundLayer->getPositionAt(tileIndex);
+
+            Vec2 centerPos(tilePos.x + tileSize2.width * 0.5f,
+                tilePos.y + tileSize2.height * 0.5f);
+            _facingDebug->drawDot(centerPos, 4.0f, Color4F::YELLOW);
 
             Vec2 p1(tilePos.x, tilePos.y);
             Vec2 p2(tilePos.x + tileSize2.width, tilePos.y + tileSize2.height);
 
-            _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 0.0f, 0.5f));
+            _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 0.3f, 0.3f));
             _facingDebug->drawRect(p1, p2, Color4F(1.0f, 1.0f, 1.0f, 1.0f));
         }
     }
@@ -247,21 +243,22 @@ cocos2d::Vec2 BackgroundLayer::getFacingTile() const
     float clampedX = std::max(0.0f, std::min(pos.x, mapWidth - 1.0f));
     float clampedY = std::max(0.0f, std::min(pos.y, mapHeight - 1.0f));
 
-    float tileX = clampedX / tileSize.width;
-    float tileY = (mapHeight - clampedY) / tileSize.height;
+    // 世界坐标 → 以左上角为原点的瓷砖坐标
+    float tileXTop = clampedX / tileSize.width;
+    float tileYTop = (mapHeight - clampedY) / tileSize.height;
 
-    int ix = static_cast<int>(tileX);
-    int iy = static_cast<int>(tileY);
+    int ix = static_cast<int>(tileXTop);
+    int iy = static_cast<int>(tileYTop);
 
     Vec2 offset = _player->getFacingOffset();
     int tx = ix + static_cast<int>(offset.x);
     int ty = iy + static_cast<int>(offset.y);
 
-    if (tx < 0 || tx >= static_cast<int>(mapSizeTiles.width) ||
-        ty < 0 || ty >= static_cast<int>(mapSizeTiles.height))
-    {
-        return Vec2(-1, -1);
-    }
+    int maxX = static_cast<int>(mapSizeTiles.width) - 1;
+    int maxY = static_cast<int>(mapSizeTiles.height) - 1;
+
+    tx = std::max(0, std::min(tx, maxX));
+    ty = std::max(0, std::min(ty, maxY));
 
     return Vec2(tx, ty);
 }
