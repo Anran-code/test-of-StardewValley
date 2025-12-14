@@ -1,5 +1,5 @@
 #include "Menu.h"
-#include"Scene.h"
+#include"HomeScene.h"
 USING_NS_CC;
 
 Scene* MenuScene::createScene()
@@ -68,10 +68,17 @@ bool MenuScene::init()
 
 void MenuScene::menuCloseCallback(Ref* pSender)
 {
-    Director::getInstance()->home_scene();
+    Director::getInstance()->end();
 }
 
 void MenuScene::menuNewCallback(Ref* pSender)
 {
-    Director::getInstance()->end();
+    // 1. 创建 HomeScene 场景
+    // HomeScene::createScene() 是在 HomeScene.h 中定义的静态方法
+    auto scene = HomeScene::createScene();
+
+    // 2. 使用 Director 切换场景
+    // 使用 replaceScene 替换当前运行的场景
+    Director::getInstance()->replaceScene(scene);
+
 }
