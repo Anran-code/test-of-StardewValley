@@ -7,6 +7,13 @@ Scene* MenuScene::createScene()
     return MenuScene::create();
 }
 
+// Print useful error message instead of segfaulting when files are not there.
+static void problemLoading(const char* filename)
+{
+    printf("Error while loading: %s\n", filename);
+    printf("Depending on how you compiled you might have to add 'Resources/' in front of filenames in HelloWorldScene.cpp\n");
+}
+
 bool MenuScene::init()
 {
     // 1. super init first
@@ -43,19 +50,37 @@ bool MenuScene::init()
         "ui/btn_exit.png",
         "ui/btn_exit_close.png",
         CC_CALLBACK_1(MenuScene::menuCloseCallback, this));
-    float x1 = origin.x + 0.75 * visibleSize.width - closeItem->getContentSize().width / 2;
-    float y1 = origin.y + 0.15 * visibleSize.height + closeItem->getContentSize().height / 2;
-    closeItem->setPosition(Vec2(x1, y1));
-    closeItem->setScale(2.0);
+    if (closeItem == nullptr ||
+        closeItem->getContentSize().width <= 0 ||
+        closeItem->getContentSize().height <= 0)
+    {
+        problemLoading("'ui/btn_exit.png' and 'ui/btn_exit_close.png'");
+    }
+    else
+    {
+        float x1 = origin.x + 0.75 * visibleSize.width - closeItem->getContentSize().width / 2;
+        float y1 = origin.y + 0.15 * visibleSize.height + closeItem->getContentSize().height / 2;
+        closeItem->setPosition(Vec2(x1, y1));
+        closeItem->setScale(2.0);
+    }
 
     auto newItem = MenuItemImage::create(
         "ui/btn_new.png",
         "ui/btn_new_close.png",
         CC_CALLBACK_1(MenuScene::menuNewCallback, this));
-    float x2 = origin.x + 0.25 * visibleSize.width - newItem->getContentSize().width / 2;
-    float y2 = origin.y + 0.15 * visibleSize.height + newItem->getContentSize().height / 2;
-    newItem->setPosition(Vec2(x2, y2));
-    newItem->setScale(2.0);
+    if (newItem == nullptr ||
+        newItem->getContentSize().width <= 0 ||
+        newItem->getContentSize().height <= 0)
+    {
+        problemLoading("'ui/btn_new.png' and 'ui/btn_new_close.png'");
+    }
+    else
+    {
+        float x2 = origin.x + 0.25 * visibleSize.width - newItem->getContentSize().width / 2;
+        float y2 = origin.y + 0.15 * visibleSize.height + newItem->getContentSize().height / 2;
+        newItem->setPosition(Vec2(x2, y2));
+        newItem->setScale(2.0);
+    }
 
     auto menu1 = Menu::create(closeItem, NULL);
     menu1->setPosition(Vec2::ZERO);
