@@ -93,7 +93,7 @@ bool MenuScene::init()
 
 void MenuScene::menuCloseCallback(Ref* pSender)
 {
-    Director::getInstance()->home_scene();
+    //Director::getInstance()->home_scene();
 }
 
 void MenuScene::menuNewCallback(Ref* pSender)
