@@ -1,5 +1,5 @@
 #include "Menu.h"
-
+#include"Scene.h"
 USING_NS_CC;
 
 Scene* MenuScene::createScene()
@@ -93,7 +93,7 @@ bool MenuScene::init()
 
 void MenuScene::menuCloseCallback(Ref* pSender)
 {
-    Director::getInstance()->end();
+    Director::getInstance()->home_scene();
 }
 
 void MenuScene::menuNewCallback(Ref* pSender)
