@@ -2,23 +2,59 @@
 #define __HOME_SCENE_H__
 
 #include "cocos2d.h"
+#include "Player.h"
+
+enum class BackgroundType
+{
+    Home,
+    Farm,
+    Path,
+    Town,
+    Shop
+};
+
+class BackgroundLayer : public cocos2d::Layer
+{
+public:
+    static BackgroundLayer* create(BackgroundType type);
+
+    bool initWithType(BackgroundType type);
+
+    cocos2d::Vec2 getFacingTile() const;
+
+private:
+    BackgroundType _type;
+    cocos2d::TMXTiledMap* _map;
+    cocos2d::TMXLayer* _groundLayer;
+    Player* _player;
+    float _zoom;
+    cocos2d::DrawNode* _facingDebug;
+
+    void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
+    void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
+
+    virtual void update(float dt) override;
+};
+
+class FarmMapUtils
+{
+public:
+    static cocos2d::Vec2 gridToWorld(const cocos2d::Vec2& gridIndex, cocos2d::Sprite* mapSprite, int cols, int rows);
+
+    static cocos2d::Vec2 worldToGrid(const cocos2d::Vec2& worldPos, cocos2d::Sprite* mapSprite, int cols, int rows);
+};
 
 class HomeScene : public cocos2d::Scene
 {
 public:
-    // 创建场景的静态方法
     static cocos2d::Scene* createScene();
 
-    // 初始化方法
     virtual bool init();
 
-    // 回调函数：当点击“开始游戏”时触发
     void onStartGameClicked(cocos2d::Ref* sender);
 
-    // 回调函数：退出游戏
     void onExitClicked(cocos2d::Ref* sender);
 
-    // 实现 CREATE_FUNC 宏，它会自动生成 create() 方法
     CREATE_FUNC(HomeScene);
 };
 

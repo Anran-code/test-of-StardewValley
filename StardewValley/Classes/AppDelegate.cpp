@@ -91,6 +91,9 @@ bool AppDelegate::applicationDidFinishLaunching() {
         director->setOpenGLView(glview);
     }
 
+    // Add Resources directory to search path
+    FileUtils::getInstance()->addSearchPath("Resources");
+
     // turn on display FPS
     director->setDisplayStats(true);
 
