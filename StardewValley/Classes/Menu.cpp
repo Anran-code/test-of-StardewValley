@@ -102,5 +102,4 @@ void MenuScene::menuNewCallback(Ref* pSender)
     // 2. 使用 Director 切换场景
     // 使用 replaceScene 替换当前运行的场景
     Director::getInstance()->replaceScene(scene);
-
 }
