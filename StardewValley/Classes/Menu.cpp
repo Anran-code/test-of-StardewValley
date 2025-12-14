@@ -63,7 +63,6 @@ bool MenuScene::init()
         closeItem->setPosition(Vec2(x1, y1));
         closeItem->setScale(2.0);
     }
-
     auto newItem = MenuItemImage::create(
         "ui/btn_new.png",
         "ui/btn_new_close.png",
@@ -81,7 +80,6 @@ bool MenuScene::init()
         newItem->setPosition(Vec2(x2, y2));
         newItem->setScale(2.0);
     }
-
     auto menu1 = Menu::create(closeItem, NULL);
     menu1->setPosition(Vec2::ZERO);
     this->addChild(menu1);
@@ -89,7 +87,6 @@ bool MenuScene::init()
     menu2->setPosition(Vec2::ZERO);
     this->addChild(menu2);
 }
-
 
 void MenuScene::menuCloseCallback(Ref* pSender)
 {
