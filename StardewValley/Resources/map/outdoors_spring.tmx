@@ -134,7 +134,7 @@
  <objectgroup id="10" name="home">
   <object id="4292" x="272" y="192" width="160" height="176"/>
  </objectgroup>
- <objectgroup id="9" name="grass" visible="0">
+ <objectgroup id="9" name="grass">
   <object id="2844" gid="306" x="112" y="736" width="16" height="16"/>
   <object id="2845" gid="306" x="128" y="784" width="16" height="16"/>
   <object id="2846" gid="306" x="144" y="800" width="16" height="16"/>
