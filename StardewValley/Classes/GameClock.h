@@ -32,6 +32,9 @@ public:
     void setYear(int y);
     void setSeason(Season s);
 
+    int getWeekdayIndex() const;
+    int getWeekOfSeason() const;
+    std::string getWeekdayString() const;
     std::string getTimeString() const;
     std::string getDateString() const;
 

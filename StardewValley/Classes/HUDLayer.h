@@ -24,6 +24,7 @@ private:
 
     cocos2d::Label* _timeLabel;
     cocos2d::Label* _dateLabel;
+    cocos2d::Label* _weekLabel;
     cocos2d::Label* _moneyLabel;
 };
 

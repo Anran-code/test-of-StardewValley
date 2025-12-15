@@ -82,6 +82,22 @@ void GameClock::setDay(int d) { _day = d; }
 void GameClock::setYear(int y) { _year = y; }
 void GameClock::setSeason(Season s) { _season = s; }
 
+int GameClock::getWeekdayIndex() const
+{
+    return (_day - 1) % 7;
+}
+
+int GameClock::getWeekOfSeason() const
+{
+    return (_day - 1) / 7 + 1;
+}
+
+std::string GameClock::getWeekdayString() const
+{
+    static const char* names[7] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    return std::string(names[getWeekdayIndex()]);
+}
+
 std::string GameClock::getTimeString() const
 {
     int h12 = _hour % 12;

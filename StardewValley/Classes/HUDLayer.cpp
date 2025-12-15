@@ -33,6 +33,7 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet)
 
     _timeLabel = Label::createWithSystemFont("", "Arial", 24);
     _dateLabel = Label::createWithSystemFont("", "Arial", 24);
+    _weekLabel = Label::createWithSystemFont("", "Arial", 24);
     _moneyLabel = Label::createWithSystemFont("", "Arial", 24);
 
     if (_timeLabel)
@@ -47,10 +48,16 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet)
         _dateLabel->setPosition(Vec2(topRight.x, topRight.y - 28.0f));
         addChild(_dateLabel, 1000);
     }
+    if (_weekLabel)
+    {
+        _weekLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
+        _weekLabel->setPosition(Vec2(topRight.x, topRight.y - 56.0f));
+        addChild(_weekLabel, 1000);
+    }
     if (_moneyLabel)
     {
         _moneyLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
-        _moneyLabel->setPosition(Vec2(topRight.x, topRight.y - 56.0f));
+        _moneyLabel->setPosition(Vec2(topRight.x, topRight.y - 84.0f));
         addChild(_moneyLabel, 1000);
     }
 
@@ -66,7 +73,21 @@ void HudLayer::refresh()
     }
     if (_clock && _dateLabel)
     {
-        _dateLabel->setString(_clock->getDateString());
+        const char* s =
+            (_clock->getSeason() == GameClock::Season::Spring) ? "Spring" :
+            (_clock->getSeason() == GameClock::Season::Summer) ? "Summer" :
+            (_clock->getSeason() == GameClock::Season::Fall)   ? "Fall" : "Winter";
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%s Day %d Year %d", s, _clock->getDay(), _clock->getYear());
+        _dateLabel->setString(buf);
+    }
+    if (_clock && _weekLabel)
+    {
+        std::string w = _clock->getWeekdayString();
+        int wk = _clock->getWeekOfSeason();
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%s, Week %d", w.c_str(), wk);
+        _weekLabel->setString(buf);
     }
     if (_wallet && _moneyLabel)
     {
