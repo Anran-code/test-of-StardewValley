@@ -17,13 +17,13 @@
 mono_crash.*
 
 # Build results
-#[Dd]ebug/
+[Dd]ebug/
 [Dd]ebugPublic/
-#[Rr]elease/
-#[Rr]eleases/
+[Rr]elease/
+[Rr]eleases/
 x64/
 x86/
-#[Ww][Ii][Nn]32/
+[Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
 bld/
@@ -362,20 +362,63 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
-#build/
-#!external/
-#!lib/
-#!win32/
-#proj.ios_mac/
+# ========== Cocos2d-x specific ignores ==========
 
-#proj.linux/
+# Cocos2d-x build directories
 build/
-!cocos2d/
+proj.android/
+proj.android-studio/
+proj.ios_mac/
+proj.linux/
+proj.win10/
+proj.win32/
 
-#proj.android/
+# Cocos2d-x intermediate files
+intermediates/
 
-#proj.win32/
+# Cocos2d-x generated files
+Resources/Generated/Resources.h
 
-#.cocos-project.json
+# Cocos2d-x debug files
+*.log
+*.log.*
 
-#CMakeLists.txt
+# Cocos2d-x temporary files
+*.tmp
+*.temp
+
+# Cocos2d-x cache files
+.cache/
+
+# Android specific ignores
+*.keystore
+*.jks
+local.properties
+
+# iOS specific ignores
+iOSDerivedData/
+*.ipa
+*.dSYM/
+*.mobileprovision
+
+# Mac specific ignores
+.DS_Store
+
+# Windows specific ignores
+Thumbs.db
+*.stackdump
+
+# CMake specific ignores
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+
+# IDE specific ignores
+.idea/
+*.swp
+*.swo
+
+# ========== End Cocos2d-x specific ignores ==========
