@@ -25,7 +25,7 @@ bool MenuScene::init()
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
-    // 1.±³¾°
+    // 1.ï¿½ï¿½ï¿½ï¿½
     auto bgsprite = Sprite::create("ui/menu_bg.png");
     Size targrtSize = visibleSize;
     Size imgSize = bgsprite->getContentSize();
@@ -39,7 +39,7 @@ bool MenuScene::init()
     // add the sprite as a child to this layer
     this->addChild(bgsprite);
 
-    // 2.±êÌâ
+    // 2.ï¿½ï¿½ï¿½ï¿½
     auto ttsprite = Sprite::create("ui/menu_logo.png");
     ttsprite->setPosition(Vec2(visibleSize.width / 2 + origin.x, visibleSize.height*0.75 + origin.y));
 
@@ -86,6 +86,8 @@ bool MenuScene::init()
     auto menu2 = Menu::create(newItem, NULL);
     menu2->setPosition(Vec2::ZERO);
     this->addChild(menu2);
+
+    return true;
 }
 
 void MenuScene::menuCloseCallback(Ref* pSender)
@@ -95,11 +97,11 @@ void MenuScene::menuCloseCallback(Ref* pSender)
 
 void MenuScene::menuNewCallback(Ref* pSender)
 {
-    // 1. ´´½¨ HomeScene ³¡¾°
-    // HomeScene::createScene() ÊÇÔÚ HomeScene.h ÖÐ¶¨ÒåµÄ¾²Ì¬·½·¨
+    // 1. ï¿½ï¿½ï¿½ï¿½ HomeScene ï¿½ï¿½ï¿½ï¿½
+    // HomeScene::createScene() ï¿½ï¿½ï¿½ï¿½ HomeScene.h ï¿½Ð¶ï¿½ï¿½ï¿½Ä¾ï¿½Ì¬ï¿½ï¿½ï¿½ï¿½
     auto scene = HomeScene::createScene();
 
-    // 2. Ê¹ÓÃ Director ÇÐ»»³¡¾°
-    // Ê¹ÓÃ replaceScene Ìæ»»µ±Ç°ÔËÐÐµÄ³¡¾°
+    // 2. Ê¹ï¿½ï¿½ Director ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½
+    // Ê¹ï¿½ï¿½ replaceScene ï¿½æ»»ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ÐµÄ³ï¿½ï¿½ï¿½
     Director::getInstance()->replaceScene(scene);
 }

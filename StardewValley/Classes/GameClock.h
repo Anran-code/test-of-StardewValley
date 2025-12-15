@@ -1,0 +1,48 @@
+#ifndef __GAME_CLOCK_H__
+#define __GAME_CLOCK_H__
+
+#include <string>
+
+class GameClock
+{
+public:
+    enum class Season
+    {
+        Spring,
+        Summer,
+        Fall,
+        Winter
+    };
+
+    GameClock();
+
+    void update(float dt);
+    void setSecondsPerMinute(float spm);
+    void setSecondsPerTenMinutes(float sptm);
+
+    int getHour() const;
+    int getMinute() const;
+    int getDay() const;
+    int getYear() const;
+    Season getSeason() const;
+
+    void setHour(int h);
+    void setMinute(int m);
+    void setDay(int d);
+    void setYear(int y);
+    void setSeason(Season s);
+
+    std::string getTimeString() const;
+    std::string getDateString() const;
+
+private:
+    int _hour;
+    int _minute;
+    int _day;
+    int _year;
+    Season _season;
+    float _acc;
+    float _secondsPerTenMinutes;
+};
+
+#endif

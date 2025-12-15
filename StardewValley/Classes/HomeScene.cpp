@@ -1,4 +1,7 @@
 #include "HomeScene.h"
+#include "GameClock.h"
+#include "Wallet.h"
+#include "HudLayer.h"
 
 USING_NS_CC;
 
@@ -314,6 +317,12 @@ Scene* HomeScene::createScene()
     return HomeScene::create();
 }
 
+HomeScene::~HomeScene()
+{
+    delete _clock;
+    delete _wallet;
+}
+
 bool HomeScene::init()
 {
     if (!Scene::init())
@@ -339,6 +348,15 @@ bool HomeScene::init()
         }
     }
 
+    _clock = new GameClock();
+    _wallet = new Wallet();
+    _hud = HudLayer::create(_clock, _wallet);
+    if (_hud)
+    {
+        addChild(_hud, 1000);
+    }
+    scheduleUpdate();
+
     return true;
 }
 
@@ -349,4 +367,16 @@ void HomeScene::onExitClicked(Ref* sender)
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_IOS)
     exit(0);
 #endif
+}
+
+void HomeScene::update(float dt)
+{
+    if (_clock)
+    {
+        _clock->update(dt);
+    }
+    if (_hud)
+    {
+        _hud->refresh();
+    }
 }

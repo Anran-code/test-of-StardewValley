@@ -53,6 +53,9 @@ list(APPEND GAME_SOURCE
      Classes/Menu.cpp
      Classes/HomeScene.cpp
      Classes/Player.cpp
+     Classes/GameClock.cpp
+     Classes/Wallet.cpp
+     Classes/HudLayer.cpp
      )
 list(APPEND GAME_HEADER
      Classes/AppDelegate.h
@@ -60,6 +63,9 @@ list(APPEND GAME_HEADER
      Classes/Menu.h
      Classes/HomeScene.h
      Classes/Player.h
+     Classes/GameClock.h
+     Classes/Wallet.h
+     Classes/HudLayer.h
      )
 
 if(ANDROID)

@@ -50,12 +50,20 @@ public:
     static cocos2d::Scene* createScene();
 
     virtual bool init();
+    virtual ~HomeScene();
 
     void onStartGameClicked(cocos2d::Ref* sender);
 
     void onExitClicked(cocos2d::Ref* sender);
 
     CREATE_FUNC(HomeScene);
+
+private:
+    class GameClock* _clock;
+    class Wallet* _wallet;
+    class HudLayer* _hud;
+
+    virtual void update(float dt) override;
 };
 
 #endif // __HOME_SCENE_H__
