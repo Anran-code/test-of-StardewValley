@@ -108,6 +108,12 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     listener->onKeyPressed = CC_CALLBACK_2(HudLayer::onKeyPressed, this);
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
+    // Use Fixed Priority to ensure HUD gets events before the Scene (BackgroundLayer)
+    // BackgroundLayer uses SceneGraphPriority (0).
+    // Lower fixed priority means earlier execution.
+    // _mouseListener = EventListenerMouse::create(); // Use member variable if possible, or just local but retained?
+    
+    // Clean up previous logic
     auto mouseListener = EventListenerMouse::create();
     mouseListener->onMouseScroll = CC_CALLBACK_1(HudLayer::onScroll, this);
     mouseListener->onMouseDown = CC_CALLBACK_1(HudLayer::onMouseDown, this);
@@ -169,13 +175,13 @@ void HudLayer::onScroll(Event* event)
         int current = _inventory->getSelectedSlot();
         if (scrollY > 0)
         {
-            current--;
-            if (current < 0) current = Inventory::TOOLBAR_SIZE - 1;
+            current++;
+            if (current >= Inventory::TOOLBAR_SIZE) current = 0;
         }
         else
         {
-            current++;
-            if (current >= Inventory::TOOLBAR_SIZE) current = 0;
+            current--;
+            if (current < 0) current = Inventory::TOOLBAR_SIZE - 1;
         }
         _inventory->setSelectedSlot(current);
         updateInventoryUI();
@@ -315,70 +321,82 @@ void HudLayer::onMouseDown(Event* event)
     EventMouse* e = (EventMouse*)event;
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
 
-    Vec2 clickPos = e->getLocationInView();
-    clickPos.y = Director::getInstance()->getWinSize().height - clickPos.y;
+    Vec2 clickPos = e->getLocation(); // Screen space, bottom-left origin
 
-    // Check if click is within Toolbar bounds roughly
-    // Or just check individual slots
+    // Re-calculate layout parameters in screen space
+    float scale = _toolbar->getScale();
+    Size originalSize = _toolbar->getContentSize();
     
-    // We can reverse the logic from updateInventoryUI
-    // x = startCenterX + i * stepX
-    // y = startCenterY
-    
-    // Better: convert click pos to local space relative to toolbar origin
-    
-    float scale = _cachedScale;
-    if (scale <= 0.0f) return; // Not initialized?
+    // Get the screen position of the toolbar's anchor point (0.5, 0.0)
+    // convertToNodeSpace converts from World to Node Local.
+    // e->getLocation() is World (Screen).
+    // The toolbar itself is a child of HUDLayer which is a child of Scene.
+    // We should trust convertToNodeSpace to handle transforms.
 
-    float scaledLeftMargin = RAW_LEFT_MARGIN * scale;
-    float scaledBottomMargin = RAW_BOTTOM_MARGIN * scale;
-    float scaledCellWidth = RAW_CELL_WIDTH * scale;
-    float scaledCellHeight = RAW_CELL_HEIGHT * scale;
-    float scaledGap = RAW_GAP * scale;
-    float stepX = scaledCellWidth + scaledGap;
+    // Force strict bounding box check in local space
+    Vec2 localClickPos = _toolbar->convertToNodeSpace(clickPos);
     
-    float localX = clickPos.x - _cachedToolbarLeft;
-    float localY = clickPos.y - _cachedToolbarBottom;
+    // The toolbar image might have transparent borders or we might want to click slightly outside.
+    // Original size is the texture size.
+    // If the texture is 10 slots wide visually but logic assumes 12, we have a mismatch.
+    // Let's assume the texture covers all 12 slots for now, or at least the click should land in range.
     
-    // Check Y range
-    if (localY < scaledBottomMargin || localY > scaledBottomMargin + scaledCellHeight)
+    // Debug: Print local click pos if possible (cannot here).
+    
+    // Bounds check: (0,0) to (width, height) in local space
+    // Add generous padding
+    float localPadding = 40.0f; // 40 pixels padding around the texture
+    
+    Rect hitRect = Rect(-localPadding, -localPadding, 
+                        originalSize.width + localPadding*2, 
+                        originalSize.height + localPadding*2);
+
+    if (hitRect.containsPoint(localClickPos))
     {
-        return; // Click not in the row of cells
-    }
-    
-    // Check X range and find slot
-    // startX of first cell content = scaledLeftMargin
-    // cell i starts at scaledLeftMargin + i * stepX
-    // cell i ends at ... + scaledCellWidth
-    
-    float relativeX = localX - scaledLeftMargin;
-    
-    if (relativeX < 0) return; // Clicked on left margin
-    
-    // Estimate index
-    // i = relativeX / stepX?
-    // Not exactly because of gap.
-    
-    // Let's iterate or calc
-    // relativeX = i * (width + gap) + offset_within_cell
-    
-    int index = static_cast<int>(relativeX / stepX);
-    
-    if (index >= 0 && index < Inventory::TOOLBAR_SIZE)
-    {
-        // Check if within the cell width (exclude gap)
-        float offsetInStep = relativeX - (index * stepX);
-        if (offsetInStep <= scaledCellWidth)
+        // Swallow event immediately
+        event->stopPropagation();
+
+        // Slot calculation
+        // We know the constants for the layout inside the texture
+        // RAW_LEFT_MARGIN, RAW_CELL_WIDTH, etc. are in pixels relative to the texture bottom-left.
+        // So we can use localClickPos directly.
+
+        float yMin = RAW_BOTTOM_MARGIN;
+        float yMax = RAW_BOTTOM_MARGIN + RAW_CELL_HEIGHT;
+        
+        // Vertical tolerance
+        float vTol = 30.0f;
+        
+        if (localClickPos.y >= yMin - vTol && localClickPos.y <= yMax + vTol)
         {
-            // Clicked on slot 'index'
-            _inventory->setSelectedSlot(index);
-            updateInventoryUI();
-            
-            // Consume event so BackgroundLayer doesn't process it?
-            // HudLayer is z=1000, but event listeners graph priority...
-            // If we want to swallow, we need stopPropagation.
-            event->stopPropagation();
+             float startX = RAW_LEFT_MARGIN;
+             float stepX = RAW_CELL_WIDTH + RAW_GAP;
+             
+             float relX = localClickPos.x - startX;
+             
+             // Allow clicking slightly before the first slot
+             if (relX >= -RAW_GAP && relX < (Inventory::TOOLBAR_SIZE * stepX))
+             {
+                 // Normalize
+                 if (relX < 0) relX = 0;
+                 
+                 int index = static_cast<int>(relX / stepX);
+                 
+                 // Check if inside cell vs gap?
+                 // Let's be generous: if it lands in the gap, give it to the nearest cell?
+                 // Or just simpler: divide by stepX.
+                 // index 0 covers [0, stepX)
+                 // This includes the cell AND the gap to its right.
+                 // This is good for UX.
+                 
+                 if (index >= 0 && index < Inventory::TOOLBAR_SIZE)
+                 {
+                     _inventory->setSelectedSlot(index);
+                     updateInventoryUI();
+                 }
+             }
         }
+        return; // Important: We swallowed the event, so we return.
     }
 }
 

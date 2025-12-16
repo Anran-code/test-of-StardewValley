@@ -39,6 +39,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasRightExit = false;
     _exitedRight = false;
     _hasBoundary = false;
+    _isDebugMode = false;
 
     if (_type == BackgroundType::Farm)
     {
@@ -241,9 +242,16 @@ void BackgroundLayer::update(float dt)
     {
         Vec2 delta = velocity * dt;
         Vec2 pos = _player->getPosition();
+
+        // Use a smaller footprint box for collision (feet only)
+        // This prevents the head/body from getting stuck on obstacles
+        Rect spriteBox = _player->getBoundingBox();
+        float footW = spriteBox.size.width * 0.5f; // 50% width
+        float footH = spriteBox.size.height * 0.25f; // 25% height (bottom)
+        Rect box(spriteBox.getMidX() - footW * 0.5f, spriteBox.getMinY(), footW, footH);
+
         if (_hasHomeRect)
         {
-            Rect box = _player->getBoundingBox();
             Rect boxX = box;
             boxX.origin.x += delta.x;
             bool blockX = boxX.intersectsRect(_homeRect) || (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
@@ -292,7 +300,6 @@ void BackgroundLayer::update(float dt)
         }
         else
         {
-            Rect box = _player->getBoundingBox();
             Rect boxX = box;
             boxX.origin.x += delta.x;
             bool blockX = (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
@@ -316,6 +323,12 @@ void BackgroundLayer::update(float dt)
         pos.y = std::max(halfH, std::min(pos.y, mapHeight - halfH));
 
         _player->setPosition(pos);
+    }
+
+    // Dynamic Z-Order for Player (Depth Sorting)
+    if (_player)
+    {
+        _player->setLocalZOrder(static_cast<int>(mapHeight - _player->getPositionY()));
     }
 
     if (_hasHomeRect && !_enteredHome)
@@ -363,6 +376,8 @@ void BackgroundLayer::update(float dt)
     if (_facingDebug && _groundLayer)
     {
         _facingDebug->clear();
+
+        // 1. Always draw facing tile cursor (User requirement: always visible)
         Vec2 tileIndex = getFacingTile();
         if (tileIndex.x >= 0 && tileIndex.y >= 0)
         {
@@ -380,29 +395,81 @@ void BackgroundLayer::update(float dt)
             _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 0.3f, 0.3f));
             _facingDebug->drawRect(p1, p2, Color4F(1.0f, 1.0f, 1.0f, 1.0f));
         }
-        if (_hasHomeRect)
+
+        // 2. Only draw debug collision boxes if debug mode is ON
+        if (_isDebugMode)
         {
-            Vec2 h1(_homeRect.getMinX(), _homeRect.getMinY());
-            Vec2 h2(_homeRect.getMaxX(), _homeRect.getMaxY());
-            _facingDebug->drawRect(h1, h2, Color4F(1.0f, 0.0f, 0.0f, 1.0f));
-            Vec2 d1(_homeDoorRect.getMinX(), _homeDoorRect.getMinY());
-            Vec2 d2(_homeDoorRect.getMaxX(), _homeDoorRect.getMaxY());
-            _facingDebug->drawSolidRect(d1, d2, Color4F(0.0f, 1.0f, 0.0f, 0.2f));
-            _facingDebug->drawRect(d1, d2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
-        }
-        if (_hasRightExit)
-        {
-            Vec2 e1(_rightExitRect.getMinX(), _rightExitRect.getMinY());
-            Vec2 e2(_rightExitRect.getMaxX(), _rightExitRect.getMaxY());
-            _facingDebug->drawSolidRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 0.2f));
-            _facingDebug->drawRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
-        }
-        if (_hasBoundary)
-        {
-            _facingDebug->drawRect(Vec2(_boundaryLeftRect.getMinX(), _boundaryLeftRect.getMinY()), Vec2(_boundaryLeftRect.getMaxX(), _boundaryLeftRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
-            _facingDebug->drawRect(Vec2(_boundaryRightRect.getMinX(), _boundaryRightRect.getMinY()), Vec2(_boundaryRightRect.getMaxX(), _boundaryRightRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
-            _facingDebug->drawRect(Vec2(_boundaryTopRect.getMinX(), _boundaryTopRect.getMinY()), Vec2(_boundaryTopRect.getMaxX(), _boundaryTopRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
-            _facingDebug->drawRect(Vec2(_boundaryBottomRect.getMinX(), _boundaryBottomRect.getMinY()), Vec2(_boundaryBottomRect.getMaxX(), _boundaryBottomRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+            if (_hasHomeRect)
+            {
+                Vec2 h1(_homeRect.getMinX(), _homeRect.getMinY());
+                Vec2 h2(_homeRect.getMaxX(), _homeRect.getMaxY());
+                _facingDebug->drawRect(h1, h2, Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+                Vec2 d1(_homeDoorRect.getMinX(), _homeDoorRect.getMinY());
+                Vec2 d2(_homeDoorRect.getMaxX(), _homeDoorRect.getMaxY());
+                _facingDebug->drawSolidRect(d1, d2, Color4F(0.0f, 1.0f, 0.0f, 0.2f));
+                _facingDebug->drawRect(d1, d2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
+            }
+            if (_hasRightExit)
+            {
+                Vec2 e1(_rightExitRect.getMinX(), _rightExitRect.getMinY());
+                Vec2 e2(_rightExitRect.getMaxX(), _rightExitRect.getMaxY());
+                _facingDebug->drawSolidRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 0.2f));
+                _facingDebug->drawRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
+            }
+            if (_hasBoundary)
+            {
+                _facingDebug->drawRect(Vec2(_boundaryLeftRect.getMinX(), _boundaryLeftRect.getMinY()), Vec2(_boundaryLeftRect.getMaxX(), _boundaryLeftRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+                _facingDebug->drawRect(Vec2(_boundaryRightRect.getMinX(), _boundaryRightRect.getMinY()), Vec2(_boundaryRightRect.getMaxX(), _boundaryRightRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+                _facingDebug->drawRect(Vec2(_boundaryTopRect.getMinX(), _boundaryTopRect.getMinY()), Vec2(_boundaryTopRect.getMaxX(), _boundaryTopRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+                _facingDebug->drawRect(Vec2(_boundaryBottomRect.getMinX(), _boundaryBottomRect.getMinY()), Vec2(_boundaryBottomRect.getMaxX(), _boundaryBottomRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+            }
+
+            // --- DEBUG: Visualize Player Collision Box (Footprint) ---
+            if (_player)
+            {
+                Rect spriteBox = _player->getBoundingBox();
+                float footW = spriteBox.size.width * 0.5f;
+                float footH = spriteBox.size.height * 0.25f;
+                Rect box(spriteBox.getMidX() - footW * 0.5f, spriteBox.getMinY(), footW, footH);
+            
+                _facingDebug->drawRect(
+                    Vec2(box.getMinX(), box.getMinY()), 
+                    Vec2(box.getMaxX(), box.getMaxY()), 
+                    Color4F(0.0f, 0.0f, 1.0f, 1.0f) // Blue for player footprint
+                );
+            }
+
+            // --- DEBUG: Visualize Obstacle Collision Boxes ---
+            if (_map)
+            {
+                Size tileSize = _map->getTileSize();
+                Size mapSize = _map->getMapSize();
+                float mapHeight = mapSize.height * tileSize.height;
+
+                // Iterate all tiles to find obstacles (inefficient but okay for debug)
+                for (const auto& pair : _obstacles)
+                {
+                    int key = pair.first;
+                    int x = key % (int)mapSize.width;
+                    int y = key / (int)mapSize.width;
+
+                    float cx = (x + 0.5f) * tileSize.width;
+                    float cy = mapHeight - (y + 0.5f) * tileSize.height;
+
+                    // Match the shrink factor used in checkCollisionWithObstacles
+                    float shrinkFactor = 0.85f; 
+                    float w = tileSize.width * shrinkFactor;
+                    float h = tileSize.height * shrinkFactor;
+
+                    Rect obsRect(cx - w * 0.5f, cy - h * 0.5f, w, h);
+                
+                    _facingDebug->drawRect(
+                        Vec2(obsRect.getMinX(), obsRect.getMinY()),
+                        Vec2(obsRect.getMaxX(), obsRect.getMaxY()),
+                        Color4F(1.0f, 0.0f, 0.0f, 1.0f) // Red for obstacles
+                    );
+                }
+            }
         }
     }
 }
@@ -414,6 +481,9 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         Vec2 tile = getFacingTile();
         switch (keyCode)
         {
+        case EventKeyboard::KeyCode::KEY_GRAVE: // Tilde key (~)
+            _isDebugMode = !_isDebugMode;
+            break;
         case EventKeyboard::KeyCode::KEY_1:
             CropSystem::getInstance()->setSelectedCrop(CropType::Parsnip);
             break;
@@ -745,6 +815,12 @@ void BackgroundLayer::onMouseDown(Event* event)
             // Optional: Drop item?
             return;
         }
+        else
+        {
+            // If obstacle exists and was not removed (wrong tool or no tool),
+            // it blocks all other actions (tilling, watering, planting).
+            return;
+        }
     }
 
     // 3. Tool / Plant
@@ -824,7 +900,15 @@ void BackgroundLayer::initObstacles()
             {
                 sprite->setScale(tileSize.width / sprite->getContentSize().width);
             }
-            addChild(sprite, 5);
+            
+            // Set Z-order based on Y position for proper occlusion (2.5D look)
+            // Objects lower on screen (higher Y in screen coords? No, Cocos Y is Up)
+            // Cocos2d-x: (0,0) is Bottom-Left. Higher Y is higher on screen.
+            // In Top-Down, higher Y means "further back".
+            // So higher Y should be drawn FIRST (lower Z-order).
+            // Lower Y (closer to bottom) should be drawn LAST (higher Z-order).
+            int zOrder = static_cast<int>(mapHeight - cyPos);
+            addChild(sprite, zOrder);
             
             Obstacle obs;
             obs.type = type;
@@ -885,7 +969,22 @@ bool BackgroundLayer::checkCollisionWithObstacles(const Rect& box)
         {
             if (hasObstacle(Vec2(x, y)))
             {
-                return true;
+                // Refined collision: Use a smaller box for the obstacle
+                // to prevent getting stuck on edges ("sticky corners")
+                float cx = (x + 0.5f) * tileSize.width;
+                float cy = mapHeight - (y + 0.5f) * tileSize.height;
+
+                // Reduce collision box size (e.g. 85% of tile size)
+                float shrinkFactor = 0.85f; 
+                float w = tileSize.width * shrinkFactor;
+                float h = tileSize.height * shrinkFactor;
+
+                Rect obsRect(cx - w * 0.5f, cy - h * 0.5f, w, h);
+
+                if (box.intersectsRect(obsRect))
+                {
+                    return true;
+                }
             }
         }
     }

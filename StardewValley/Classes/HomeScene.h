@@ -58,6 +58,7 @@ private:
     bool _hasBoundary;
     bool _enteredHome;
     bool _exitedRight;
+    bool _isDebugMode;
  
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
