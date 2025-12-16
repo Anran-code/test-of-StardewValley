@@ -49,12 +49,14 @@ public:
     static CropSystem* getInstance();
 
     void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet);
+    void setBasket(class Basket* basket);
     void setSelectedCrop(CropType type);
     void tillTile(const cocos2d::Vec2& tileIndex);
     bool plantSelected(const cocos2d::Vec2& tileIndex);
     void waterTile(const cocos2d::Vec2& tileIndex);
     bool harvestTile(const cocos2d::Vec2& tileIndex);
     void updateDailyGrowth();
+    int getSellPrice(CropType type) const;
 
 private:
     static CropSystem* sInstance;
@@ -64,6 +66,7 @@ private:
     cocos2d::TMXLayer* _groundLayer;
     GameClock* _clock;
     Wallet* _wallet;
+    class Basket* _basket;
     CropType _selected;
     int _lastProcessedDay;
     int _lastProcessedSeason;

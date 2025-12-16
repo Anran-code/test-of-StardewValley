@@ -56,6 +56,8 @@ list(APPEND GAME_SOURCE
      Classes/GameClock.cpp
      Classes/Wallet.cpp
      Classes/HudLayer.cpp
+     Classes/Basket.cpp
+     Classes/ShopLayer.cpp
      )
 list(APPEND GAME_HEADER
      Classes/AppDelegate.h
@@ -66,6 +68,8 @@ list(APPEND GAME_HEADER
      Classes/GameClock.h
      Classes/Wallet.h
      Classes/HudLayer.h
+     Classes/Basket.h
+     Classes/ShopLayer.h
      )
 
 if(ANDROID)

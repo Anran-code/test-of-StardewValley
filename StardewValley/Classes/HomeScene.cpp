@@ -3,6 +3,8 @@
 #include "Wallet.h"
 #include "HudLayer.h"
 #include "CropSystem.h"
+// #include "Basket.h" // Ignore Shop related includes
+// #include "ShopLayer.h" // Ignore Shop related includes
 
 USING_NS_CC;
 
@@ -605,7 +607,6 @@ Scene* HomeScene::make(BackgroundType type)
 
 GameClock* HomeScene::sClock = nullptr;
 Wallet* HomeScene::sWallet = nullptr;
-Inventory* HomeScene::sInventory = nullptr;
 Vec2 HomeScene::sLastFarmPlayerPos = Vec2::ZERO;
 bool HomeScene::sHasLastFarmPlayerPos = false;
 
@@ -660,11 +661,7 @@ bool HomeScene::init()
 
     if (!HomeScene::sClock) { HomeScene::sClock = new GameClock(); }
     if (!HomeScene::sWallet) { HomeScene::sWallet = new Wallet(); }
-    if (!HomeScene::sInventory) { HomeScene::sInventory = new Inventory(); }
-    _clock = HomeScene::sClock;
-    _wallet = HomeScene::sWallet;
-    _inventory = HomeScene::sInventory;
-    _hud = HudLayer::create(_clock, _wallet, _inventory);
+
     if (_hud)
     {
         addChild(_hud, 1000);
@@ -704,11 +701,6 @@ bool HomeScene::initWithStartType(BackgroundType type)
 
     if (!HomeScene::sClock) { HomeScene::sClock = new GameClock(); }
     if (!HomeScene::sWallet) { HomeScene::sWallet = new Wallet(); }
-    if (!HomeScene::sInventory) { HomeScene::sInventory = new Inventory(); }
-    _clock = HomeScene::sClock;
-    _wallet = HomeScene::sWallet;
-    _inventory = HomeScene::sInventory;
-    _hud = HudLayer::create(_clock, _wallet, _inventory);
     if (_hud)
     {
         addChild(_hud, 1000);
