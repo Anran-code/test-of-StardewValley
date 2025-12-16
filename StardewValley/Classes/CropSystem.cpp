@@ -267,6 +267,12 @@ void CropSystem::ensureGridSize()
     for (int x = 0; x < (int)mapTiles.width; ++x)
     {
         _tiles[x].resize((int)mapTiles.height);
+        for (int y = 0; y < (int)mapTiles.height; ++y)
+        {
+            _tiles[x][y].tilled = false;
+            _tiles[x][y].watered = false;
+            _tiles[x][y].crop.reset();
+        }
     }
 }
 
