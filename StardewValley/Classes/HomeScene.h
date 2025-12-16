@@ -29,6 +29,19 @@ private:
     Player* _player;
     float _zoom;
     cocos2d::DrawNode* _facingDebug;
+    cocos2d::Rect _homeRect;
+    cocos2d::Rect _homeDoorRect;
+    cocos2d::Rect _homeDoorTunnelRect;
+    cocos2d::Rect _rightExitRect;
+    cocos2d::Rect _boundaryLeftRect;
+    cocos2d::Rect _boundaryRightRect;
+    cocos2d::Rect _boundaryTopRect;
+    cocos2d::Rect _boundaryBottomRect;
+    bool _hasHomeRect;
+    bool _hasRightExit;
+    bool _hasBoundary;
+    bool _enteredHome;
+    bool _exitedRight;
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
@@ -48,8 +61,15 @@ class HomeScene : public cocos2d::Scene
 {
 public:
     static cocos2d::Scene* createScene();
+    static cocos2d::Scene* createScene(BackgroundType type);
+    static void switchTo(BackgroundType type, float duration = 0.5f);
+    static cocos2d::Scene* make(BackgroundType type);
+    static void switchViaRightExit(float duration = 0.5f);
+    static cocos2d::Vec2 sLastFarmPlayerPos;
+    static bool sHasLastFarmPlayerPos;
 
     virtual bool init();
+    bool initWithStartType(BackgroundType type);
     virtual ~HomeScene();
 
     void onStartGameClicked(cocos2d::Ref* sender);
@@ -59,9 +79,12 @@ public:
     CREATE_FUNC(HomeScene);
 
 private:
+    BackgroundType _startType;
     class GameClock* _clock;
     class Wallet* _wallet;
     class HudLayer* _hud;
+    static class GameClock* sClock;
+    static class Wallet* sWallet;
 
     virtual void update(float dt) override;
 };
