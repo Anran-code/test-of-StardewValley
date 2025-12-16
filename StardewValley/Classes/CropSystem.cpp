@@ -1,5 +1,6 @@
 #include "CropSystem.h"
 #include "cocos2d.h"
+#include "Basket.h"
 
 using namespace cocos2d;
 
@@ -16,6 +17,7 @@ CropSystem::CropSystem()
     , _groundLayer(nullptr)
     , _clock(nullptr)
     , _wallet(nullptr)
+    , _basket(nullptr)
     , _selected(CropType::Parsnip)
     , _lastProcessedDay(-1)
     , _lastProcessedSeason(-1)
@@ -42,6 +44,11 @@ void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet)
         _lastProcessedDay = _clock->getDay();
         _lastProcessedSeason = (int)_clock->getSeason();
     }
+}
+
+void CropSystem::setBasket(Basket* basket)
+{
+    _basket = basket;
 }
 
 void CropSystem::setSelectedCrop(CropType type)
@@ -103,7 +110,14 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         float r = RandomHelper::random_real<float>(0.0f, 1.0f);
         if (r < 0.25f) yieldCount += 1;
     }
-    if (_wallet) _wallet->addMoney(d.sellPrice * yieldCount);
+    if (_basket)
+    {
+        _basket->addCrop(inst->type, yieldCount);
+    }
+    else if (_wallet)
+    {
+        _wallet->addMoney(d.sellPrice * yieldCount);
+    }
     if (inst->sprite)
     {
         inst->sprite->removeFromParent();
@@ -356,4 +370,11 @@ bool CropSystem::isSeasonAllowed(CropType type, GameClock::Season s) const
         if (ss == s) return true;
     }
     return false;
+}
+
+int CropSystem::getSellPrice(CropType type) const
+{
+    auto it = _data.find(type);
+    if (it == _data.end()) return 0;
+    return it->second.sellPrice;
 }

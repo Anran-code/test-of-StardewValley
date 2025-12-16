@@ -82,9 +82,11 @@ private:
     BackgroundType _startType;
     class GameClock* _clock;
     class Wallet* _wallet;
+    class Basket* _basket;
     class HudLayer* _hud;
     static class GameClock* sClock;
     static class Wallet* sWallet;
+    static class Basket* sBasket;
 
     virtual void update(float dt) override;
 };

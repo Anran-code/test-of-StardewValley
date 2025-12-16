@@ -3,6 +3,8 @@
 #include "Wallet.h"
 #include "HudLayer.h"
 #include "CropSystem.h"
+#include "Basket.h"
+#include "ShopLayer.h"
 
 USING_NS_CC;
 
@@ -549,6 +551,7 @@ Scene* HomeScene::make(BackgroundType type)
 
 GameClock* HomeScene::sClock = nullptr;
 Wallet* HomeScene::sWallet = nullptr;
+Basket* HomeScene::sBasket = nullptr;
 Vec2 HomeScene::sLastFarmPlayerPos = Vec2::ZERO;
 bool HomeScene::sHasLastFarmPlayerPos = false;
 
@@ -603,14 +606,17 @@ bool HomeScene::init()
 
     if (!HomeScene::sClock) { HomeScene::sClock = new GameClock(); }
     if (!HomeScene::sWallet) { HomeScene::sWallet = new Wallet(); }
+    if (!HomeScene::sBasket) { HomeScene::sBasket = new Basket(); }
     _clock = HomeScene::sClock;
     _wallet = HomeScene::sWallet;
+    _basket = HomeScene::sBasket;
     _hud = HudLayer::create(_clock, _wallet);
     if (_hud)
     {
         addChild(_hud, 1000);
     }
     CropSystem::getInstance()->init(nullptr, _clock, _wallet);
+    CropSystem::getInstance()->setBasket(_basket);
     scheduleUpdate();
 
     return true;
@@ -645,14 +651,25 @@ bool HomeScene::initWithStartType(BackgroundType type)
 
     if (!HomeScene::sClock) { HomeScene::sClock = new GameClock(); }
     if (!HomeScene::sWallet) { HomeScene::sWallet = new Wallet(); }
+    if (!HomeScene::sBasket) { HomeScene::sBasket = new Basket(); }
     _clock = HomeScene::sClock;
     _wallet = HomeScene::sWallet;
+    _basket = HomeScene::sBasket;
     _hud = HudLayer::create(_clock, _wallet);
     if (_hud)
     {
         addChild(_hud, 1000);
     }
     CropSystem::getInstance()->init(nullptr, _clock, _wallet);
+    CropSystem::getInstance()->setBasket(_basket);
+    if (_startType == BackgroundType::Shop)
+    {
+        auto shop = ShopLayer::create(_wallet, _basket, CropSystem::getInstance());
+        if (shop)
+        {
+            addChild(shop, 100);
+        }
+    }
     scheduleUpdate();
 
     return true;
