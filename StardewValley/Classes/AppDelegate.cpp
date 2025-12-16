@@ -93,6 +93,7 @@ bool AppDelegate::applicationDidFinishLaunching() {
 
     // Add Resources directory to search path
     FileUtils::getInstance()->addSearchPath("Resources");
+    glview->setIcon("StardewValley_gameIcon.png");
 
     // turn on display FPS
     director->setDisplayStats(true);

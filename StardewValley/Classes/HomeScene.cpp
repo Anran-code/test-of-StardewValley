@@ -2,6 +2,7 @@
 #include "GameClock.h"
 #include "Wallet.h"
 #include "HudLayer.h"
+#include "CropSystem.h"
 
 USING_NS_CC;
 
@@ -132,6 +133,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     }
                 }
 
+                CropSystem::getInstance()->init(_map, nullptr, nullptr);
                 return true;
             }
             else
@@ -395,6 +397,36 @@ void BackgroundLayer::update(float dt)
 
 void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
+    if (_type == BackgroundType::Farm)
+    {
+        Vec2 tile = getFacingTile();
+        switch (keyCode)
+        {
+        case EventKeyboard::KeyCode::KEY_1:
+            CropSystem::getInstance()->setSelectedCrop(CropType::Parsnip);
+            break;
+        case EventKeyboard::KeyCode::KEY_2:
+            CropSystem::getInstance()->setSelectedCrop(CropType::Cauliflower);
+            break;
+        case EventKeyboard::KeyCode::KEY_3:
+            CropSystem::getInstance()->setSelectedCrop(CropType::Potato);
+            break;
+        case EventKeyboard::KeyCode::KEY_E:
+            CropSystem::getInstance()->tillTile(tile);
+            break;
+        case EventKeyboard::KeyCode::KEY_F:
+            CropSystem::getInstance()->plantSelected(tile);
+            break;
+        case EventKeyboard::KeyCode::KEY_G:
+            CropSystem::getInstance()->waterTile(tile);
+            break;
+        case EventKeyboard::KeyCode::KEY_H:
+            CropSystem::getInstance()->harvestTile(tile);
+            break;
+        default:
+            break;
+        }
+    }
     if (_player)
     {
         _player->onKeyPressed(keyCode);
@@ -578,6 +610,7 @@ bool HomeScene::init()
     {
         addChild(_hud, 1000);
     }
+    CropSystem::getInstance()->init(nullptr, _clock, _wallet);
     scheduleUpdate();
 
     return true;
@@ -619,6 +652,7 @@ bool HomeScene::initWithStartType(BackgroundType type)
     {
         addChild(_hud, 1000);
     }
+    CropSystem::getInstance()->init(nullptr, _clock, _wallet);
     scheduleUpdate();
 
     return true;
@@ -639,6 +673,7 @@ void HomeScene::update(float dt)
     {
         _clock->update(dt);
     }
+    CropSystem::getInstance()->updateDailyGrowth();
     if (_hud)
     {
         _hud->refresh();

@@ -22,7 +22,7 @@ public:
 
     cocos2d::Vec2 getFacingTile() const;
 
-private:
+ private:
     BackgroundType _type;
     cocos2d::TMXTiledMap* _map;
     cocos2d::TMXLayer* _groundLayer;
@@ -42,10 +42,10 @@ private:
     bool _hasBoundary;
     bool _enteredHome;
     bool _exitedRight;
-
+ 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
-
+ 
     virtual void update(float dt) override;
 };
 
