@@ -43,13 +43,17 @@ struct TileSlot
     std::unique_ptr<CropInstance> crop;
 };
 
+class GameClock;
+class Wallet;
+// class Basket;
+
 class CropSystem
 {
 public:
     static CropSystem* getInstance();
 
     void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet);
-    void setBasket(class Basket* basket);
+    // void setBasket(Basket* basket);
     void setSelectedCrop(CropType type);
     void tillTile(const cocos2d::Vec2& tileIndex);
     bool plantSelected(const cocos2d::Vec2& tileIndex);
@@ -66,7 +70,7 @@ private:
     cocos2d::TMXLayer* _groundLayer;
     GameClock* _clock;
     Wallet* _wallet;
-    class Basket* _basket;
+    // Basket* _basket;
     CropType _selected;
     int _lastProcessedDay;
     int _lastProcessedSeason;

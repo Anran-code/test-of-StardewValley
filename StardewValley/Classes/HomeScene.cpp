@@ -610,6 +610,8 @@ Wallet* HomeScene::sWallet = nullptr;
 Vec2 HomeScene::sLastFarmPlayerPos = Vec2::ZERO;
 bool HomeScene::sHasLastFarmPlayerPos = false;
 
+Inventory* HomeScene::sInventory = nullptr; // Define sInventory
+
 void HomeScene::switchTo(BackgroundType type, float duration)
 {
     auto next = HomeScene::createScene(type);
@@ -661,7 +663,13 @@ bool HomeScene::init()
 
     if (!HomeScene::sClock) { HomeScene::sClock = new GameClock(); }
     if (!HomeScene::sWallet) { HomeScene::sWallet = new Wallet(); }
+    if (!HomeScene::sInventory) { HomeScene::sInventory = new Inventory(); }
 
+    _clock = HomeScene::sClock;
+    _wallet = HomeScene::sWallet;
+    _inventory = HomeScene::sInventory;
+
+    _hud = HudLayer::create(_clock, _wallet, _inventory);
     if (_hud)
     {
         addChild(_hud, 1000);
@@ -701,6 +709,13 @@ bool HomeScene::initWithStartType(BackgroundType type)
 
     if (!HomeScene::sClock) { HomeScene::sClock = new GameClock(); }
     if (!HomeScene::sWallet) { HomeScene::sWallet = new Wallet(); }
+    if (!HomeScene::sInventory) { HomeScene::sInventory = new Inventory(); }
+
+    _clock = HomeScene::sClock;
+    _wallet = HomeScene::sWallet;
+    _inventory = HomeScene::sInventory;
+
+    _hud = HudLayer::create(_clock, _wallet, _inventory);
     if (_hud)
     {
         addChild(_hud, 1000);

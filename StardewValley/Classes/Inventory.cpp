@@ -50,7 +50,7 @@ void Inventory::addItem(Item item)
 
 bool Inventory::hasItem(int slotIndex) const
 {
-    if (slotIndex < 0 || slotIndex >= _items.size()) return false;
+    if (slotIndex < 0 || slotIndex >= (int)_items.size()) return false;
     return _items[slotIndex].quantity > 0;
 }
 
@@ -66,7 +66,7 @@ Item& Inventory::getItem(int slotIndex)
 
 void Inventory::removeItem(int slotIndex, int count)
 {
-    if (slotIndex < 0 || slotIndex >= _items.size()) return;
+    if (slotIndex < 0 || slotIndex >= (int)_items.size()) return;
     if (_items[slotIndex].quantity > 0)
     {
         _items[slotIndex].quantity -= count;
