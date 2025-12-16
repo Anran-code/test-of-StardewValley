@@ -419,12 +419,10 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         case EventKeyboard::KeyCode::KEY_3:
             CropSystem::getInstance()->setSelectedCrop(CropType::Potato);
             break;
-        case EventKeyboard::KeyCode::KEY_T: // Changed from E to T to avoid conflict with Backpack
+        case EventKeyboard::KeyCode::KEY_T:
             CropSystem::getInstance()->tillTile(tile);
             break;
         case EventKeyboard::KeyCode::KEY_F:
-            // CropSystem::getInstance()->plantSelected(tile);
-            // This logic is now handled by handleToolUse or needs to check selected item
             handleToolUse();
             break;
         case EventKeyboard::KeyCode::KEY_G:
@@ -452,12 +450,36 @@ void BackgroundLayer::handleToolUse()
 
     Vec2 tile = getFacingTile();
 
+    // Handle Obstacles first
+    if (hasObstacle(tile))
+    {
+        int obsType = getObstacleType(tile);
+        bool removed = false;
+        if (item->type == ItemType::Tool)
+        {
+            if (obsType == 0 && item->toolType == ToolType::Axe) removed = true; // Wood
+            else if (obsType == 1 && item->toolType == ToolType::Pickaxe) removed = true; // Stone
+            else if (obsType == 2 && item->toolType == ToolType::Scythe) removed = true; // Weed
+        }
+        
+        if (removed)
+        {
+            removeObstacle(tile);
+            // Optional: Drop item logic here
+            return; // Action consumed
+        }
+    }
+
     if (item->type == ItemType::Tool)
     {
         switch (item->toolType)
         {
         case ToolType::Hoe:
-            CropSystem::getInstance()->tillTile(tile);
+            // Only till if no obstacle (already checked above, but safe to keep)
+            if (!hasObstacle(tile))
+            {
+                CropSystem::getInstance()->tillTile(tile);
+            }
             break;
         case ToolType::WateringCan:
             CropSystem::getInstance()->waterTile(tile);
@@ -465,6 +487,7 @@ void BackgroundLayer::handleToolUse()
         // Other tools implementation
         case ToolType::Axe:
         case ToolType::Pickaxe:
+        case ToolType::Scythe:
         default:
             break;
         }
@@ -480,12 +503,6 @@ void BackgroundLayer::handleToolUse()
             int slot = HomeScene::sInventory->getSelectedSlot();
             HomeScene::sInventory->removeItem(slot, 1);
             
-            // Try to update HUD if possible
-            auto scene = Director::getInstance()->getRunningScene();
-            // We can't easily get HUD from here without casting or storing ref.
-            // But HUD listens to keys, so it will update on next key press if we don't force it.
-            // To force update, we could make HUD static instance or use EventDispatcher.
-            // Let's use a custom event.
             Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
         }
     }
@@ -761,13 +778,24 @@ void BackgroundLayer::onMouseDown(Event* event)
     // Check distance to player
     Vec2 playerPos = _player->getPosition();
     float dist = playerPos.distance(worldPos);
-    float range = _map->getTileSize().width * 2.0f; // 2 tiles range
+    float range = _map->getTileSize().width * 4.0f; // Increased range to 4 tiles
     
+    // Debug click position
+    if (!_facingDebug) {
+        _facingDebug = DrawNode::create();
+        _map->addChild(_facingDebug, 1000);
+    }
+    _facingDebug->clear();
+    _facingDebug->drawDot(worldPos, 5.0f, Color4F::RED); // Draw red dot at click logic pos
+
     if (dist > range)
     {
         // Too far
+        // Draw a circle to show range
+        _facingDebug->drawCircle(playerPos, range, 0, 30, false, Color4F::BLUE);
         return;
     }
+    _facingDebug->drawCircle(playerPos, range, 0, 30, false, Color4F::GREEN);
     
     // Get tile index
     Vec2 tileIndex = FarmMapUtils::worldToGrid(worldPos, dynamic_cast<Sprite*>(_groundLayer), 0, 0); // Oops, FarmMapUtils needs fixing or usage
@@ -863,48 +891,51 @@ void BackgroundLayer::initObstacles()
     Size tileSize = _map->getTileSize();
     float mapHeight = mapSize.height * tileSize.height;
 
-    // Deterministic random or fixed pattern
-    // For testing, let's place some near the start
+    // Random generation across the map
+    // Avoid player spawn area (center) and house area
     
-    struct Spawn { int x; int y; int type; };
-    std::vector<Spawn> spawns = {
-        {10, 10, 0}, {11, 10, 1}, {12, 10, 2}, // Wood, Stone, Weed
-        {15, 15, 0}, {16, 15, 0}, {15, 16, 1},
-        {20, 20, 2}, {21, 20, 2}, {22, 20, 2}
-    };
+    // Simple seeded random for consistency if needed, or pure random
     
-    for (const auto& s : spawns)
+    int obstacleCount = (mapSize.width * mapSize.height) / 10; // 10% density
+    
+    for (int i = 0; i < obstacleCount; ++i)
     {
-        int key = s.y * (int)mapSize.width + s.x;
+        int x = RandomHelper::random_int(0, (int)mapSize.width - 1);
+        int y = RandomHelper::random_int(0, (int)mapSize.height - 1);
+        
+        // Skip if occupied (home, etc.)
+        // Simplified check: avoid center 5x5 area
+        int cx = mapSize.width / 2;
+        int cy = mapSize.height / 2;
+        if (abs(x - cx) < 3 && abs(y - cy) < 3) continue;
+        
+        // Check if already has obstacle
+        if (hasObstacle(Vec2(x, y))) continue;
+        
+        int type = RandomHelper::random_int(0, 2); // 0, 1, 2
+        
+        int key = y * (int)mapSize.width + x;
         
         std::string file;
-        if (s.type == 0) file = "block/Wood.png";
-        else if (s.type == 1) file = "block/Stone.png";
-        else if (s.type == 2) file = "block/Fiber.png"; // Assuming Fiber.png for weed
+        if (type == 0) file = "block/Wood.png";
+        else if (type == 1) file = "block/Stone.png";
+        else if (type == 2) file = "block/Fiber.png"; 
         
         auto sprite = Sprite::create(file);
         if (sprite)
         {
-            // Position center of tile
-            float cx = (s.x + 0.5f) * tileSize.width;
-            float cy = mapHeight - (s.y + 0.5f) * tileSize.height;
-            sprite->setPosition(Vec2(cx, cy));
-            // Adjust scale if needed
+            float cxPos = (x + 0.5f) * tileSize.width;
+            float cyPos = mapHeight - (y + 0.5f) * tileSize.height;
+            sprite->setPosition(Vec2(cxPos, cyPos));
+            
             if (sprite->getContentSize().width > tileSize.width)
             {
                 sprite->setScale(tileSize.width / sprite->getContentSize().width);
             }
-            addChild(sprite, 5); // Above ground, below player (player is z=1... wait player is z=1. Obstacles should be z=1 too and sort by Y? 
-            // For now z=5 to be safe visible, or use Z-ordering based on Y.
-            // Simple approach: z=1 same as player, let cocos render order handle it? 
-            // No, need localZOrder updates. 
-            // Let's put at 0 for now (ground) + small offset? 
-            // Actually player is at 1. Ground is at 0.
-            // Obstacles should be at 1 and we need dynamic Z ordering for depth.
-            // For this task, let's just put them at 0 (above map) or 1.
+            addChild(sprite, 5);
             
             Obstacle obs;
-            obs.type = s.type;
+            obs.type = type;
             obs.sprite = sprite;
             obs.active = true;
             _obstacles[key] = obs;

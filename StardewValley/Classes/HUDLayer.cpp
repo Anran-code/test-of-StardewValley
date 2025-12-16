@@ -110,6 +110,7 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
 
     auto mouseListener = EventListenerMouse::create();
     mouseListener->onMouseScroll = CC_CALLBACK_1(HudLayer::onScroll, this);
+    mouseListener->onMouseDown = CC_CALLBACK_1(HudLayer::onMouseDown, this);
     _eventDispatcher->addEventListenerWithSceneGraphPriority(mouseListener, this);
 
     auto updateListener = EventListenerCustom::create("INVENTORY_UPDATED", [this](EventCustom* event) {
@@ -202,17 +203,49 @@ void HudLayer::updateInventoryUI()
     // If we don't know the exact pixel offsets, we can approximate.
     // Toolbar width is toolbarSize.width. Each slot is roughly width / 12.
     
-    float slotWidth = toolbarSize.width / 12.0f;
-    float slotHeight = toolbarSize.height; // Assuming single row
+    // Toolbar.png 像素信息:
+    // 假设 Toolbar.png 的原始宽度对应这些像素值
+    // 每个格子 198x190
+    // 左边框到第一个格子左边缘: 54
+    // 下边框到第一个格子下边缘: 75 (原点在左下角，所以Y轴偏移是75)
+    // 格子间隙: 30
+    // 
+    // 我们需要将这些像素值转换为相对于 toolbar 缩放后的屏幕坐标。
     
-    // Starting X (left side of the toolbar in world space)
-    // Anchor is (0.5, 0.0), so left is pos.x - (width * scale)/2
-    float startX = toolbarPos.x - (toolbarSize.width * scale * 0.5f);
-    float startY = toolbarPos.y; // Bottom aligned
+    // 获取 toolbar 原始尺寸
+    Size originalSize = _toolbar->getContentSize();
     
-    float scaledSlotWidth = slotWidth * scale;
-    float scaledSlotHeight = slotHeight * scale;
+    // Pixel constants
+    // These constants are defined in the header file, no need to redefine
     
+    // 计算缩放后的值
+    float scaledLeftMargin = RAW_LEFT_MARGIN * scale;
+    float scaledBottomMargin = RAW_BOTTOM_MARGIN * scale;
+    float scaledCellWidth = RAW_CELL_WIDTH * scale;
+    float scaledCellHeight = RAW_CELL_HEIGHT * scale;
+    float scaledGap = RAW_GAP * scale;
+    
+    // Toolbar 在屏幕上的左下角坐标
+    // Anchor(0.5, 0.0), Pos(cx, y)
+    // Left = Pos.x - (ContentW * Scale * 0.5)
+    // Bottom = Pos.y
+    float toolbarScreenLeft = toolbarPos.x - (originalSize.width * scale * 0.5f);
+    float toolbarScreenBottom = toolbarPos.y;
+    
+    // Cache for hit testing
+    _cachedToolbarLeft = toolbarScreenLeft;
+    _cachedToolbarBottom = toolbarScreenBottom;
+    _cachedScale = scale;
+
+    // 第一个格子的中心点
+    // CenterX = Left + Margin + CellW/2
+    // CenterY = Bottom + Margin + CellH/2
+    float startCenterX = toolbarScreenLeft + scaledLeftMargin + (scaledCellWidth * 0.5f);
+    float startCenterY = toolbarScreenBottom + scaledBottomMargin + (scaledCellHeight * 0.5f);
+    
+    // 每个格子之间的步长
+    float stepX = scaledCellWidth + scaledGap;
+
     // Update items
     for (int i = 0; i < Inventory::TOOLBAR_SIZE; i++)
     {
@@ -222,13 +255,19 @@ void HudLayer::updateInventoryUI()
             auto sprite = Sprite::create(item.iconPath);
             if (sprite)
             {
-                // Fit into slot
-                float iconScale = (scaledSlotWidth * 0.7f) / sprite->getContentSize().width;
+                // Fit into slot (leave some padding, e.g. 10%)
+                float maxIconW = scaledCellWidth * 0.8f;
+                float maxIconH = scaledCellHeight * 0.8f;
+                
+                float sX = maxIconW / sprite->getContentSize().width;
+                float sY = maxIconH / sprite->getContentSize().height;
+                float iconScale = std::min(sX, sY);
+                
                 sprite->setScale(iconScale);
                 
-                // Center of slot
-                float cx = startX + (i * scaledSlotWidth) + (scaledSlotWidth * 0.5f);
-                float cy = startY + (scaledSlotHeight * 0.5f);
+                // Calculate position based on index
+                float cx = startCenterX + (i * stepX);
+                float cy = startCenterY;
                 
                 sprite->setPosition(Vec2(cx, cy));
                 addChild(sprite, 10); // Above toolbar
@@ -237,11 +276,12 @@ void HudLayer::updateInventoryUI()
                 // Quantity
                 if (item.maxStack > 1 && item.quantity > 1)
                 {
-                    auto label = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16);
+                    auto label = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16); // Font size might need scaling
                     if (label)
                     {
                         label->setAnchorPoint(Vec2(1.0f, 0.0f));
-                        label->setPosition(Vec2(cx + scaledSlotWidth * 0.4f, cy - scaledSlotHeight * 0.4f));
+                        // Position at bottom-right of the cell content area
+                        label->setPosition(Vec2(cx + scaledCellWidth * 0.4f, cy - scaledCellHeight * 0.4f));
                         addChild(label, 11);
                         _quantityLabels.push_back(label);
                     }
@@ -254,15 +294,90 @@ void HudLayer::updateInventoryUI()
     if (_selector)
     {
         int sel = _inventory->getSelectedSlot();
-        float cx = startX + (sel * scaledSlotWidth) + (scaledSlotWidth * 0.5f);
-        float cy = startY + (scaledSlotHeight * 0.5f);
+        float cx = startCenterX + (sel * stepX);
+        float cy = startCenterY;
         _selector->setPosition(Vec2(cx, cy));
         
-        // Scale selector to fit slot
-        // Assuming CloseSelected.png or placeholder is roughly slot size
+        // Scale selector to fit slot size
         Size selSize = _selector->getContentSize();
         if (selSize.width > 0) {
-            _selector->setScale((scaledSlotWidth * 1.1f) / selSize.width); // Slightly larger than slot
+            // Make selector slightly larger than cell
+            float targetSelW = scaledCellWidth * 1.1f;
+            _selector->setScale(targetSelW / selSize.width);
+        }
+    }
+}
+
+void HudLayer::onMouseDown(Event* event)
+{
+    if (!_inventory || !_toolbar) return;
+
+    EventMouse* e = (EventMouse*)event;
+    if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
+
+    Vec2 clickPos = e->getLocationInView();
+    clickPos.y = Director::getInstance()->getWinSize().height - clickPos.y;
+
+    // Check if click is within Toolbar bounds roughly
+    // Or just check individual slots
+    
+    // We can reverse the logic from updateInventoryUI
+    // x = startCenterX + i * stepX
+    // y = startCenterY
+    
+    // Better: convert click pos to local space relative to toolbar origin
+    
+    float scale = _cachedScale;
+    if (scale <= 0.0f) return; // Not initialized?
+
+    float scaledLeftMargin = RAW_LEFT_MARGIN * scale;
+    float scaledBottomMargin = RAW_BOTTOM_MARGIN * scale;
+    float scaledCellWidth = RAW_CELL_WIDTH * scale;
+    float scaledCellHeight = RAW_CELL_HEIGHT * scale;
+    float scaledGap = RAW_GAP * scale;
+    float stepX = scaledCellWidth + scaledGap;
+    
+    float localX = clickPos.x - _cachedToolbarLeft;
+    float localY = clickPos.y - _cachedToolbarBottom;
+    
+    // Check Y range
+    if (localY < scaledBottomMargin || localY > scaledBottomMargin + scaledCellHeight)
+    {
+        return; // Click not in the row of cells
+    }
+    
+    // Check X range and find slot
+    // startX of first cell content = scaledLeftMargin
+    // cell i starts at scaledLeftMargin + i * stepX
+    // cell i ends at ... + scaledCellWidth
+    
+    float relativeX = localX - scaledLeftMargin;
+    
+    if (relativeX < 0) return; // Clicked on left margin
+    
+    // Estimate index
+    // i = relativeX / stepX?
+    // Not exactly because of gap.
+    
+    // Let's iterate or calc
+    // relativeX = i * (width + gap) + offset_within_cell
+    
+    int index = static_cast<int>(relativeX / stepX);
+    
+    if (index >= 0 && index < Inventory::TOOLBAR_SIZE)
+    {
+        // Check if within the cell width (exclude gap)
+        float offsetInStep = relativeX - (index * stepX);
+        if (offsetInStep <= scaledCellWidth)
+        {
+            // Clicked on slot 'index'
+            _inventory->setSelectedSlot(index);
+            updateInventoryUI();
+            
+            // Consume event so BackgroundLayer doesn't process it?
+            // HudLayer is z=1000, but event listeners graph priority...
+            // If we want to swallow, we need stopPropagation.
+            event->stopPropagation();
         }
     }
 }
