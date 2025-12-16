@@ -52,8 +52,14 @@ void CropSystem::setSelectedCrop(CropType type)
 void CropSystem::tillTile(const Vec2& tileIndex)
 {
     if (!inBounds(tileIndex)) return;
-    _tiles[(int)tileIndex.x][(int)tileIndex.y].tilled = true;
-    darkenTile(tileIndex);
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+
+    // Only till if not already tilled
+    if (!slot.tilled)
+    {
+        slot.tilled = true;
+        darkenTile(tileIndex);
+    }
 }
 
 bool CropSystem::plantSelected(const Vec2& tileIndex)
@@ -62,6 +68,14 @@ bool CropSystem::plantSelected(const Vec2& tileIndex)
     auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     if (!slot.tilled) return false;
     if (slot.crop) return false;
+
+    // Check season
+    if (!isSeasonAllowed(_selected, _clock->getSeason()))
+    {
+        cocos2d::log("Crop not allowed in this season");
+        return false;
+    }
+
     const auto& d = _data[_selected];
 
     auto inst = std::make_unique<CropInstance>();

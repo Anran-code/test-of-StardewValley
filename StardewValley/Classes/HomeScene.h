@@ -3,6 +3,7 @@
 
 #include "cocos2d.h"
 #include "Player.h"
+#include "Inventory.h"
 
 enum class BackgroundType
 {
@@ -22,7 +23,22 @@ public:
 
     cocos2d::Vec2 getFacingTile() const;
 
- private:
+private:
+    void handleToolUse();
+    void onMouseDown(cocos2d::Event* event); // New mouse handling
+
+    // Obstacle management
+    struct Obstacle {
+        int type; // 0: Wood, 1: Stone, 2: Weed
+        cocos2d::Sprite* sprite;
+        bool active;
+    };
+    std::unordered_map<int, Obstacle> _obstacles; // Key: tileIndex y * width + x
+    void initObstacles();
+    void removeObstacle(const cocos2d::Vec2& tileIndex);
+    bool hasObstacle(const cocos2d::Vec2& tileIndex);
+    int getObstacleType(const cocos2d::Vec2& tileIndex);
+
     BackgroundType _type;
     cocos2d::TMXTiledMap* _map;
     cocos2d::TMXLayer* _groundLayer;
@@ -68,6 +84,8 @@ public:
     static cocos2d::Vec2 sLastFarmPlayerPos;
     static bool sHasLastFarmPlayerPos;
 
+    static Inventory* sInventory; // Shared inventory
+
     virtual bool init();
     bool initWithStartType(BackgroundType type);
     virtual ~HomeScene();
@@ -82,6 +100,7 @@ private:
     BackgroundType _startType;
     class GameClock* _clock;
     class Wallet* _wallet;
+    Inventory* _inventory;
     class HudLayer* _hud;
     static class GameClock* sClock;
     static class Wallet* sWallet;

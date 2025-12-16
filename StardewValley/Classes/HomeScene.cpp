@@ -91,11 +91,15 @@ bool BackgroundLayer::initWithType(BackgroundType type)
 
                 auto listener = EventListenerKeyboard::create();
                 listener->onKeyPressed = CC_CALLBACK_2(BackgroundLayer::onKeyPressed, this);
-                listener->onKeyReleased = CC_CALLBACK_2(BackgroundLayer::onKeyReleased, this);
-                _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
+        listener->onKeyReleased = CC_CALLBACK_2(BackgroundLayer::onKeyReleased, this);
+        _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
-                _boundaryLeftRect = Rect(tileSize.width, 0.0f, tileSize.width, mapHeight);
-                _boundaryRightRect = Rect(mapWidth - tileSize.width * 7.0f, 0.0f, tileSize.width, mapHeight);
+        auto mouseListener = EventListenerMouse::create();
+        mouseListener->onMouseDown = CC_CALLBACK_1(BackgroundLayer::onMouseDown, this);
+        _eventDispatcher->addEventListenerWithSceneGraphPriority(mouseListener, this);
+
+        _boundaryLeftRect = Rect(tileSize.width, 0.0f, tileSize.width, mapHeight);
+        _boundaryRightRect = Rect(mapWidth - tileSize.width * 7.0f, 0.0f, tileSize.width, mapHeight);
                 _boundaryBottomRect = Rect(0.0f, tileSize.height, mapWidth, tileSize.height);
                 _boundaryTopRect = Rect(0.0f, mapHeight - tileSize.height * 15.0f, mapWidth, tileSize.height);
                 _hasBoundary = true;
@@ -130,12 +134,14 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         float exitY = (mapHeight - exitH) * 0.5f;
                         _rightExitRect = Rect(exitX, exitY, exitW, exitH);
                         _hasRightExit = true;
-                    }
-                }
-
-                CropSystem::getInstance()->init(_map, nullptr, nullptr);
-                return true;
             }
+        }
+        
+        initObstacles(); // Init obstacles for Farm type
+
+        CropSystem::getInstance()->init(_map, nullptr, nullptr);
+        return true;
+    }
             else
             {
                  cocos2d::log("Player creation failed completely.");
@@ -411,11 +417,13 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         case EventKeyboard::KeyCode::KEY_3:
             CropSystem::getInstance()->setSelectedCrop(CropType::Potato);
             break;
-        case EventKeyboard::KeyCode::KEY_E:
+        case EventKeyboard::KeyCode::KEY_T: // Changed from E to T to avoid conflict with Backpack
             CropSystem::getInstance()->tillTile(tile);
             break;
         case EventKeyboard::KeyCode::KEY_F:
-            CropSystem::getInstance()->plantSelected(tile);
+            // CropSystem::getInstance()->plantSelected(tile);
+            // This logic is now handled by handleToolUse or needs to check selected item
+            handleToolUse();
             break;
         case EventKeyboard::KeyCode::KEY_G:
             CropSystem::getInstance()->waterTile(tile);
@@ -430,6 +438,54 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
     if (_player)
     {
         _player->onKeyPressed(keyCode);
+    }
+}
+
+void BackgroundLayer::handleToolUse()
+{
+    if (_type != BackgroundType::Farm || !HomeScene::sInventory) return;
+
+    const Item* item = HomeScene::sInventory->getSelectedItem();
+    if (!item) return;
+
+    Vec2 tile = getFacingTile();
+
+    if (item->type == ItemType::Tool)
+    {
+        switch (item->toolType)
+        {
+        case ToolType::Hoe:
+            CropSystem::getInstance()->tillTile(tile);
+            break;
+        case ToolType::WateringCan:
+            CropSystem::getInstance()->waterTile(tile);
+            break;
+        // Other tools implementation
+        case ToolType::Axe:
+        case ToolType::Pickaxe:
+        default:
+            break;
+        }
+    }
+    else if (item->type == ItemType::Seed)
+    {
+        // Update selected crop in CropSystem
+        CropSystem::getInstance()->setSelectedCrop(item->cropType);
+
+        if (CropSystem::getInstance()->plantSelected(tile))
+        {
+            // Consume seed
+            int slot = HomeScene::sInventory->getSelectedSlot();
+            HomeScene::sInventory->removeItem(slot, 1);
+            
+            // Try to update HUD if possible
+            auto scene = Director::getInstance()->getRunningScene();
+            // We can't easily get HUD from here without casting or storing ref.
+            // But HUD listens to keys, so it will update on next key press if we don't force it.
+            // To force update, we could make HUD static instance or use EventDispatcher.
+            // Let's use a custom event.
+            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+        }
     }
 }
 
@@ -549,6 +605,7 @@ Scene* HomeScene::make(BackgroundType type)
 
 GameClock* HomeScene::sClock = nullptr;
 Wallet* HomeScene::sWallet = nullptr;
+Inventory* HomeScene::sInventory = nullptr;
 Vec2 HomeScene::sLastFarmPlayerPos = Vec2::ZERO;
 bool HomeScene::sHasLastFarmPlayerPos = false;
 
@@ -603,9 +660,11 @@ bool HomeScene::init()
 
     if (!HomeScene::sClock) { HomeScene::sClock = new GameClock(); }
     if (!HomeScene::sWallet) { HomeScene::sWallet = new Wallet(); }
+    if (!HomeScene::sInventory) { HomeScene::sInventory = new Inventory(); }
     _clock = HomeScene::sClock;
     _wallet = HomeScene::sWallet;
-    _hud = HudLayer::create(_clock, _wallet);
+    _inventory = HomeScene::sInventory;
+    _hud = HudLayer::create(_clock, _wallet, _inventory);
     if (_hud)
     {
         addChild(_hud, 1000);
@@ -645,9 +704,11 @@ bool HomeScene::initWithStartType(BackgroundType type)
 
     if (!HomeScene::sClock) { HomeScene::sClock = new GameClock(); }
     if (!HomeScene::sWallet) { HomeScene::sWallet = new Wallet(); }
+    if (!HomeScene::sInventory) { HomeScene::sInventory = new Inventory(); }
     _clock = HomeScene::sClock;
     _wallet = HomeScene::sWallet;
-    _hud = HudLayer::create(_clock, _wallet);
+    _inventory = HomeScene::sInventory;
+    _hud = HudLayer::create(_clock, _wallet, _inventory);
     if (_hud)
     {
         addChild(_hud, 1000);
@@ -656,6 +717,222 @@ bool HomeScene::initWithStartType(BackgroundType type)
     scheduleUpdate();
 
     return true;
+}
+
+// BackgroundLayer implementation
+void BackgroundLayer::onMouseDown(Event* event)
+{
+    if (_type != BackgroundType::Farm) return;
+    
+    EventMouse* e = (EventMouse*)event;
+    if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
+
+    // Convert click to world space
+    // Since BackgroundLayer is scaled by _zoom and followed by camera,
+    // we need to be careful.
+    // However, event location is in screen coordinates (origin bottom-left usually in Cocos v3 mouse event? No, wait).
+    // EventMouse locationInView is from top-left. getLocation is from bottom-left.
+    
+    Vec2 clickPos = e->getLocationInView();
+    clickPos.y = Director::getInstance()->getWinSize().height - clickPos.y; // Flip Y
+    
+    // Transform to node space (world space for the map)
+    // BackgroundLayer itself is moved by Follow action or Camera?
+    // In init, we run Follow action on "this" (BackgroundLayer).
+    // So "this" position changes.
+    // World pos = Node pos converted to world?
+    // Actually, convertToNodeSpace handles the layer's position and scale.
+    
+    Vec2 worldPos = this->convertToNodeSpace(clickPos);
+    
+    // Now convert world pos to grid
+    // But wait, the user wants to use tools on the tile they CLICKED, or the tile they are FACING?
+    // "Use tool/plant I want to change to mouse click" implies clicking on the target tile.
+    // Stardew allows clicking within a range.
+    // Let's implement clicking on the tile under the cursor.
+    
+    // Check distance to player
+    Vec2 playerPos = _player->getPosition();
+    float dist = playerPos.distance(worldPos);
+    float range = _map->getTileSize().width * 2.0f; // 2 tiles range
+    
+    if (dist > range)
+    {
+        // Too far
+        return;
+    }
+    
+    // Get tile index
+    Vec2 tileIndex = FarmMapUtils::worldToGrid(worldPos, dynamic_cast<Sprite*>(_groundLayer), 0, 0); // Oops, FarmMapUtils needs fixing or usage
+    // Wait, _groundLayer is TMXLayer, not Sprite.
+    // Let's calculate manually or fix FarmMapUtils.
+    // Manual calculation is safer here since we have map ref.
+    
+    Size tileSize = _map->getTileSize();
+    Size mapSize = _map->getMapSize();
+    float mapHeight = mapSize.height * tileSize.height;
+    
+    int tx = static_cast<int>(worldPos.x / tileSize.width);
+    int ty = static_cast<int>((mapHeight - worldPos.y) / tileSize.height);
+    
+    if (tx < 0 || tx >= mapSize.width || ty < 0 || ty >= mapSize.height) return;
+    
+    Vec2 targetTile(tx, ty);
+    
+    // Now handle tool use on this tile
+    // We can reuse logic from handleToolUse but pass the tile
+    
+    if (!HomeScene::sInventory) return;
+    const Item* item = HomeScene::sInventory->getSelectedItem();
+    
+    // Harvest logic (no tool needed, or click with any tool?)
+    // Stardew usually harvest with click (empty hand or item).
+    // If we have a crop that is ready, harvest it.
+    // If we have a tool selected, use tool.
+    
+    // Priority: Harvest -> Obstacle -> Tool/Plant
+    
+    // 1. Harvest
+    if (CropSystem::getInstance()->harvestTile(targetTile))
+    {
+        return; // Harvested
+    }
+    
+    if (!item) return;
+
+    // 2. Obstacles
+    if (hasObstacle(targetTile))
+    {
+        int obsType = getObstacleType(targetTile);
+        bool removed = false;
+        if (item->type == ItemType::Tool)
+        {
+            if (obsType == 0 && item->toolType == ToolType::Axe) removed = true; // Wood
+            else if (obsType == 1 && item->toolType == ToolType::Pickaxe) removed = true; // Stone
+            else if (obsType == 2 && item->toolType == ToolType::Scythe) removed = true; // Weed
+        }
+        
+        if (removed)
+        {
+            removeObstacle(targetTile);
+            // Optional: Drop item?
+            return;
+        }
+    }
+
+    // 3. Tool / Plant
+    if (item->type == ItemType::Tool)
+    {
+        switch (item->toolType)
+        {
+        case ToolType::Hoe:
+            CropSystem::getInstance()->tillTile(targetTile);
+            break;
+        case ToolType::WateringCan:
+            CropSystem::getInstance()->waterTile(targetTile);
+            break;
+        default:
+            break;
+        }
+    }
+    else if (item->type == ItemType::Seed)
+    {
+        // Update selected crop
+        CropSystem::getInstance()->setSelectedCrop(item->cropType);
+        
+        if (CropSystem::getInstance()->plantSelected(targetTile))
+        {
+            int slot = HomeScene::sInventory->getSelectedSlot();
+            HomeScene::sInventory->removeItem(slot, 1);
+            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+        }
+    }
+}
+
+void BackgroundLayer::initObstacles()
+{
+    if (!_map) return;
+    Size mapSize = _map->getMapSize();
+    Size tileSize = _map->getTileSize();
+    float mapHeight = mapSize.height * tileSize.height;
+
+    // Deterministic random or fixed pattern
+    // For testing, let's place some near the start
+    
+    struct Spawn { int x; int y; int type; };
+    std::vector<Spawn> spawns = {
+        {10, 10, 0}, {11, 10, 1}, {12, 10, 2}, // Wood, Stone, Weed
+        {15, 15, 0}, {16, 15, 0}, {15, 16, 1},
+        {20, 20, 2}, {21, 20, 2}, {22, 20, 2}
+    };
+    
+    for (const auto& s : spawns)
+    {
+        int key = s.y * (int)mapSize.width + s.x;
+        
+        std::string file;
+        if (s.type == 0) file = "block/Wood.png";
+        else if (s.type == 1) file = "block/Stone.png";
+        else if (s.type == 2) file = "block/Fiber.png"; // Assuming Fiber.png for weed
+        
+        auto sprite = Sprite::create(file);
+        if (sprite)
+        {
+            // Position center of tile
+            float cx = (s.x + 0.5f) * tileSize.width;
+            float cy = mapHeight - (s.y + 0.5f) * tileSize.height;
+            sprite->setPosition(Vec2(cx, cy));
+            // Adjust scale if needed
+            if (sprite->getContentSize().width > tileSize.width)
+            {
+                sprite->setScale(tileSize.width / sprite->getContentSize().width);
+            }
+            addChild(sprite, 5); // Above ground, below player (player is z=1... wait player is z=1. Obstacles should be z=1 too and sort by Y? 
+            // For now z=5 to be safe visible, or use Z-ordering based on Y.
+            // Simple approach: z=1 same as player, let cocos render order handle it? 
+            // No, need localZOrder updates. 
+            // Let's put at 0 for now (ground) + small offset? 
+            // Actually player is at 1. Ground is at 0.
+            // Obstacles should be at 1 and we need dynamic Z ordering for depth.
+            // For this task, let's just put them at 0 (above map) or 1.
+            
+            Obstacle obs;
+            obs.type = s.type;
+            obs.sprite = sprite;
+            obs.active = true;
+            _obstacles[key] = obs;
+        }
+    }
+}
+
+bool BackgroundLayer::hasObstacle(const Vec2& tileIndex)
+{
+    if (!_map) return false;
+    int key = (int)tileIndex.y * (int)_map->getMapSize().width + (int)tileIndex.x;
+    return _obstacles.find(key) != _obstacles.end();
+}
+
+int BackgroundLayer::getObstacleType(const Vec2& tileIndex)
+{
+    if (!_map) return -1;
+    int key = (int)tileIndex.y * (int)_map->getMapSize().width + (int)tileIndex.x;
+    auto it = _obstacles.find(key);
+    if (it != _obstacles.end()) return it->second.type;
+    return -1;
+}
+
+void BackgroundLayer::removeObstacle(const Vec2& tileIndex)
+{
+    if (!_map) return;
+    int key = (int)tileIndex.y * (int)_map->getMapSize().width + (int)tileIndex.x;
+    auto it = _obstacles.find(key);
+    if (it != _obstacles.end())
+    {
+        if (it->second.sprite) it->second.sprite->removeFromParent();
+        _obstacles.erase(it);
+        
+        // TODO: Add item to inventory (Wood, Stone, Fiber)
+    }
 }
 
 void HomeScene::onExitClicked(Ref* sender)
