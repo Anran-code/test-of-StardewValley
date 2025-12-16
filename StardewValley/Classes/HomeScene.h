@@ -24,7 +24,6 @@ public:
     cocos2d::Vec2 getFacingTile() const;
 
 private:
-    void handleToolUse();
     void onMouseDown(cocos2d::Event* event); // New mouse handling
 
     // Obstacle management
@@ -38,6 +37,7 @@ private:
     void removeObstacle(const cocos2d::Vec2& tileIndex);
     bool hasObstacle(const cocos2d::Vec2& tileIndex);
     int getObstacleType(const cocos2d::Vec2& tileIndex);
+    bool checkCollisionWithObstacles(const cocos2d::Rect& box);
 
     BackgroundType _type;
     cocos2d::TMXTiledMap* _map;

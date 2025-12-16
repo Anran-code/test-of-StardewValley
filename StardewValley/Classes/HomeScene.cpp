@@ -246,7 +246,7 @@ void BackgroundLayer::update(float dt)
             Rect box = _player->getBoundingBox();
             Rect boxX = box;
             boxX.origin.x += delta.x;
-            bool blockX = boxX.intersectsRect(_homeRect) || (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect)));
+            bool blockX = boxX.intersectsRect(_homeRect) || (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
             if (!blockX)
             {
                 pos.x += delta.x;
@@ -281,6 +281,10 @@ void BackgroundLayer::update(float dt)
                     blockY = true;
                 }
             }
+            if (!blockY && checkCollisionWithObstacles(boxY))
+            {
+                blockY = true;
+            }
             if (!blockY)
             {
                 pos.y += delta.y;
@@ -291,14 +295,14 @@ void BackgroundLayer::update(float dt)
             Rect box = _player->getBoundingBox();
             Rect boxX = box;
             boxX.origin.x += delta.x;
-            bool blockX = _hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect));
+            bool blockX = (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
             if (!blockX)
             {
                 pos.x += delta.x;
             }
             Rect boxY = box;
             boxY.origin.y += delta.y;
-            bool blockY = _hasBoundary && (boxY.intersectsRect(_boundaryTopRect) || boxY.intersectsRect(_boundaryBottomRect));
+            bool blockY = (_hasBoundary && (boxY.intersectsRect(_boundaryTopRect) || boxY.intersectsRect(_boundaryBottomRect))) || checkCollisionWithObstacles(boxY);
             if (!blockY)
             {
                 pos.y += delta.y;
@@ -422,9 +426,6 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         case EventKeyboard::KeyCode::KEY_T:
             CropSystem::getInstance()->tillTile(tile);
             break;
-        case EventKeyboard::KeyCode::KEY_F:
-            handleToolUse();
-            break;
         case EventKeyboard::KeyCode::KEY_G:
             CropSystem::getInstance()->waterTile(tile);
             break;
@@ -438,73 +439,6 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
     if (_player)
     {
         _player->onKeyPressed(keyCode);
-    }
-}
-
-void BackgroundLayer::handleToolUse()
-{
-    if (_type != BackgroundType::Farm || !HomeScene::sInventory) return;
-
-    const Item* item = HomeScene::sInventory->getSelectedItem();
-    if (!item) return;
-
-    Vec2 tile = getFacingTile();
-
-    // Handle Obstacles first
-    if (hasObstacle(tile))
-    {
-        int obsType = getObstacleType(tile);
-        bool removed = false;
-        if (item->type == ItemType::Tool)
-        {
-            if (obsType == 0 && item->toolType == ToolType::Axe) removed = true; // Wood
-            else if (obsType == 1 && item->toolType == ToolType::Pickaxe) removed = true; // Stone
-            else if (obsType == 2 && item->toolType == ToolType::Scythe) removed = true; // Weed
-        }
-        
-        if (removed)
-        {
-            removeObstacle(tile);
-            // Optional: Drop item logic here
-            return; // Action consumed
-        }
-    }
-
-    if (item->type == ItemType::Tool)
-    {
-        switch (item->toolType)
-        {
-        case ToolType::Hoe:
-            // Only till if no obstacle (already checked above, but safe to keep)
-            if (!hasObstacle(tile))
-            {
-                CropSystem::getInstance()->tillTile(tile);
-            }
-            break;
-        case ToolType::WateringCan:
-            CropSystem::getInstance()->waterTile(tile);
-            break;
-        // Other tools implementation
-        case ToolType::Axe:
-        case ToolType::Pickaxe:
-        case ToolType::Scythe:
-        default:
-            break;
-        }
-    }
-    else if (item->type == ItemType::Seed)
-    {
-        // Update selected crop in CropSystem
-        CropSystem::getInstance()->setSelectedCrop(item->cropType);
-
-        if (CropSystem::getInstance()->plantSelected(tile))
-        {
-            // Consume seed
-            int slot = HomeScene::sInventory->getSelectedSlot();
-            HomeScene::sInventory->removeItem(slot, 1);
-            
-            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
-        }
     }
 }
 
@@ -751,68 +685,26 @@ void BackgroundLayer::onMouseDown(Event* event)
     EventMouse* e = (EventMouse*)event;
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
 
-    // Convert click to world space
-    // Since BackgroundLayer is scaled by _zoom and followed by camera,
-    // we need to be careful.
-    // However, event location is in screen coordinates (origin bottom-left usually in Cocos v3 mouse event? No, wait).
-    // EventMouse locationInView is from top-left. getLocation is from bottom-left.
+    // Use the tile the player is currently facing (interaction block)
+    Vec2 targetTile = getFacingTile();
     
-    Vec2 clickPos = e->getLocationInView();
-    clickPos.y = Director::getInstance()->getWinSize().height - clickPos.y; // Flip Y
+    Size tileSize = _map->getTileSize();
+    Size mapSize = _map->getMapSize();
     
-    // Transform to node space (world space for the map)
-    // BackgroundLayer itself is moved by Follow action or Camera?
-    // In init, we run Follow action on "this" (BackgroundLayer).
-    // So "this" position changes.
-    // World pos = Node pos converted to world?
-    // Actually, convertToNodeSpace handles the layer's position and scale.
-    
-    Vec2 worldPos = this->convertToNodeSpace(clickPos);
-    
-    // Now convert world pos to grid
-    // But wait, the user wants to use tools on the tile they CLICKED, or the tile they are FACING?
-    // "Use tool/plant I want to change to mouse click" implies clicking on the target tile.
-    // Stardew allows clicking within a range.
-    // Let's implement clicking on the tile under the cursor.
-    
-    // Check distance to player
-    Vec2 playerPos = _player->getPosition();
-    float dist = playerPos.distance(worldPos);
-    float range = _map->getTileSize().width * 4.0f; // Increased range to 4 tiles
-    
-    // Debug click position
+    if (targetTile.x < 0 || targetTile.x >= mapSize.width || 
+        targetTile.y < 0 || targetTile.y >= mapSize.height) return;
+
+    // Visual feedback
     if (!_facingDebug) {
         _facingDebug = DrawNode::create();
         _map->addChild(_facingDebug, 1000);
     }
     _facingDebug->clear();
-    _facingDebug->drawDot(worldPos, 5.0f, Color4F::RED); // Draw red dot at click logic pos
-
-    if (dist > range)
-    {
-        // Too far
-        // Draw a circle to show range
-        _facingDebug->drawCircle(playerPos, range, 0, 30, false, Color4F::BLUE);
-        return;
-    }
-    _facingDebug->drawCircle(playerPos, range, 0, 30, false, Color4F::GREEN);
     
-    // Get tile index
-    Vec2 tileIndex = FarmMapUtils::worldToGrid(worldPos, dynamic_cast<Sprite*>(_groundLayer), 0, 0); // Oops, FarmMapUtils needs fixing or usage
-    // Wait, _groundLayer is TMXLayer, not Sprite.
-    // Let's calculate manually or fix FarmMapUtils.
-    // Manual calculation is safer here since we have map ref.
-    
-    Size tileSize = _map->getTileSize();
-    Size mapSize = _map->getMapSize();
     float mapHeight = mapSize.height * tileSize.height;
-    
-    int tx = static_cast<int>(worldPos.x / tileSize.width);
-    int ty = static_cast<int>((mapHeight - worldPos.y) / tileSize.height);
-    
-    if (tx < 0 || tx >= mapSize.width || ty < 0 || ty >= mapSize.height) return;
-    
-    Vec2 targetTile(tx, ty);
+    float cxPos = (targetTile.x + 0.5f) * tileSize.width;
+    float cyPos = mapHeight - (targetTile.y + 0.5f) * tileSize.height;
+    _facingDebug->drawDot(Vec2(cxPos, cyPos), 5.0f, Color4F::GREEN);
     
     // Now handle tool use on this tile
     // We can reuse logic from handleToolUse but pass the tile
@@ -957,6 +849,47 @@ int BackgroundLayer::getObstacleType(const Vec2& tileIndex)
     auto it = _obstacles.find(key);
     if (it != _obstacles.end()) return it->second.type;
     return -1;
+}
+
+bool BackgroundLayer::checkCollisionWithObstacles(const Rect& box)
+{
+    if (!_map) return false;
+
+    Size tileSize = _map->getTileSize();
+    Size mapSize = _map->getMapSize();
+    float mapHeight = mapSize.height * tileSize.height;
+
+    // Convert box to tile range
+    float minX = box.getMinX();
+    float maxX = box.getMaxX();
+    float minY = box.getMinY();
+    float maxY = box.getMaxY();
+
+    int tMinX = static_cast<int>(minX / tileSize.width);
+    int tMaxX = static_cast<int>(maxX / tileSize.width);
+
+    // Y conversion: top-most tile (smallest index) comes from maxY
+    int tMinY = static_cast<int>((mapHeight - maxY) / tileSize.height);
+    // bottom-most tile (largest index) comes from minY
+    int tMaxY = static_cast<int>((mapHeight - minY) / tileSize.height);
+
+    // Clamp to map bounds
+    tMinX = std::max(0, std::min(tMinX, (int)mapSize.width - 1));
+    tMaxX = std::max(0, std::min(tMaxX, (int)mapSize.width - 1));
+    tMinY = std::max(0, std::min(tMinY, (int)mapSize.height - 1));
+    tMaxY = std::max(0, std::min(tMaxY, (int)mapSize.height - 1));
+
+    for (int x = tMinX; x <= tMaxX; ++x)
+    {
+        for (int y = tMinY; y <= tMaxY; ++y)
+        {
+            if (hasObstacle(Vec2(x, y)))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void BackgroundLayer::removeObstacle(const Vec2& tileIndex)
