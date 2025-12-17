@@ -56,34 +56,46 @@ void CropSystem::setSelectedCrop(CropType type)
     _selected = type;
 }
 
-void CropSystem::tillTile(const Vec2& tileIndex)
-{
-    if (!inBounds(tileIndex)) return;
-    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
-
-    // Only till if not already tilled
-    if (!slot.tilled)
-    {
-        slot.tilled = true;
-        darkenTile(tileIndex);
-    }
-}
-
-bool CropSystem::plantSelected(const Vec2& tileIndex)
+bool CropSystem::canTill(const Vec2& tileIndex) const
 {
     if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    // Can till if not already tilled and no crop (though crop usually implies tilled)
+    // Also usually need to check for obstacles, but obstacles are handled in HomeScene.
+    // CropSystem only cares about soil state.
+    return !slot.tilled && !slot.crop;
+}
+
+void CropSystem::tillTile(const Vec2& tileIndex)
+{
+    if (!canTill(tileIndex)) return;
+    
     auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    slot.tilled = true;
+    darkenTile(tileIndex);
+}
+
+bool CropSystem::canPlant(const Vec2& tileIndex, CropType type) const
+{
+    if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     if (!slot.tilled) return false;
     if (slot.crop) return false;
 
     // Check season
-    if (!isSeasonAllowed(_selected, _clock->getSeason()))
+    if (!isSeasonAllowed(type, _clock->getSeason()))
     {
-        cocos2d::log("Crop not allowed in this season");
         return false;
     }
+    return true;
+}
 
-    const auto& d = _data[_selected];
+bool CropSystem::plantSelected(const Vec2& tileIndex)
+{
+    if (!canPlant(tileIndex, _selected)) return false;
+
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    const auto& d = _data[_selected]; // Use internal map, assume exists if enum valid
 
     auto inst = std::make_unique<CropInstance>();
     inst->type = _selected;
@@ -99,24 +111,46 @@ bool CropSystem::plantSelected(const Vec2& tileIndex)
     return true;
 }
 
+bool CropSystem::canWater(const Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    return slot.tilled && !slot.watered;
+}
+
 void CropSystem::waterTile(const Vec2& tileIndex)
 {
-    if (!inBounds(tileIndex)) return;
+    if (!canWater(tileIndex)) return;
     auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
-    if (!slot.tilled) return;
     slot.watered = true;
     waterTintTile(tileIndex);
 }
 
-bool CropSystem::harvestTile(const Vec2& tileIndex)
+bool CropSystem::canHarvest(const Vec2& tileIndex) const
 {
     if (!inBounds(tileIndex)) return false;
-    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     if (!slot.crop) return false;
+    
     auto* inst = slot.crop.get();
-    const auto& d = _data[inst->type];
     if (inst->withered) return false;
-    if (inst->daysWatered < d.growthDays) return false;
+    
+    // Check if fully grown
+    // Need to look up data. _data is member.
+    auto it = _data.find(inst->type);
+    if (it == _data.end()) return false;
+    const auto& d = it->second;
+    
+    return inst->daysWatered >= d.growthDays;
+}
+
+bool CropSystem::harvestTile(const Vec2& tileIndex)
+{
+    if (!canHarvest(tileIndex)) return false;
+    
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    auto* inst = slot.crop.get();
+    const auto& d = _data[inst->type]; // Safe because canHarvest checked it
 
     int yieldCount = 1;
     if (inst->type == CropType::Potato)
@@ -131,7 +165,6 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         _inventory->addItem(item);
         Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
     }
-    // Removed direct money addition as per user request (crops go to inventory)
     
     if (inst->sprite)
     {
@@ -141,33 +174,27 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
     return true;
 }
 
-bool CropSystem::removeWithered(const Vec2& tileIndex)
+bool CropSystem::canClearWithered(const Vec2& tileIndex) const
 {
     if (!inBounds(tileIndex)) return false;
-    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     if (!slot.crop) return false;
-    if (!slot.crop->withered) return false;
+    return slot.crop->withered;
+}
 
+bool CropSystem::removeWithered(const Vec2& tileIndex)
+{
+    if (!canClearWithered(tileIndex)) return false;
+    
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     if (slot.crop->sprite)
     {
         slot.crop->sprite->removeFromParent();
     }
     slot.crop.reset();
     
-    // User requested "can till after clearing".
-    // In Stardew, scything a dead crop leaves the soil tilled.
-    // However, if we want to strictly follow "can till", we might need to untill.
-    // But standard behavior is usually to keep it tilled so you can plant.
-    // If the user literally wants to use the Hoe again, we would set tilled = false.
-    // For now, let's keep it tilled (standard Stardew) but ensure the crop is gone so planting works.
-    // If the user specifically said "use scythe THEN till", they might imply the soil becomes untilled.
-    // Let's reset tilled to false to force re-tilling if that's what "耕种" (farm/till) implies here.
-    // But "耕种" can just mean "farm". 
-    // Let's stick to: Remove crop -> Tile is empty (but tilled).
-    // If I want to allow "Till" action again, I must set tilled = false.
-    // Let's set tilled = false to match the user's "clear then till" phrasing strictly.
     slot.tilled = false; 
-    resetTileColor(tileIndex); // Remove the dark tilled color
+    resetTileColor(tileIndex); 
     
     return true;
 }
@@ -200,14 +227,18 @@ void CropSystem::updateDailyGrowth()
                         placeOrUpdateSprite(Vec2(x, y), inst);
                     }
                 }
-                if (!inst->withered)
+                if (slot.watered)
                 {
-                    if (slot.watered)
+                    if (!inst->withered)
                     {
                         inst->daysWatered += 1;
                     }
                     slot.watered = false;
+                    darkenTile(Vec2(x, y));
+                }
 
+                if (!inst->withered)
+                {
                     int newStage = 0;
                     for (int i = 0; i < (int)d.sproutThresholdDays.size(); ++i)
                     {
@@ -231,6 +262,7 @@ void CropSystem::updateDailyGrowth()
                         {
                             path = d.matureSprite;
                         }
+                        
                         if (inst->sprite)
                         {
                             inst->sprite->setTexture(path);
@@ -239,42 +271,32 @@ void CropSystem::updateDailyGrowth()
                         }
                     }
                 }
-                if (slot.tilled)
-                {
-                    darkenTile(Vec2(x, y));
-                }
-                else
-                {
-                    resetTileColor(Vec2(x, y));
-                }
             }
             else
             {
-                if (slot.tilled)
+                // No crop
+                // If it was watered, dry it up next day
+                if (slot.watered)
                 {
-                    if (!slot.watered)
-                    {
-                        float r = RandomHelper::random_real<float>(0.0f, 1.0f);
-                        if (r < 0.3f)
-                        {
-                            slot.tilled = false;
-                            resetTileColor(Vec2(x, y));
-                        }
-                        else
-                        {
-                            darkenTile(Vec2(x, y));
-                        }
-                    }
-                    else
-                    {
-                        darkenTile(Vec2(x, y));
-                    }
                     slot.watered = false;
+                    // Keep tilled but remove water color
+                    // Darken is for tilled, WaterTint is for water.
+                    // We need to revert to just Darken.
+                    darkenTile(Vec2(x, y));
                 }
-                else
-                {
-                    resetTileColor(Vec2(x, y));
-                }
+                
+                // Logic for untilled if left alone? Stardew does this randomly.
+                // For now, let's keep it tilled until manually changed or decay logic added.
+            }
+            
+            // Season change decay for tilled soil?
+            if (seasonChanged)
+            {
+                // In Stardew, tilled soil might decay on season change unless crop was there?
+                // For simplicity, maybe reset everything if season changes?
+                // User didn't ask for this yet.
+                // But if season changed, existing crops might wither (handled above).
+                // Empty tilled soil might stay.
             }
         }
     }

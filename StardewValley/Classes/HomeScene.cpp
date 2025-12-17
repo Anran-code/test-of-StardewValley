@@ -131,10 +131,10 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         float extendDown = tileSize.height * 0.3f;
                         _homeDoorTunnelRect = Rect(doorX, doorY - extendDown, doorW, doorH + extendDown);
                         _hasHomeRect = true;
-                        float exitW = tileSize.width;
-                        float exitH = tileSize.height * 4.0f;
+                        float exitW = tileSize.width * 2.0f;
+                        float exitH = tileSize.height * 6.0f;
                         float exitX = _boundaryRightRect.getMinX() - exitW;
-                        float exitY = (mapHeight - exitH) * 0.5f;
+                        float exitY = (mapHeight - exitH) * 0.5f - tileSize.height * 7.0f;
                         _rightExitRect = Rect(exitX, exitY, exitW, exitH);
                         _hasRightExit = true;
             }
@@ -142,7 +142,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         
         initObstacles(); // Init obstacles for Farm type
 
-        CropSystem::getInstance()->init(_map, nullptr, nullptr, nullptr);
+        CropSystem::getInstance()->init(_map, HomeScene::sClock, HomeScene::sWallet, HomeScene::sInventory);
         return true;
     }
             else
@@ -392,8 +392,72 @@ void BackgroundLayer::update(float dt)
             Vec2 p1(tilePos.x, tilePos.y);
             Vec2 p2(tilePos.x + tileSize2.width, tilePos.y + tileSize2.height);
 
-            _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 0.3f, 0.3f));
-            _facingDebug->drawRect(p1, p2, Color4F(1.0f, 1.0f, 1.0f, 1.0f));
+            // Determine if action is valid on this tile
+            bool isValid = false;
+            
+            // 1. Check Harvest (High priority, works with any item)
+            if (CropSystem::getInstance()->canHarvest(tileIndex))
+            {
+                isValid = true;
+            }
+            else
+            {
+                // Check Obstacles
+                if (hasObstacle(tileIndex))
+                {
+                    const Item* item = HomeScene::sInventory ? HomeScene::sInventory->getSelectedItem() : nullptr;
+                    if (item && item->type == ItemType::Tool)
+                    {
+                        int obsType = getObstacleType(tileIndex);
+                        if (obsType == 0 && item->toolType == ToolType::Axe) isValid = true;      // Wood
+                        else if (obsType == 1 && item->toolType == ToolType::Pickaxe) isValid = true; // Stone
+                        else if (obsType == 2 && item->toolType == ToolType::Scythe) isValid = true;  // Weed
+                    }
+                }
+                else
+                {
+                    // Check Tool / Plant (No obstacle)
+                    const Item* item = HomeScene::sInventory ? HomeScene::sInventory->getSelectedItem() : nullptr;
+                    if (item)
+                    {
+                        if (item->type == ItemType::Tool)
+                        {
+                            switch (item->toolType)
+                            {
+                            case ToolType::Hoe:
+                                isValid = CropSystem::getInstance()->canTill(tileIndex);
+                                break;
+                            case ToolType::WateringCan:
+                                isValid = CropSystem::getInstance()->canWater(tileIndex);
+                                break;
+                            case ToolType::Scythe:
+                                isValid = CropSystem::getInstance()->canClearWithered(tileIndex);
+                                break;
+                            default:
+                                break;
+                            }
+                        }
+                        else if (item->type == ItemType::Seed)
+                        {
+                            isValid = CropSystem::getInstance()->canPlant(tileIndex, item->cropType);
+                        }
+                    }
+                }
+            }
+
+            Color4F boxColor = isValid ? Color4F(0.0f, 1.0f, 0.0f, 0.3f) : Color4F(1.0f, 0.0f, 0.0f, 0.3f);
+            Color4F borderColor = isValid ? Color4F(0.0f, 1.0f, 0.0f, 1.0f) : Color4F(1.0f, 0.0f, 0.0f, 1.0f);
+
+            _facingDebug->drawSolidRect(p1, p2, boxColor);
+            _facingDebug->drawRect(p1, p2, borderColor);
+        }
+
+        if (_hasRightExit)
+        {
+            Vec2 e1(_rightExitRect.getMinX(), _rightExitRect.getMinY());
+            Vec2 e2(_rightExitRect.getMaxX(), _rightExitRect.getMaxY());
+            _facingDebug->drawSolidRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 0.2f));
+            _facingDebug->drawRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
         }
 
         // 2. Only draw debug collision boxes if debug mode is ON
@@ -408,13 +472,6 @@ void BackgroundLayer::update(float dt)
                 Vec2 d2(_homeDoorRect.getMaxX(), _homeDoorRect.getMaxY());
                 _facingDebug->drawSolidRect(d1, d2, Color4F(0.0f, 1.0f, 0.0f, 0.2f));
                 _facingDebug->drawRect(d1, d2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
-            }
-            if (_hasRightExit)
-            {
-                Vec2 e1(_rightExitRect.getMinX(), _rightExitRect.getMinY());
-                Vec2 e2(_rightExitRect.getMaxX(), _rightExitRect.getMaxY());
-                _facingDebug->drawSolidRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 0.2f));
-                _facingDebug->drawRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
             }
             if (_hasBoundary)
             {
@@ -506,24 +563,28 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             if (_isDebugMode && HomeScene::sClock)
             {
                 HomeScene::sClock->addDay(1);
+                CropSystem::getInstance()->updateDailyGrowth();
             }
             break;
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
             if (_isDebugMode && HomeScene::sClock)
             {
                 HomeScene::sClock->addDay(-1);
+                CropSystem::getInstance()->updateDailyGrowth();
             }
             break;
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
             if (_isDebugMode && HomeScene::sClock)
             {
                 HomeScene::sClock->addHour(-1);
+                CropSystem::getInstance()->updateDailyGrowth();
             }
             break;
         case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
             if (_isDebugMode && HomeScene::sClock)
             {
                 HomeScene::sClock->addHour(1);
+                CropSystem::getInstance()->updateDailyGrowth();
             }
             break;
         default:
@@ -939,6 +1000,29 @@ void BackgroundLayer::initObstacles()
         int cx = mapSize.width / 2;
         int cy = mapSize.height / 2;
         if (abs(x - cx) < 3 && abs(y - cy) < 3) continue;
+
+        // Calculate tile position for boundary checks
+        float cxPos = (x + 0.5f) * tileSize.width;
+        float cyPos = mapHeight - (y + 0.5f) * tileSize.height;
+        Vec2 pos(cxPos, cyPos);
+        Rect tileRect(x * tileSize.width, mapHeight - (y + 1) * tileSize.height, tileSize.width, tileSize.height);
+
+        // Check forbidden zones (Home, Exit, Boundaries)
+        if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) continue;
+        if (_hasRightExit && _rightExitRect.intersectsRect(tileRect)) continue;
+        
+        if (_hasBoundary)
+        {
+            // Do not spawn inside or beyond the boundaries
+            // Left Boundary
+            if (tileRect.getMinX() < _boundaryLeftRect.getMaxX()) continue;
+            // Right Boundary
+            if (tileRect.getMaxX() > _boundaryRightRect.getMinX()) continue;
+            // Bottom Boundary
+            if (tileRect.getMinY() < _boundaryBottomRect.getMaxY()) continue;
+            // Top Boundary
+            if (tileRect.getMaxY() > _boundaryTopRect.getMinY()) continue;
+        }
         
         // Check if already has obstacle
         if (hasObstacle(Vec2(x, y))) continue;
