@@ -142,7 +142,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         
         initObstacles(); // Init obstacles for Farm type
 
-        CropSystem::getInstance()->init(_map, nullptr, nullptr);
+        CropSystem::getInstance()->init(_map, nullptr, nullptr, nullptr);
         return true;
     }
             else
@@ -502,13 +502,53 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         case EventKeyboard::KeyCode::KEY_H:
             CropSystem::getInstance()->harvestTile(tile);
             break;
+        case EventKeyboard::KeyCode::KEY_UP_ARROW:
+            if (_isDebugMode && HomeScene::sClock)
+            {
+                HomeScene::sClock->addDay(1);
+            }
+            break;
+        case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+            if (_isDebugMode && HomeScene::sClock)
+            {
+                HomeScene::sClock->addDay(-1);
+            }
+            break;
+        case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
+            if (_isDebugMode && HomeScene::sClock)
+            {
+                HomeScene::sClock->addHour(-1);
+            }
+            break;
+        case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
+            if (_isDebugMode && HomeScene::sClock)
+            {
+                HomeScene::sClock->addHour(1);
+            }
+            break;
         default:
             break;
         }
     }
     if (_player)
     {
-        _player->onKeyPressed(keyCode);
+        // In debug mode, if arrow keys are used, do not pass them to the player (prevent movement)
+        bool blockInput = false;
+        if (_isDebugMode)
+        {
+            if (keyCode == EventKeyboard::KeyCode::KEY_UP_ARROW ||
+                keyCode == EventKeyboard::KeyCode::KEY_DOWN_ARROW ||
+                keyCode == EventKeyboard::KeyCode::KEY_LEFT_ARROW ||
+                keyCode == EventKeyboard::KeyCode::KEY_RIGHT_ARROW)
+            {
+                blockInput = true;
+            }
+        }
+
+        if (!blockInput)
+        {
+            _player->onKeyPressed(keyCode);
+        }
     }
 }
 
@@ -516,7 +556,23 @@ void BackgroundLayer::onKeyReleased(EventKeyboard::KeyCode keyCode, Event* event
 {
     if (_player)
     {
-        _player->onKeyReleased(keyCode);
+        // In debug mode, if arrow keys are used, do not pass them to the player
+        bool blockInput = false;
+        if (_isDebugMode)
+        {
+            if (keyCode == EventKeyboard::KeyCode::KEY_UP_ARROW ||
+                keyCode == EventKeyboard::KeyCode::KEY_DOWN_ARROW ||
+                keyCode == EventKeyboard::KeyCode::KEY_LEFT_ARROW ||
+                keyCode == EventKeyboard::KeyCode::KEY_RIGHT_ARROW)
+            {
+                blockInput = true;
+            }
+        }
+
+        if (!blockInput)
+        {
+            _player->onKeyReleased(keyCode);
+        }
     }
 }
 
@@ -533,10 +589,14 @@ cocos2d::Vec2 BackgroundLayer::getFacingTile() const
     float mapWidth = mapSizeTiles.width * tileSize.width;
     float mapHeight = mapSizeTiles.height * tileSize.height;
 
-    Vec2 pos = _player->getPosition();
+    // Use the feet position (collision box center) for more accurate tile selection
+    // instead of the anchor point which might be higher up.
+    Rect spriteBox = _player->getBoundingBox();
+    float footH = spriteBox.size.height * 0.25f; // Match collision logic
+    Vec2 feetPos(spriteBox.getMidX(), spriteBox.getMinY() + footH * 0.5f);
 
-    float clampedX = std::max(0.0f, std::min(pos.x, mapWidth - 1.0f));
-    float clampedY = std::max(0.0f, std::min(pos.y, mapHeight - 1.0f));
+    float clampedX = std::max(0.0f, std::min(feetPos.x, mapWidth - 1.0f));
+    float clampedY = std::max(0.0f, std::min(feetPos.y, mapHeight - 1.0f));
 
     // 世界坐标 → 以左上角为原点的瓷砖坐标
     float tileXTop = clampedX / tileSize.width;
@@ -695,7 +755,7 @@ bool HomeScene::init()
     {
         addChild(_hud, 1000);
     }
-    CropSystem::getInstance()->init(nullptr, _clock, _wallet);
+    CropSystem::getInstance()->init(nullptr, _clock, _wallet, _inventory);
     scheduleUpdate();
 
     return true;
@@ -741,7 +801,7 @@ bool HomeScene::initWithStartType(BackgroundType type)
     {
         addChild(_hud, 1000);
     }
-    CropSystem::getInstance()->init(nullptr, _clock, _wallet);
+    CropSystem::getInstance()->init(nullptr, _clock, _wallet, _inventory);
     scheduleUpdate();
 
     return true;
@@ -833,6 +893,9 @@ void BackgroundLayer::onMouseDown(Event* event)
             break;
         case ToolType::WateringCan:
             CropSystem::getInstance()->waterTile(targetTile);
+            break;
+        case ToolType::Scythe:
+            CropSystem::getInstance()->removeWithered(targetTile);
             break;
         default:
             break;

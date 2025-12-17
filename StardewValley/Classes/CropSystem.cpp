@@ -1,5 +1,6 @@
 #include "CropSystem.h"
 #include "cocos2d.h"
+#include "Inventory.h"
 // #include "Basket.h"
 
 using namespace cocos2d;
@@ -17,6 +18,7 @@ CropSystem::CropSystem()
     , _groundLayer(nullptr)
     , _clock(nullptr)
     , _wallet(nullptr)
+    , _inventory(nullptr)
 
     , _selected(CropType::Parsnip)
     , _lastProcessedDay(-1)
@@ -24,7 +26,7 @@ CropSystem::CropSystem()
 {
 }
 
-void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet)
+void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory)
 {
     if (map) _map = map;
     if (_map)
@@ -37,6 +39,7 @@ void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet)
     }
     if (clock) _clock = clock;
     if (wallet) _wallet = wallet;
+    if (inventory) _inventory = inventory;
     loadCropData();
     ensureGridSize();
     if (_clock)
@@ -122,15 +125,50 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         if (r < 0.25f) yieldCount += 1;
     }
     
-    if (_wallet)
+    if (_inventory)
     {
-        _wallet->addMoney(d.sellPrice * yieldCount);
+        Item item = Item::createCrop(inst->type, d.itemName, d.itemIcon, yieldCount);
+        _inventory->addItem(item);
+        Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
     }
+    // Removed direct money addition as per user request (crops go to inventory)
+    
     if (inst->sprite)
     {
         inst->sprite->removeFromParent();
     }
     slot.crop.reset();
+    return true;
+}
+
+bool CropSystem::removeWithered(const Vec2& tileIndex)
+{
+    if (!inBounds(tileIndex)) return false;
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    if (!slot.crop) return false;
+    if (!slot.crop->withered) return false;
+
+    if (slot.crop->sprite)
+    {
+        slot.crop->sprite->removeFromParent();
+    }
+    slot.crop.reset();
+    
+    // User requested "can till after clearing".
+    // In Stardew, scything a dead crop leaves the soil tilled.
+    // However, if we want to strictly follow "can till", we might need to untill.
+    // But standard behavior is usually to keep it tilled so you can plant.
+    // If the user literally wants to use the Hoe again, we would set tilled = false.
+    // For now, let's keep it tilled (standard Stardew) but ensure the crop is gone so planting works.
+    // If the user specifically said "use scythe THEN till", they might imply the soil becomes untilled.
+    // Let's reset tilled to false to force re-tilling if that's what "耕种" (farm/till) implies here.
+    // But "耕种" can just mean "farm". 
+    // Let's stick to: Remove crop -> Tile is empty (but tilled).
+    // If I want to allow "Till" action again, I must set tilled = false.
+    // Let's set tilled = false to match the user's "clear then till" phrasing strictly.
+    slot.tilled = false; 
+    resetTileColor(tileIndex); // Remove the dark tilled color
+    
     return true;
 }
 
@@ -255,6 +293,8 @@ void CropSystem::loadCropData()
     parsnip.sproutSprites = { "Crop/Parsnip_sprout_1.png", "Crop/Parsnip_sprout_2.png", "Crop/Parsnip_sprout_3.png" };
     parsnip.matureSprite = "Crop/Parsnip.png";
     parsnip.sproutThresholdDays = { 1, 2, 3 };
+    parsnip.itemName = "Parsnip";
+    parsnip.itemIcon = "Crop/Parsnip.png";
 
     CropData cauliflower;
     cauliflower.growthDays = 12;
@@ -263,6 +303,8 @@ void CropSystem::loadCropData()
     cauliflower.sproutSprites = { "Crop/Cauliflower_sprout_1.png", "Crop/Cauliflower_sprout_2.png", "Crop/Cauliflower_sprout_3.png", "Crop/Cauliflower_sprout_4.png" };
     cauliflower.matureSprite = "Crop/Cauliflower.png";
     cauliflower.sproutThresholdDays = { 3, 6, 9, 11 };
+    cauliflower.itemName = "Cauliflower";
+    cauliflower.itemIcon = "Crop/Cauliflower.png";
 
     CropData potato;
     potato.growthDays = 6;
@@ -271,6 +313,9 @@ void CropSystem::loadCropData()
     potato.sproutSprites = { "Crop/Potato_sprout_1.png", "Crop/Potato_sprout_2.png", "Crop/Potato_sprout_3.png", "Crop/Potato_sprout_4.png", "Crop/Potato_sprout_5.png" };
     potato.matureSprite = "Crop/Potato.png";
     potato.sproutThresholdDays = { 1, 2, 3, 4, 5 };
+    potato.itemName = "Potato";
+    potato.itemIcon = "Crop/Potato.png";
+    
     parsnip.allowedSeasons = { GameClock::Season::Spring };
     cauliflower.allowedSeasons = { GameClock::Season::Spring };
     potato.allowedSeasons = { GameClock::Season::Spring };

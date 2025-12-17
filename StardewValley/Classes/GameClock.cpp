@@ -82,6 +82,51 @@ void GameClock::setDay(int d) { _day = d; }
 void GameClock::setYear(int y) { _year = y; }
 void GameClock::setSeason(Season s) { _season = s; }
 
+void GameClock::addDay(int days)
+{
+    _day += days;
+    while (_day > 28)
+    {
+        _day -= 28;
+        int s = static_cast<int>(_season);
+        s++;
+        if (s > static_cast<int>(Season::Winter))
+        {
+            s = static_cast<int>(Season::Spring);
+            _year++;
+        }
+        _season = static_cast<Season>(s);
+    }
+    while (_day < 1)
+    {
+        _day += 28;
+        int s = static_cast<int>(_season);
+        s--;
+        if (s < static_cast<int>(Season::Spring))
+        {
+            s = static_cast<int>(Season::Winter);
+            _year--;
+            if (_year < 1) _year = 1;
+        }
+        _season = static_cast<Season>(s);
+    }
+}
+
+void GameClock::addHour(int hours)
+{
+    _hour += hours;
+    while (_hour >= 24)
+    {
+        _hour -= 24;
+        addDay(1);
+    }
+    while (_hour < 0)
+    {
+        _hour += 24;
+        addDay(-1);
+    }
+}
+
 int GameClock::getWeekdayIndex() const
 {
     return (_day - 1) % 7;

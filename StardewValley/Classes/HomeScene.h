@@ -86,6 +86,8 @@ public:
     static bool sHasLastFarmPlayerPos;
 
     static Inventory* sInventory; // Shared inventory
+    static class GameClock* sClock;
+    static class Wallet* sWallet;
 
     virtual bool init();
     bool initWithStartType(BackgroundType type);
@@ -103,8 +105,6 @@ private:
     class Wallet* _wallet;
 
     class HudLayer* _hud;
-    static class GameClock* sClock;
-    static class Wallet* sWallet;
     // static class Basket* sBasket; // Ignore basket
 
     Inventory* _inventory; // Member inventory pointer
