@@ -60,7 +60,8 @@ Player* Player::create(const std::string& filename, float tileHeight)
         Size size = ret->getContentSize();
         if (size.height > 0.0f && tileHeight > 0.0f)
         {
-            float desiredHeight = tileHeight * 2.0f;
+            // Shrink player more (was 1.2f)
+            float desiredHeight = tileHeight * 1.0f;
             float scale = desiredHeight / size.height;
             if (scale < 0.3f)
             {
