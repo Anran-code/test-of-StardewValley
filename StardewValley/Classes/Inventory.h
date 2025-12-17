@@ -19,6 +19,7 @@ public:
     const Item& getItem(int slotIndex) const;
     Item& getItem(int slotIndex); // Mutable access
     void removeItem(int slotIndex, int count = 1);
+    void swapItems(int slotA, int slotB);
     
     int getSelectedSlot() const { return _selectedSlot; }
     void setSelectedSlot(int slot) { 

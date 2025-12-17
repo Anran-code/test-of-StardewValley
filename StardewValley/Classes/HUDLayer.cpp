@@ -116,6 +116,7 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     _mouseListener->onMouseScroll = CC_CALLBACK_1(HudLayer::onScroll, this);
     _mouseListener->onMouseDown = CC_CALLBACK_1(HudLayer::onMouseDown, this);
     _mouseListener->onMouseUp = CC_CALLBACK_1(HudLayer::onMouseUp, this);
+    _mouseListener->onMouseMove = CC_CALLBACK_1(HudLayer::onMouseMove, this); // Dragging
     _eventDispatcher->addEventListenerWithFixedPriority(_mouseListener, -128);
 
     _touchListener = EventListenerTouchOneByOne::create();
@@ -148,6 +149,7 @@ void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         if (_backpack)
         {
             _backpack->setVisible(!_backpack->isVisible());
+            updateInventoryUI(); // Force UI refresh immediately
         }
     }
     
@@ -212,22 +214,6 @@ void HudLayer::updateInventoryUI()
     Size toolbarSize = _toolbar->getContentSize();
     float scale = _toolbar->getScale();
     Vec2 toolbarPos = _toolbar->getPosition();
-    
-    // Toolbar has 12 slots.
-    // Assuming Toolbar.png is a single row of 12 squares.
-    // We need to calculate the position of each slot relative to the toolbar sprite.
-    // Let's assume standard Stardew toolbar layout.
-    // If we don't know the exact pixel offsets, we can approximate.
-    // Toolbar width is toolbarSize.width. Each slot is roughly width / 12.
-    
-    // Toolbar.png 像素信息:
-    // 假设 Toolbar.png 的原始宽度对应这些像素值
-    // 每个格子 198x190
-    // 左边框到第一个格子左边缘: 54
-    // 下边框到第一个格子下边缘: 75 (原点在左下角，所以Y轴偏移是75)
-    // 格子间隙: 30
-    // 
-    // 我们需要将这些像素值转换为相对于 toolbar 缩放后的屏幕坐标。
     
     // 获取 toolbar 原始尺寸
     Size originalSize = _toolbar->getContentSize();
@@ -313,9 +299,6 @@ void HudLayer::updateInventoryUI()
                         label->setColor(Color3B::BLACK);
                         label->enableBold(); // Make text bold
                         label->setAnchorPoint(Vec2(1.0f, 0.0f));
-                        // Position at bottom-right of the cell content area
-                        // Move slightly more to bottom-right (from 0.4f to 0.48f)
-                        // User requested slightly more down (0.48f -> 0.55f)
                         label->setPosition(Vec2(cx + scaledCellWidth * 0.48f, cy - scaledCellHeight * 0.55f));
                         addChild(label, 11);
                         _quantityLabels.push_back(label);
@@ -340,6 +323,234 @@ void HudLayer::updateInventoryUI()
             float targetSelW = scaledCellWidth * 1.1f;
             _selector->setScale(targetSelW / selSize.width);
         }
+    }
+
+    // ---------------------------------------------------------
+    // RENDER BACKPACK ITEMS (if visible)
+    // ---------------------------------------------------------
+    if (_backpack && _backpack->isVisible())
+    {       
+        Size bpSize = _backpack->getContentSize();
+        float bpScale = _backpack->getScale();
+        Vec2 bpPos = _backpack->getPosition();
+        // bpPos is Center (0.5, 0.5) usually? 
+        // In init: _backpack->setPosition(Vec2(visibleSize.width * 0.5f + origin.x, visibleSize.height * 0.5f + origin.y));
+        // Yes, center.
+        
+        float bpLeft = bpPos.x - (bpSize.width * bpScale * 0.5f);
+        float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
+        
+        // Debug Drawing for Backpack Hit Areas
+        if (_debugBounds && HomeScene::sDebugMode)
+        {
+            // Draw Close Button
+            float cbLeft = bpLeft + (CLOSE_BTN_LEFT * bpScale);
+            float cbBottom = bpBottom + (CLOSE_BTN_BOTTOM * bpScale);
+            float cbW = CLOSE_BTN_W * bpScale;
+            float cbH = CLOSE_BTN_H * bpScale;
+            _debugBounds->drawRect(Vec2(cbLeft, cbBottom), Vec2(cbLeft + cbW, cbBottom + cbH), Color4F::RED);
+            
+            // Draw Trash Can
+            float trLeft = bpLeft + (TRASH_LEFT * bpScale);
+            float trBottom = bpBottom + (TRASH_BOTTOM * bpScale);
+            float trW = TRASH_W * bpScale;
+            float trH = TRASH_H * bpScale;
+            _debugBounds->drawRect(Vec2(trLeft, trBottom), Vec2(trLeft + trW, trBottom + trH), Color4F::MAGENTA);
+            
+            // Draw Slots
+            for (int i = 0; i < Inventory::BACKPACK_SIZE; i++)
+            {
+                int r = i / 12;
+                int c = i % 12;
+                
+                float lx = BACKPACK_ROW1_LEFT + (c * (BACKPACK_CELL_W + BACKPACK_H_GAP));
+                float ly = 0;
+                if (r == 0) ly = BACKPACK_ROW1_BOTTOM;
+                else if (r == 1) ly = BACKPACK_ROW1_BOTTOM - BACKPACK_V_GAP_1_2 - BACKPACK_CELL_H;
+                else if (r == 2) ly = BACKPACK_ROW1_BOTTOM - BACKPACK_V_GAP_1_2 - BACKPACK_CELL_H - BACKPACK_V_GAP_2_3 - BACKPACK_CELL_H;
+                
+                float sx = bpLeft + (lx * bpScale);
+                float sy = bpBottom + (ly * bpScale);
+                float sw = BACKPACK_CELL_W * bpScale;
+                float sh = BACKPACK_CELL_H * bpScale;
+                
+                _debugBounds->drawRect(Vec2(sx, sy), Vec2(sx + sw, sy + sh), Color4F(0, 0, 1, 0.5f)); // Blue for slots
+            }
+        }
+
+        for (int i = 0; i < Inventory::BACKPACK_SIZE; i++)
+        {
+            if (_inventory->hasItem(i))
+            {
+                // If this item is being dragged, do NOT render it in the slot (it follows mouse)
+                if (_isDragging && _dragSourceIndex == i) continue;
+
+                const Item& item = _inventory->getItem(i);
+                auto sprite = Sprite::create(item.iconPath);
+                if (!sprite) continue;
+                
+                // Calculate Row/Col
+                int row = i / 12; // 0, 1, 2
+                int col = i % 12; // 0..11
+                
+                // Calculate Local Position in Image Space
+                float localX = BACKPACK_ROW1_LEFT + (col * (BACKPACK_CELL_W + BACKPACK_H_GAP));
+                // Add half width to get center
+                float centerX = localX + BACKPACK_CELL_W * 0.5f;
+                
+                float localBottomY = 0;
+                if (row == 0) localBottomY = BACKPACK_ROW1_BOTTOM;
+                else if (row == 1) localBottomY = BACKPACK_ROW1_BOTTOM - BACKPACK_V_GAP_1_2 - BACKPACK_CELL_H; // 464
+                else if (row == 2) localBottomY = BACKPACK_ROW1_BOTTOM - BACKPACK_V_GAP_1_2 - BACKPACK_CELL_H - BACKPACK_V_GAP_2_3 - BACKPACK_CELL_H; // 395
+                
+                float centerY = localBottomY + BACKPACK_CELL_H * 0.5f;
+                
+                // Convert to Screen Coordinates
+                float screenX = bpLeft + (centerX * bpScale);
+                float screenY = bpBottom + (centerY * bpScale);
+                
+                // Scale Item
+                // Fit into 59x60
+                float maxW = BACKPACK_CELL_W * bpScale * 0.8f;
+                float maxH = BACKPACK_CELL_H * bpScale * 0.8f;
+                 
+                float sX = maxW / sprite->getContentSize().width;
+                float sY = maxH / sprite->getContentSize().height;
+                float iScale = std::min(sX, sY);
+                
+                sprite->setScale(iScale);
+                sprite->setPosition(Vec2(screenX, screenY));
+                addChild(sprite, 20); // Z=20 for backpack items (backpack is Z=2)
+                _itemSprites.push_back(sprite); // Add to list for cleanup
+                
+                // Quantity
+                if (item.maxStack > 1 && item.quantity > 1)
+                {
+                    auto label = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16);
+                    if (label)
+                    {
+                        label->setColor(Color3B::BLACK);
+                        label->enableBold();
+                        label->setAnchorPoint(Vec2(1.0f, 0.0f));
+                        label->setPosition(Vec2(screenX + BACKPACK_CELL_W * bpScale * 0.45f, screenY - BACKPACK_CELL_H * bpScale * 0.45f));
+                        addChild(label, 21);
+                        _quantityLabels.push_back(label);
+                    }
+                }
+            }
+        }
+    }
+}
+
+int HudLayer::getSlotIndexFromPoint(const Vec2& p)
+{
+    if (!_backpack || !_backpack->isVisible()) return -1;
+    
+    Size bpSize = _backpack->getContentSize();
+    float bpScale = _backpack->getScale();
+    Vec2 bpPos = _backpack->getPosition();
+    float bpLeft = bpPos.x - (bpSize.width * bpScale * 0.5f);
+    float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
+    
+    // Convert point to Image Space
+    float localX = (p.x - bpLeft) / bpScale;
+    float localY = (p.y - bpBottom) / bpScale;
+
+    // Check X
+    // Start at 153.
+    // Width of row = 12 * 59 + 11 * 4 = 708 + 44 = 752.
+    // End = 153 + 752 = 905.
+
+    if (localX < BACKPACK_ROW1_LEFT) return -1;
+    
+    float relX = localX - BACKPACK_ROW1_LEFT;
+    float colStep = BACKPACK_CELL_W + BACKPACK_H_GAP;
+    int col = (int)(relX / colStep);
+    
+    // Check if within the cell width (not in the gap)
+    float withinCell = relX - (col * colStep);
+    if (withinCell > BACKPACK_CELL_W) col = -1; // Clicked in gap
+    
+    if (col < 0 || col >= 12) return -1;
+    
+    // Determine Row
+    // Row 1 Y range: [545, 605]
+    // Row 2 Y range: [464, 524]
+    // Row 3 Y range: [395, 455]
+    
+    int row = -1;
+    if (localY >= BACKPACK_ROW1_BOTTOM && localY <= BACKPACK_ROW1_BOTTOM + BACKPACK_CELL_H)
+    {
+        row = 0;
+    }
+    else
+    {
+        float r2Bot = BACKPACK_ROW1_BOTTOM - BACKPACK_V_GAP_1_2 - BACKPACK_CELL_H;
+        if (localY >= r2Bot && localY <= r2Bot + BACKPACK_CELL_H)
+        {
+            row = 1;
+        }
+        else
+        {
+            float r3Bot = r2Bot - BACKPACK_V_GAP_2_3 - BACKPACK_CELL_H;
+            if (localY >= r3Bot && localY <= r3Bot + BACKPACK_CELL_H)
+            {
+                row = 2;
+            }
+        }
+    }
+    
+    if (row != -1)
+    {
+        return (row * 12) + col;
+    }
+    
+    return -1;
+}
+
+bool HudLayer::isPointInCloseButton(const Vec2& p)
+{
+    if (!_backpack || !_backpack->isVisible()) return false;
+    
+    Size bpSize = _backpack->getContentSize();
+    float bpScale = _backpack->getScale();
+    Vec2 bpPos = _backpack->getPosition();
+    float bpLeft = bpPos.x - (bpSize.width * bpScale * 0.5f);
+    float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
+    
+    float localX = (p.x - bpLeft) / bpScale;
+    float localY = (p.y - bpBottom) / bpScale;
+    
+    Rect btnRect(CLOSE_BTN_LEFT, CLOSE_BTN_BOTTOM, CLOSE_BTN_W, CLOSE_BTN_H);
+    return btnRect.containsPoint(Vec2(localX, localY));
+}
+
+bool HudLayer::isPointInTrashCan(const Vec2& p)
+{
+    if (!_backpack || !_backpack->isVisible()) return false;
+    
+    Size bpSize = _backpack->getContentSize();
+    float bpScale = _backpack->getScale();
+    Vec2 bpPos = _backpack->getPosition();
+    float bpLeft = bpPos.x - (bpSize.width * bpScale * 0.5f);
+    float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
+    
+    float localX = (p.x - bpLeft) / bpScale;
+    float localY = (p.y - bpBottom) / bpScale;
+    
+    Rect btnRect(TRASH_LEFT, TRASH_BOTTOM, TRASH_W, TRASH_H);
+    return btnRect.containsPoint(Vec2(localX, localY));
+}
+
+void HudLayer::onMouseMove(Event* event)
+{
+    if (_isDragging && _draggedItemSprite)
+    {
+        EventMouse* e = (EventMouse*)event;
+        // e->getLocation() is cursor pos
+        Vec2 loc = e->getLocation();
+        _draggedItemSprite->setPosition(loc);
+        if (_draggedItemQty) _draggedItemQty->setPosition(Vec2(loc.x + 20, loc.y - 20));
     }
 }
 
@@ -377,12 +588,18 @@ void HudLayer::onMouseDown(Event* event)
 
     if (hitRectWorld.containsPoint(clickPos))
     {
+        // ... (Toolbar click logic)
         _consumingClick = true;
         event->stopPropagation();
 
+        // Copy toolbar click logic here or refactor.
+        // For now, I'll keep the existing logic below inside this block as it was.
+        
         float localXPixel = (clickPos.x - left) / scale;
         float localYPixel = (clickPos.y - bottom) / scale;
-
+        
+        // ... (Existing toolbar logic)
+        
         float yMin = RAW_BOTTOM_MARGIN;
         float yMax = RAW_BOTTOM_MARGIN + RAW_CELL_HEIGHT;
         float vTol = 30.0f;
@@ -402,13 +619,6 @@ void HudLayer::onMouseDown(Event* event)
                  
                  int index = static_cast<int>(relX / stepX);
                  
-                 // Check if inside cell vs gap?
-                 // Let's be generous: if it lands in the gap, give it to the nearest cell?
-                 // Or just simpler: divide by stepX.
-                 // index 0 covers [0, stepX)
-                 // This includes the cell AND the gap to its right.
-                 // This is good for UX.
-                 
                  if (index >= 0 && index < Inventory::TOOLBAR_SIZE)
                  {
                      _inventory->setSelectedSlot(index);
@@ -418,11 +628,100 @@ void HudLayer::onMouseDown(Event* event)
         }
         return;
     }
+
+    // Check Backpack Clicks
+    if (_backpack && _backpack->isVisible())
+    {
+        // Check Close Button
+        if (isPointInCloseButton(clickPos))
+        {
+            _backpack->setVisible(false);
+            _consumingClick = true;
+            event->stopPropagation();
+            return;
+        }
+        
+        // Check Slot Click -> Start Drag
+        int slotIndex = getSlotIndexFromPoint(clickPos);
+        if (slotIndex != -1)
+        {
+            if (_inventory->hasItem(slotIndex))
+            {
+                // Start Dragging
+                _isDragging = true;
+                _dragSourceIndex = slotIndex;
+                _consumingClick = true;
+                event->stopPropagation();
+                
+                // Create Drag Sprite
+                const Item& item = _inventory->getItem(slotIndex);
+                _draggedItemSprite = Sprite::create(item.iconPath);
+                if (_draggedItemSprite)
+                {
+                    _draggedItemSprite->setOpacity(180);
+                    _draggedItemSprite->setScale(0.8f); // Slightly smaller?
+                    _draggedItemSprite->setPosition(clickPos);
+                    addChild(_draggedItemSprite, 1000); // Top most
+                    
+                    if (item.quantity > 1) {
+                         _draggedItemQty = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16);
+                         _draggedItemQty->setColor(Color3B::BLACK);
+                         _draggedItemQty->setPosition(Vec2(clickPos.x + 20, clickPos.y - 20));
+                         addChild(_draggedItemQty, 1001);
+                    }
+                }
+                
+                // Refresh UI (hides the original item because of _isDragging check)
+                updateInventoryUI();
+            }
+        }
+    }
 }
 
 void HudLayer::onMouseUp(Event* event)
 {
     _consumingClick = false;
+    
+    if (_isDragging)
+    {
+        EventMouse* e = (EventMouse*)event;
+        Vec2 pos = e->getLocation();
+        
+        bool actionTaken = false;
+        
+        // Check Trash Can
+        if (isPointInTrashCan(pos))
+        {
+            _inventory->removeItem(_dragSourceIndex, 9999); // Remove all
+            actionTaken = true;
+        }
+        else
+        {
+            // Check Drop Target
+            int targetSlot = getSlotIndexFromPoint(pos);
+            if (targetSlot != -1)
+            {
+                // Swap
+                _inventory->swapItems(_dragSourceIndex, targetSlot);
+                actionTaken = true;
+            }
+        }
+        
+        // Cleanup
+        if (_draggedItemSprite) {
+            _draggedItemSprite->removeFromParent();
+            _draggedItemSprite = nullptr;
+        }
+        if (_draggedItemQty) {
+            _draggedItemQty->removeFromParent();
+            _draggedItemQty = nullptr;
+        }
+        
+        _isDragging = false;
+        _dragSourceIndex = -1;
+        
+        updateInventoryUI();
+    }
 }
 
 bool HudLayer::onTouchBegan(Touch* touch, Event* event)

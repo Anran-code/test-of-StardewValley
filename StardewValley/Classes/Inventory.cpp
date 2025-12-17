@@ -73,3 +73,12 @@ void Inventory::removeItem(int slotIndex, int count)
         if (_items[slotIndex].quantity < 0) _items[slotIndex].quantity = 0;
     }
 }
+
+void Inventory::swapItems(int slotA, int slotB)
+{
+    if (slotA < 0 || slotA >= (int)_items.size()) return;
+    if (slotB < 0 || slotB >= (int)_items.size()) return;
+    if (slotA == slotB) return;
+
+    std::swap(_items[slotA], _items[slotB]);
+}
