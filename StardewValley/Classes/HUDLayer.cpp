@@ -2,6 +2,7 @@
 #include "GameClock.h"
 #include "Wallet.h"
 #include "Inventory.h"
+#include "HomeScene.h"
 
 USING_NS_CC;
 
@@ -42,6 +43,8 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         _toolbar->setPosition(Vec2(visibleSize.width * 0.5f + origin.x, origin.y));
         addChild(_toolbar, 1);
     }
+    _debugBounds = DrawNode::create();
+    addChild(_debugBounds, 10000);
 
     // Backpack
     _backpack = Sprite::create("backpack_test.png");
@@ -108,21 +111,29 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     listener->onKeyPressed = CC_CALLBACK_2(HudLayer::onKeyPressed, this);
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
 
-    // Use Fixed Priority to ensure HUD gets events before the Scene (BackgroundLayer)
-    // BackgroundLayer uses SceneGraphPriority (0).
-    // Lower fixed priority means earlier execution.
-    // _mouseListener = EventListenerMouse::create(); // Use member variable if possible, or just local but retained?
-    
-    // Clean up previous logic
-    auto mouseListener = EventListenerMouse::create();
-    mouseListener->onMouseScroll = CC_CALLBACK_1(HudLayer::onScroll, this);
-    mouseListener->onMouseDown = CC_CALLBACK_1(HudLayer::onMouseDown, this);
-    _eventDispatcher->addEventListenerWithSceneGraphPriority(mouseListener, this);
+    // Mouse listener with FIXED PRIORITY so HUD receives events before scene graph listeners
+    _mouseListener = EventListenerMouse::create();
+    _mouseListener->onMouseScroll = CC_CALLBACK_1(HudLayer::onScroll, this);
+    _mouseListener->onMouseDown = CC_CALLBACK_1(HudLayer::onMouseDown, this);
+    _mouseListener->onMouseUp = CC_CALLBACK_1(HudLayer::onMouseUp, this);
+    _eventDispatcher->addEventListenerWithFixedPriority(_mouseListener, -128);
+
+    _touchListener = EventListenerTouchOneByOne::create();
+    _touchListener->setSwallowTouches(true);
+    _touchListener->onTouchBegan = CC_CALLBACK_2(HudLayer::onTouchBegan, this);
+    _touchListener->onTouchEnded = CC_CALLBACK_2(HudLayer::onTouchEnded, this);
+    _touchListener->onTouchCancelled = CC_CALLBACK_2(HudLayer::onTouchCancelled, this);
+    _eventDispatcher->addEventListenerWithFixedPriority(_touchListener, -128);
 
     auto updateListener = EventListenerCustom::create("INVENTORY_UPDATED", [this](EventCustom* event) {
         this->updateInventoryUI();
     });
     _eventDispatcher->addEventListenerWithSceneGraphPriority(updateListener, this);
+
+    auto debugModeListener = EventListenerCustom::create("DEBUG_MODE_CHANGED", [this](EventCustom* event) {
+        this->updateInventoryUI();
+    });
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(debugModeListener, this);
 
     refresh();
     updateInventoryUI();
@@ -242,6 +253,20 @@ void HudLayer::updateInventoryUI()
     _cachedToolbarLeft = toolbarScreenLeft;
     _cachedToolbarBottom = toolbarScreenBottom;
     _cachedScale = scale;
+    if (_debugBounds)
+    {
+        _debugBounds->clear();
+        if (HomeScene::sDebugMode)
+        {
+            float w = originalSize.width * scale;
+            float h = originalSize.height * scale;
+            _debugBounds->drawRect(
+                Vec2(toolbarScreenLeft, toolbarScreenBottom),
+                Vec2(toolbarScreenLeft + w, toolbarScreenBottom + h),
+                Color4F(0.2f, 0.8f, 0.2f, 1.0f));
+        }
+    }
+
 
     // 第一个格子的中心点
     // CenterX = Left + Margin + CellW/2
@@ -318,6 +343,20 @@ void HudLayer::updateInventoryUI()
     }
 }
 
+bool HudLayer::isPointInToolbarWorld(const Vec2& p) const
+{
+    if (!_toolbar) return false;
+    float scale = _toolbar->getScale();
+    Size originalSize = _toolbar->getContentSize();
+    Vec2 toolbarPos = _toolbar->getPosition();
+    float scaledW = originalSize.width * scale;
+    float scaledH = originalSize.height * scale;
+    float left = toolbarPos.x - scaledW * 0.5f;
+    float bottom = toolbarPos.y;
+    Rect r(left, bottom, scaledW, scaledH);
+    return r.containsPoint(p);
+}
+
 void HudLayer::onMouseDown(Event* event)
 {
     if (!_inventory || !_toolbar) return;
@@ -325,58 +364,35 @@ void HudLayer::onMouseDown(Event* event)
     EventMouse* e = (EventMouse*)event;
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
 
-    Vec2 clickPos = e->getLocation(); // Screen space, bottom-left origin
+    Vec2 clickPos = e->getLocation();
 
-    // Re-calculate layout parameters in screen space
     float scale = _toolbar->getScale();
     Size originalSize = _toolbar->getContentSize();
-    
-    // Get the screen position of the toolbar's anchor point (0.5, 0.0)
-    // convertToNodeSpace converts from World to Node Local.
-    // e->getLocation() is World (Screen).
-    // The toolbar itself is a child of HUDLayer which is a child of Scene.
-    // We should trust convertToNodeSpace to handle transforms.
+    Vec2 toolbarPos = _toolbar->getPosition();
+    float scaledW = originalSize.width * scale;
+    float scaledH = originalSize.height * scale;
+    float left = toolbarPos.x - scaledW * 0.5f;
+    float bottom = toolbarPos.y;
+    Rect hitRectWorld(left, bottom, scaledW, scaledH);
 
-    // Force strict bounding box check in local space
-    Vec2 localClickPos = _toolbar->convertToNodeSpace(clickPos);
-    
-    // The toolbar image might have transparent borders or we might want to click slightly outside.
-    // Original size is the texture size.
-    // If the texture is 10 slots wide visually but logic assumes 12, we have a mismatch.
-    // Let's assume the texture covers all 12 slots for now, or at least the click should land in range.
-    
-    // Debug: Print local click pos if possible (cannot here).
-    
-    // Bounds check: (0,0) to (width, height) in local space
-    // Add generous padding
-    float localPadding = 40.0f; // 40 pixels padding around the texture
-    
-    Rect hitRect = Rect(-localPadding, -localPadding, 
-                        originalSize.width + localPadding*2, 
-                        originalSize.height + localPadding*2);
-
-    if (hitRect.containsPoint(localClickPos))
+    if (hitRectWorld.containsPoint(clickPos))
     {
-        // Swallow event immediately
+        _consumingClick = true;
         event->stopPropagation();
 
-        // Slot calculation
-        // We know the constants for the layout inside the texture
-        // RAW_LEFT_MARGIN, RAW_CELL_WIDTH, etc. are in pixels relative to the texture bottom-left.
-        // So we can use localClickPos directly.
+        float localXPixel = (clickPos.x - left) / scale;
+        float localYPixel = (clickPos.y - bottom) / scale;
 
         float yMin = RAW_BOTTOM_MARGIN;
         float yMax = RAW_BOTTOM_MARGIN + RAW_CELL_HEIGHT;
-        
-        // Vertical tolerance
         float vTol = 30.0f;
-        
-        if (localClickPos.y >= yMin - vTol && localClickPos.y <= yMax + vTol)
+
+        if (localYPixel >= yMin - vTol && localYPixel <= yMax + vTol)
         {
              float startX = RAW_LEFT_MARGIN;
              float stepX = RAW_CELL_WIDTH + RAW_GAP;
              
-             float relX = localClickPos.x - startX;
+             float relX = localXPixel - startX;
              
              // Allow clicking slightly before the first slot
              if (relX >= -RAW_GAP && relX < (Inventory::TOOLBAR_SIZE * stepX))
@@ -400,8 +416,61 @@ void HudLayer::onMouseDown(Event* event)
                  }
              }
         }
-        return; // Important: We swallowed the event, so we return.
+        return;
     }
+}
+
+void HudLayer::onMouseUp(Event* event)
+{
+    _consumingClick = false;
+}
+
+bool HudLayer::onTouchBegan(Touch* touch, Event* event)
+{
+    if (!_inventory || !_toolbar) return false;
+    Vec2 p = touch->getLocation();
+    float scale = _toolbar->getScale();
+    Size originalSize = _toolbar->getContentSize();
+    Vec2 toolbarPos = _toolbar->getPosition();
+    float scaledW = originalSize.width * scale;
+    float scaledH = originalSize.height * scale;
+    float left = toolbarPos.x - scaledW * 0.5f;
+    float bottom = toolbarPos.y;
+    Rect hitRectWorld(left, bottom, scaledW, scaledH);
+    if (!hitRectWorld.containsPoint(p)) return false;
+    _consumingClick = true;
+    float localXPixel = (p.x - left) / scale;
+    float localYPixel = (p.y - bottom) / scale;
+    float yMin = RAW_BOTTOM_MARGIN;
+    float yMax = RAW_BOTTOM_MARGIN + RAW_CELL_HEIGHT;
+    float vTol = 30.0f;
+    if (localYPixel >= yMin - vTol && localYPixel <= yMax + vTol)
+    {
+        float startX = RAW_LEFT_MARGIN;
+        float stepX = RAW_CELL_WIDTH + RAW_GAP;
+        float relX = localXPixel - startX;
+        if (relX >= -RAW_GAP && relX < (Inventory::TOOLBAR_SIZE * stepX))
+        {
+            if (relX < 0) relX = 0;
+            int index = static_cast<int>(relX / stepX);
+            if (index >= 0 && index < Inventory::TOOLBAR_SIZE)
+            {
+                _inventory->setSelectedSlot(index);
+                updateInventoryUI();
+            }
+        }
+    }
+    return true;
+}
+
+void HudLayer::onTouchEnded(Touch* touch, Event* event)
+{
+    _consumingClick = false;
+}
+
+void HudLayer::onTouchCancelled(Touch* touch, Event* event)
+{
+    _consumingClick = false;
 }
 
 void HudLayer::refresh()

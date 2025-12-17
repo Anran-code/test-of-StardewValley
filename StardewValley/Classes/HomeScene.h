@@ -88,6 +88,8 @@ public:
     static Inventory* sInventory; // Shared inventory
     static class GameClock* sClock;
     static class Wallet* sWallet;
+    static class HudLayer* sHud;
+    static bool sDebugMode;
 
     virtual bool init();
     bool initWithStartType(BackgroundType type);

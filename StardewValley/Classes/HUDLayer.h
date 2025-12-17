@@ -22,10 +22,21 @@ public:
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onScroll(cocos2d::Event* event); // Mouse scroll for toolbar selection
     void onMouseDown(cocos2d::Event* event); // Added mouse click handling for toolbar
+    void onMouseUp(cocos2d::Event* event);
+    bool onTouchBegan(cocos2d::Touch* touch, cocos2d::Event* event);
+    void onTouchEnded(cocos2d::Touch* touch, cocos2d::Event* event);
+    void onTouchCancelled(cocos2d::Touch* touch, cocos2d::Event* event);
 
     CREATE_FUNC(HudLayer);
 
+public:
+    bool isPointInToolbarWorld(const cocos2d::Vec2& p) const;
+    bool isConsumingClick() const { return _consumingClick; }
+
 private:
+    cocos2d::EventListenerMouse* _mouseListener;
+    cocos2d::EventListenerTouchOneByOne* _touchListener;
+    cocos2d::DrawNode* _debugBounds;
     GameClock* _clock;
     Wallet* _wallet;
     Inventory* _inventory;
@@ -38,6 +49,7 @@ private:
     float _cachedToolbarLeft;
     float _cachedToolbarBottom;
     float _cachedScale;
+    bool _consumingClick = false;
     
     // Pixel constants
     const float RAW_CELL_WIDTH = 198.0f;

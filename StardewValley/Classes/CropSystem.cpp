@@ -193,8 +193,21 @@ bool CropSystem::removeWithered(const Vec2& tileIndex)
     }
     slot.crop.reset();
     
-    slot.tilled = false; 
-    resetTileColor(tileIndex); 
+    if (slot.tilled)
+    {
+        if (slot.watered)
+        {
+            waterTintTile(tileIndex);
+        }
+        else
+        {
+            darkenTile(tileIndex);
+        }
+    }
+    else
+    {
+        resetTileColor(tileIndex);
+    }
     
     return true;
 }

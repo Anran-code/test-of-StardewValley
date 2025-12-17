@@ -8,6 +8,8 @@
 
 USING_NS_CC;
 
+HudLayer* HomeScene::sHud = nullptr;
+bool HomeScene::sDebugMode = false;
 BackgroundLayer* BackgroundLayer::create(BackgroundType type)
 {
     BackgroundLayer* ret = new (std::nothrow) BackgroundLayer();
@@ -543,6 +545,9 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         {
         case EventKeyboard::KeyCode::KEY_GRAVE: // Tilde key (~)
             _isDebugMode = !_isDebugMode;
+            HomeScene::sDebugMode = _isDebugMode;
+            if (HomeScene::sHud) { HomeScene::sHud->updateInventoryUI(); }
+            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("DEBUG_MODE_CHANGED");
             break;
         case EventKeyboard::KeyCode::KEY_1:
             CropSystem::getInstance()->setSelectedCrop(CropType::Parsnip);
@@ -818,6 +823,7 @@ bool HomeScene::init()
     if (_hud)
     {
         addChild(_hud, 1000);
+        HomeScene::sHud = _hud;
     }
     CropSystem::getInstance()->init(nullptr, _clock, _wallet, _inventory);
     scheduleUpdate();
@@ -864,6 +870,7 @@ bool HomeScene::initWithStartType(BackgroundType type)
     if (_hud)
     {
         addChild(_hud, 1000);
+        HomeScene::sHud = _hud;
     }
     CropSystem::getInstance()->init(nullptr, _clock, _wallet, _inventory);
     scheduleUpdate();
@@ -878,6 +885,8 @@ void BackgroundLayer::onMouseDown(Event* event)
     
     EventMouse* e = (EventMouse*)event;
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
+    Vec2 clickPos = e->getLocation();
+    if (HomeScene::sHud && (HomeScene::sHud->isPointInToolbarWorld(clickPos) || HomeScene::sHud->isConsumingClick())) return;
 
     // Use the tile the player is currently facing (interaction block)
     Vec2 targetTile = getFacingTile();
