@@ -58,7 +58,7 @@ bool MenuScene::init()
     }
     else
     {
-        float x1 = origin.x + 0.6 * visibleSize.width - closeItem->getContentSize().width / 2;
+        float x1 = origin.x + 0.7 * visibleSize.width - closeItem->getContentSize().width / 2;
         float y1 = origin.y + 0.15 * visibleSize.height + closeItem->getContentSize().height / 2;
         closeItem->setPosition(Vec2(x1, y1));
         closeItem->setScale(2.0);
