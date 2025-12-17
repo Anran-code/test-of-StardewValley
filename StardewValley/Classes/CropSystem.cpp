@@ -199,6 +199,40 @@ bool CropSystem::removeWithered(const Vec2& tileIndex)
     return true;
 }
 
+bool CropSystem::canDestroy(const Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    // Can destroy if tilled (regardless of crop or water state)
+    return slot.tilled;
+}
+
+bool CropSystem::destroyTile(const Vec2& tileIndex)
+{
+    if (!canDestroy(tileIndex)) return false;
+    
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    
+    // Remove crop if exists
+    if (slot.crop)
+    {
+        if (slot.crop->sprite)
+        {
+            slot.crop->sprite->removeFromParent();
+        }
+        slot.crop.reset();
+    }
+    
+    // Untill
+    slot.tilled = false;
+    slot.watered = false;
+    
+    // Reset visual
+    resetTileColor(tileIndex);
+    
+    return true;
+}
+
 void CropSystem::updateDailyGrowth()
 {
     if (!_clock || !_map) return;

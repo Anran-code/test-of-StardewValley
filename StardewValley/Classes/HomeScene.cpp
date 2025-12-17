@@ -433,6 +433,9 @@ void BackgroundLayer::update(float dt)
                             case ToolType::Scythe:
                                 isValid = CropSystem::getInstance()->canClearWithered(tileIndex);
                                 break;
+                            case ToolType::Pickaxe:
+                                isValid = CropSystem::getInstance()->canDestroy(tileIndex);
+                                break;
                             default:
                                 break;
                             }
@@ -957,6 +960,9 @@ void BackgroundLayer::onMouseDown(Event* event)
             break;
         case ToolType::Scythe:
             CropSystem::getInstance()->removeWithered(targetTile);
+            break;
+        case ToolType::Pickaxe:
+            CropSystem::getInstance()->destroyTile(targetTile);
             break;
         default:
             break;

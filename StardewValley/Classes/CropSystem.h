@@ -65,6 +65,7 @@ public:
     void waterTile(const cocos2d::Vec2& tileIndex);
     bool harvestTile(const cocos2d::Vec2& tileIndex);
     bool removeWithered(const cocos2d::Vec2& tileIndex);
+    bool destroyTile(const cocos2d::Vec2& tileIndex);
     
     // Check methods for UI feedback
     bool canTill(const cocos2d::Vec2& tileIndex) const;
@@ -72,6 +73,7 @@ public:
     bool canWater(const cocos2d::Vec2& tileIndex) const;
     bool canHarvest(const cocos2d::Vec2& tileIndex) const;
     bool canClearWithered(const cocos2d::Vec2& tileIndex) const;
+    bool canDestroy(const cocos2d::Vec2& tileIndex) const;
 
     void updateDailyGrowth();
     int getSellPrice(CropType type) const;
