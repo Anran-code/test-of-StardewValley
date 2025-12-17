@@ -42,7 +42,7 @@ bool MenuScene::init()
     // 2.����
     auto ttsprite = Sprite::create("ui/menu_logo.png");
     ttsprite->setPosition(Vec2(visibleSize.width / 2 + origin.x, visibleSize.height*0.75 + origin.y));
-
+    ttsprite->setScale(0.5);
     // add the sprite as a child to this layer
     this->addChild(ttsprite);
 
