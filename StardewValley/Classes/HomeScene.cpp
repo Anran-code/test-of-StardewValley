@@ -43,6 +43,11 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasBoundary = false;
     _isDebugMode = false;
 
+    _backgroundNode = nullptr;
+    _seasonOverlay = nullptr;
+    // Force update on first frame
+    _lastSeason = (GameClock::Season)-1;
+
     if (_type == BackgroundType::Farm)
     {
         auto map = TMXTiledMap::create("map/outdoors_spring.tmx");
@@ -53,6 +58,20 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             addChild(map, 0);
 
             _map = map;
+            _backgroundNode = map;
+
+            // Create season overlay
+            Size mapSizeTiles = map->getMapSize();
+            Size tileSize = map->getTileSize();
+            float mapWidth = mapSizeTiles.width * tileSize.width;
+            float mapHeight = mapSizeTiles.height * tileSize.height;
+            
+            _seasonOverlay = LayerColor::create(Color4B(0, 0, 0, 0), mapWidth, mapHeight);
+            if (_seasonOverlay)
+            {
+                addChild(_seasonOverlay, 2); // Above player (Z=1)
+            }
+
             _groundLayer = _map->getLayer("ground");
             if (!_groundLayer)
             {
@@ -62,9 +81,6 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 }
             }
 
-            Size mapSizeTiles = map->getMapSize();
-            Size tileSize = map->getTileSize();
-
             auto player = Player::create("player.png", tileSize.height);
             if (!player)
             {
@@ -72,9 +88,6 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             }
             if (player)
             {
-                float mapWidth = mapSizeTiles.width * tileSize.width;
-                float mapHeight = mapSizeTiles.height * tileSize.height;
-
                 player->setPosition(Vec2(mapWidth * 0.5f, mapHeight * 0.5f));
                 addChild(player, 1);
 
@@ -145,6 +158,10 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         initObstacles(); // Init obstacles for Farm type
 
         CropSystem::getInstance()->init(_map, HomeScene::sClock, HomeScene::sWallet, HomeScene::sInventory);
+        
+        // Initial update for Farm
+        updateSeasonFilter();
+
         return true;
     }
             else
@@ -174,6 +191,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                      listener->onKeyReleased = CC_CALLBACK_2(BackgroundLayer::onKeyReleased, this);
                      _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
                      
+                     updateSeasonFilter();
+
                      return true;
                  }
             }
@@ -208,6 +227,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     {
         return false;
     }
+    
+    _backgroundNode = sprite;
 
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
@@ -224,11 +245,83 @@ bool BackgroundLayer::initWithType(BackgroundType type)
 
     addChild(sprite, 0);
 
+    // Create season overlay for static backgrounds
+    // It should cover the whole screen or the sprite?
+    // Let's cover the screen.
+    _seasonOverlay = LayerColor::create(Color4B(0, 0, 0, 0));
+    if (_seasonOverlay)
+    {
+        addChild(_seasonOverlay, 2);
+    }
+
+    // Initial update
+    updateSeasonFilter();
+
     return true;
+}
+
+void BackgroundLayer::updateSeasonFilter()
+{
+    if (!HomeScene::sClock) return;
+
+    auto season = HomeScene::sClock->getSeason();
+    Color3B tintColor = Color3B::WHITE;
+    Color4B overlayColor = Color4B(0, 0, 0, 0);
+    BlendFunc overlayBlend = BlendFunc::ALPHA_NON_PREMULTIPLIED;
+
+    switch (season)
+    {
+    case GameClock::Season::Spring:
+        // Default
+        tintColor = Color3B(255, 255, 255);
+        overlayColor = Color4B(0, 0, 0, 0);
+        break;
+    case GameClock::Season::Summer:
+        // Brighter / Sunny
+        tintColor = Color3B(255, 255, 255);
+        // Additive yellow/white for brightness
+        overlayColor = Color4B(255, 255, 200, 40); 
+        overlayBlend = BlendFunc::ADDITIVE;
+        break;
+    case GameClock::Season::Fall:
+        // Brownish / Autumn / Deep
+        // Darker and deeper brown
+        tintColor = Color3B(200, 150, 110);
+        overlayColor = Color4B(0, 0, 0, 0);
+        break;
+    case GameClock::Season::Winter:
+        // Gray / White / Cold / Dim
+        // Lower brightness for "dim" feel
+        tintColor = Color3B(180, 180, 190);
+        // Normal blending (not additive) to make it look like a white fog/snow cover
+        // This will reduce contrast and make it look "whiter" but not "brighter"
+        overlayColor = Color4B(220, 230, 240, 50);
+        overlayBlend = BlendFunc::ALPHA_NON_PREMULTIPLIED;
+        break;
+    }
+
+    if (_backgroundNode)
+    {
+        _backgroundNode->setColor(tintColor);
+    }
+
+    if (_seasonOverlay)
+    {
+        _seasonOverlay->setColor(Color3B(overlayColor));
+        _seasonOverlay->setOpacity(overlayColor.a);
+        _seasonOverlay->setBlendFunc(overlayBlend);
+    }
+    
+    _lastSeason = season;
 }
 
 void BackgroundLayer::update(float dt)
 {
+    if (HomeScene::sClock && HomeScene::sClock->getSeason() != _lastSeason)
+    {
+        updateSeasonFilter();
+    }
+
     if (!_map || !_player)
     {
         return;

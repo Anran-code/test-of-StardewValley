@@ -4,6 +4,7 @@
 #include "cocos2d.h"
 #include "Player.h"
 #include "Inventory.h"
+#include "GameClock.h"
 
 enum class BackgroundType
 {
@@ -59,7 +60,13 @@ private:
     bool _enteredHome;
     bool _exitedRight;
     bool _isDebugMode;
- 
+
+    // Seasonal filter support
+    GameClock::Season _lastSeason;
+    cocos2d::Node* _backgroundNode;
+    cocos2d::LayerColor* _seasonOverlay;
+    void updateSeasonFilter();
+
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
  
