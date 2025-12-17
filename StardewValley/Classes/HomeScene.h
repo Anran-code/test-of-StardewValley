@@ -35,6 +35,7 @@ private:
     };
     std::unordered_map<int, Obstacle> _obstacles; // Key: tileIndex y * width + x
     void initObstacles();
+    void spawnObstacles(int count); // Spawn a specific number of obstacles
     void removeObstacle(const cocos2d::Vec2& tileIndex);
     bool hasObstacle(const cocos2d::Vec2& tileIndex);
     int getObstacleType(const cocos2d::Vec2& tileIndex);

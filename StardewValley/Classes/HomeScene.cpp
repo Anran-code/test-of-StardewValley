@@ -319,6 +319,12 @@ void BackgroundLayer::update(float dt)
 {
     if (HomeScene::sClock && HomeScene::sClock->getSeason() != _lastSeason)
     {
+        if (_type == BackgroundType::Farm && _map)
+        {
+             Size mapSize = _map->getMapSize();
+             int initialCount = (mapSize.width * mapSize.height) / 10;
+             spawnObstacles(initialCount / 3);
+        }
         updateSeasonFilter();
     }
 
@@ -1084,21 +1090,14 @@ void BackgroundLayer::onMouseDown(Event* event)
     }
 }
 
-void BackgroundLayer::initObstacles()
+void BackgroundLayer::spawnObstacles(int count)
 {
     if (!_map) return;
     Size mapSize = _map->getMapSize();
     Size tileSize = _map->getTileSize();
     float mapHeight = mapSize.height * tileSize.height;
 
-    // Random generation across the map
-    // Avoid player spawn area (center) and house area
-    
-    // Simple seeded random for consistency if needed, or pure random
-    
-    int obstacleCount = (mapSize.width * mapSize.height) / 10; // 10% density
-    
-    for (int i = 0; i < obstacleCount; ++i)
+    for (int i = 0; i < count; ++i)
     {
         int x = RandomHelper::random_int(0, (int)mapSize.width - 1);
         int y = RandomHelper::random_int(0, (int)mapSize.height - 1);
@@ -1157,11 +1156,6 @@ void BackgroundLayer::initObstacles()
             }
             
             // Set Z-order based on Y position for proper occlusion (2.5D look)
-            // Objects lower on screen (higher Y in screen coords? No, Cocos Y is Up)
-            // Cocos2d-x: (0,0) is Bottom-Left. Higher Y is higher on screen.
-            // In Top-Down, higher Y means "further back".
-            // So higher Y should be drawn FIRST (lower Z-order).
-            // Lower Y (closer to bottom) should be drawn LAST (higher Z-order).
             int zOrder = static_cast<int>(mapHeight - cyPos);
             addChild(sprite, zOrder);
             
@@ -1172,6 +1166,14 @@ void BackgroundLayer::initObstacles()
             _obstacles[key] = obs;
         }
     }
+}
+
+void BackgroundLayer::initObstacles()
+{
+    if (!_map) return;
+    Size mapSize = _map->getMapSize();
+    int obstacleCount = (mapSize.width * mapSize.height) / 10; // 10% density
+    spawnObstacles(obstacleCount);
 }
 
 bool BackgroundLayer::hasObstacle(const Vec2& tileIndex)
