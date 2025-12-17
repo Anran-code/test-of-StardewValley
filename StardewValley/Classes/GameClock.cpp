@@ -29,34 +29,27 @@ void GameClock::update(float dt)
             _hour -= 24;
         }
 
-        int minutesSinceSixAM = 0;
-        if (_hour >= 6)
-        {
-            minutesSinceSixAM = (_hour - 6) * 60 + _minute;
-        }
-        else
-        {
-            minutesSinceSixAM = (24 - 6 + _hour) * 60 + _minute;
-        }
+        checkTurnOfDay();
+    }
+}
 
-        if (minutesSinceSixAM >= 1200)
-        {
-            _hour = 6;
-            _minute = 0;
-            _day += 1;
-            if (_day > 28)
-            {
-                _day = 1;
-                int s = static_cast<int>(_season);
-                s += 1;
-                if (s > static_cast<int>(Season::Winter))
-                {
-                    s = static_cast<int>(Season::Spring);
-                    _year += 1;
-                }
-                _season = static_cast<Season>(s);
-            }
-        }
+void GameClock::checkTurnOfDay()
+{
+    int minutesSinceSixAM = 0;
+    if (_hour >= 6)
+    {
+        minutesSinceSixAM = (_hour - 6) * 60 + _minute;
+    }
+    else
+    {
+        minutesSinceSixAM = (24 - 6 + _hour) * 60 + _minute;
+    }
+
+    if (minutesSinceSixAM >= 1200)
+    {
+        _hour = 6;
+        _minute = 0;
+        addDay(1);
     }
 }
 
@@ -115,16 +108,22 @@ void GameClock::addDay(int days)
 void GameClock::addHour(int hours)
 {
     _hour += hours;
+    // Just wrap hours, don't auto-increment day yet. 
+    // Let checkTurnOfDay handle the 2AM threshold.
     while (_hour >= 24)
     {
         _hour -= 24;
-        addDay(1);
+        // addDay(1); // Removed: Day change is now strictly controlled by 2AM rule
     }
     while (_hour < 0)
     {
         _hour += 24;
-        addDay(-1);
+        addDay(-1); // Backward time travel still reduces day immediately? 
+                    // Stardew doesn't really support backward, but generic clock might.
+                    // For now, keep backward day change, but forward is 2AM only.
     }
+    
+    checkTurnOfDay();
 }
 
 int GameClock::getWeekdayIndex() const
