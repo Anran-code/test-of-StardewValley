@@ -285,9 +285,13 @@ void HudLayer::updateInventoryUI()
                     auto label = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16); // Font size might need scaling
                     if (label)
                     {
+                        label->setColor(Color3B::BLACK);
+                        label->enableBold(); // Make text bold
                         label->setAnchorPoint(Vec2(1.0f, 0.0f));
                         // Position at bottom-right of the cell content area
-                        label->setPosition(Vec2(cx + scaledCellWidth * 0.4f, cy - scaledCellHeight * 0.4f));
+                        // Move slightly more to bottom-right (from 0.4f to 0.48f)
+                        // User requested slightly more down (0.48f -> 0.55f)
+                        label->setPosition(Vec2(cx + scaledCellWidth * 0.48f, cy - scaledCellHeight * 0.55f));
                         addChild(label, 11);
                         _quantityLabels.push_back(label);
                     }

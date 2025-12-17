@@ -22,7 +22,7 @@ Player* Player::create(const std::string& filename, float tileHeight)
         // Default is (0.5, 0.5). (0.5, 0.3) moves the pivot down, so the sprite sits higher.
         ret->setAnchorPoint(Vec2(0.5f, 0.3f));
 
-        ret->_speed = 200.0f;
+        ret->_speed = 150.0f;
         ret->_moveDir = Vec2::ZERO;
         ret->_movingUp = false;
         ret->_movingDown = false;
