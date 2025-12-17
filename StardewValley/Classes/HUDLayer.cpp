@@ -122,6 +122,7 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     _touchListener = EventListenerTouchOneByOne::create();
     _touchListener->setSwallowTouches(true);
     _touchListener->onTouchBegan = CC_CALLBACK_2(HudLayer::onTouchBegan, this);
+    _touchListener->onTouchMoved = CC_CALLBACK_2(HudLayer::onTouchMoved, this);
     _touchListener->onTouchEnded = CC_CALLBACK_2(HudLayer::onTouchEnded, this);
     _touchListener->onTouchCancelled = CC_CALLBACK_2(HudLayer::onTouchCancelled, this);
     _eventDispatcher->addEventListenerWithFixedPriority(_touchListener, -128);
@@ -446,20 +447,14 @@ int HudLayer::getSlotIndexFromPoint(const Vec2& p)
 {
     if (!_backpack || !_backpack->isVisible()) return -1;
     
+    Vec2 localPos = _backpack->convertToNodeSpace(p);
     Size bpSize = _backpack->getContentSize();
-    float bpScale = _backpack->getScale();
-    Vec2 bpPos = _backpack->getPosition();
-    float bpLeft = bpPos.x - (bpSize.width * bpScale * 0.5f);
-    float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
-    
-    // Convert point to Image Space
-    float localX = (p.x - bpLeft) / bpScale;
-    float localY = (p.y - bpBottom) / bpScale;
 
-    // Check X
-    // Start at 153.
-    // Width of row = 12 * 59 + 11 * 4 = 708 + 44 = 752.
-    // End = 153 + 752 = 905.
+    Rect bounds(0, 0, bpSize.width, bpSize.height);
+    if (!bounds.containsPoint(localPos)) return -1;
+
+    float localX = localPos.x;
+    float localY = localPos.y;
 
     if (localX < BACKPACK_ROW1_LEFT) return -1;
     
@@ -472,12 +467,7 @@ int HudLayer::getSlotIndexFromPoint(const Vec2& p)
     if (withinCell > BACKPACK_CELL_W) col = -1; // Clicked in gap
     
     if (col < 0 || col >= 12) return -1;
-    
-    // Determine Row
-    // Row 1 Y range: [545, 605]
-    // Row 2 Y range: [464, 524]
-    // Row 3 Y range: [395, 455]
-    
+        
     int row = -1;
     if (localY >= BACKPACK_ROW1_BOTTOM && localY <= BACKPACK_ROW1_BOTTOM + BACKPACK_CELL_H)
     {
@@ -512,45 +502,24 @@ bool HudLayer::isPointInCloseButton(const Vec2& p)
 {
     if (!_backpack || !_backpack->isVisible()) return false;
     
-    Size bpSize = _backpack->getContentSize();
-    float bpScale = _backpack->getScale();
-    Vec2 bpPos = _backpack->getPosition();
-    float bpLeft = bpPos.x - (bpSize.width * bpScale * 0.5f);
-    float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
-    
-    float localX = (p.x - bpLeft) / bpScale;
-    float localY = (p.y - bpBottom) / bpScale;
-    
+    Vec2 localPos = _backpack->convertToNodeSpace(p);
     Rect btnRect(CLOSE_BTN_LEFT, CLOSE_BTN_BOTTOM, CLOSE_BTN_W, CLOSE_BTN_H);
-    return btnRect.containsPoint(Vec2(localX, localY));
+    return btnRect.containsPoint(localPos);
 }
 
 bool HudLayer::isPointInTrashCan(const Vec2& p)
 {
     if (!_backpack || !_backpack->isVisible()) return false;
     
-    Size bpSize = _backpack->getContentSize();
-    float bpScale = _backpack->getScale();
-    Vec2 bpPos = _backpack->getPosition();
-    float bpLeft = bpPos.x - (bpSize.width * bpScale * 0.5f);
-    float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
-    
-    float localX = (p.x - bpLeft) / bpScale;
-    float localY = (p.y - bpBottom) / bpScale;
-    
-    Rect btnRect(TRASH_LEFT, TRASH_BOTTOM, TRASH_W, TRASH_H);
-    return btnRect.containsPoint(Vec2(localX, localY));
+    Vec2 localPos = _backpack->convertToNodeSpace(p);
+    Rect trashRect(TRASH_LEFT, TRASH_BOTTOM, TRASH_W, TRASH_H);
+    return trashRect.containsPoint(localPos);
 }
 
 void HudLayer::onMouseMove(Event* event)
 {
-    if (_isDragging && _draggedItemSprite)
-    {
-        EventMouse* e = (EventMouse*)event;
-        // e->getLocation() is cursor pos
-        Vec2 loc = e->getLocation();
-        _draggedItemSprite->setPosition(loc);
-        if (_draggedItemQty) _draggedItemQty->setPosition(Vec2(loc.x + 20, loc.y - 20));
+    if (_isDragging) {
+        return;
     }
 }
 
@@ -577,6 +546,68 @@ void HudLayer::onMouseDown(Event* event)
 
     Vec2 clickPos = e->getLocation();
 
+    // 优先检测背包 (Backpack)
+    if (_backpack && _backpack->isVisible())
+    {
+        // 1. 检测关闭按钮
+        if (isPointInCloseButton(clickPos))
+        {
+            _backpack->setVisible(false);
+            _consumingClick = true;
+            event->stopPropagation();
+            updateInventoryUI();
+            return;
+        }
+
+        // 2. 检测背包格子 -> 处理拖拽
+        int slotIndex = getSlotIndexFromPoint(clickPos);
+        if (slotIndex != -1)
+        {
+            if (_inventory->hasItem(slotIndex))
+            {
+                _isDragging = true;
+                _dragSourceIndex = slotIndex;
+                _consumingClick = true;
+                event->stopPropagation();
+
+                // 生成拖拽图标
+                const Item& item = _inventory->getItem(slotIndex);
+                _draggedItemSprite = Sprite::create(item.iconPath);
+                if (_draggedItemSprite)
+                {
+                    _draggedItemSprite->setOpacity(180);
+                    _draggedItemSprite->setScale(1.0f); // 保持原始比例或微调
+                    _draggedItemSprite->setPosition(clickPos);
+                    addChild(_draggedItemSprite, 1000);
+
+                    if (item.quantity > 1) {
+                        _draggedItemQty = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16);
+                        _draggedItemQty->setColor(Color3B::WHITE);
+                        _draggedItemQty->enableOutline(Color4B::BLACK, 2);
+                        _draggedItemQty->setPosition(Vec2(clickPos.x + 20, clickPos.y - 20));
+                        addChild(_draggedItemQty, 1001);
+                    }
+                }
+                updateInventoryUI();
+            }
+            // 即使是空格子，也算点击在了背包上，阻止事件继续向下传给工具栏
+            return;
+        }
+
+        // 检测是否点在了背包背景图上
+        Vec2 localP = _backpack->convertToNodeSpace(clickPos);
+        Size bpSize = _backpack->getContentSize();
+        if (Rect(0, 0, bpSize.width, bpSize.height).containsPoint(localP)) {
+            _consumingClick = true;
+            event->stopPropagation();
+            return; // 吞噬事件，不做任何事，但也不让工具栏响应
+        }
+
+        return;
+    }
+
+    // 检测工具栏 (Toolbar)
+
     float scale = _toolbar->getScale();
     Size originalSize = _toolbar->getContentSize();
     Vec2 toolbarPos = _toolbar->getPosition();
@@ -588,94 +619,38 @@ void HudLayer::onMouseDown(Event* event)
 
     if (hitRectWorld.containsPoint(clickPos))
     {
-        // ... (Toolbar click logic)
         _consumingClick = true;
         event->stopPropagation();
 
-        // Copy toolbar click logic here or refactor.
-        // For now, I'll keep the existing logic below inside this block as it was.
-        
         float localXPixel = (clickPos.x - left) / scale;
         float localYPixel = (clickPos.y - bottom) / scale;
-        
-        // ... (Existing toolbar logic)
-        
+
         float yMin = RAW_BOTTOM_MARGIN;
         float yMax = RAW_BOTTOM_MARGIN + RAW_CELL_HEIGHT;
         float vTol = 30.0f;
 
         if (localYPixel >= yMin - vTol && localYPixel <= yMax + vTol)
         {
-             float startX = RAW_LEFT_MARGIN;
-             float stepX = RAW_CELL_WIDTH + RAW_GAP;
-             
-             float relX = localXPixel - startX;
-             
-             // Allow clicking slightly before the first slot
-             if (relX >= -RAW_GAP && relX < (Inventory::TOOLBAR_SIZE * stepX))
-             {
-                 // Normalize
-                 if (relX < 0) relX = 0;
-                 
-                 int index = static_cast<int>(relX / stepX);
-                 
-                 if (index >= 0 && index < Inventory::TOOLBAR_SIZE)
-                 {
-                     _inventory->setSelectedSlot(index);
-                     updateInventoryUI();
-                 }
-             }
+            float startX = RAW_LEFT_MARGIN;
+            float stepX = RAW_CELL_WIDTH + RAW_GAP;
+
+            float relX = localXPixel - startX;
+
+            if (relX >= -RAW_GAP && relX < (Inventory::TOOLBAR_SIZE * stepX))
+            {
+                if (relX < 0) relX = 0;
+                int index = static_cast<int>(relX / stepX);
+
+                if (index >= 0 && index < Inventory::TOOLBAR_SIZE)
+                {
+                    _inventory->setSelectedSlot(index);
+                    updateInventoryUI();
+                }
+            }
         }
         return;
     }
 
-    // Check Backpack Clicks
-    if (_backpack && _backpack->isVisible())
-    {
-        // Check Close Button
-        if (isPointInCloseButton(clickPos))
-        {
-            _backpack->setVisible(false);
-            _consumingClick = true;
-            event->stopPropagation();
-            return;
-        }
-        
-        // Check Slot Click -> Start Drag
-        int slotIndex = getSlotIndexFromPoint(clickPos);
-        if (slotIndex != -1)
-        {
-            if (_inventory->hasItem(slotIndex))
-            {
-                // Start Dragging
-                _isDragging = true;
-                _dragSourceIndex = slotIndex;
-                _consumingClick = true;
-                event->stopPropagation();
-                
-                // Create Drag Sprite
-                const Item& item = _inventory->getItem(slotIndex);
-                _draggedItemSprite = Sprite::create(item.iconPath);
-                if (_draggedItemSprite)
-                {
-                    _draggedItemSprite->setOpacity(180);
-                    _draggedItemSprite->setScale(0.8f); // Slightly smaller?
-                    _draggedItemSprite->setPosition(clickPos);
-                    addChild(_draggedItemSprite, 1000); // Top most
-                    
-                    if (item.quantity > 1) {
-                         _draggedItemQty = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16);
-                         _draggedItemQty->setColor(Color3B::BLACK);
-                         _draggedItemQty->setPosition(Vec2(clickPos.x + 20, clickPos.y - 20));
-                         addChild(_draggedItemQty, 1001);
-                    }
-                }
-                
-                // Refresh UI (hides the original item because of _isDragging check)
-                updateInventoryUI();
-            }
-        }
-    }
 }
 
 void HudLayer::onMouseUp(Event* event)
@@ -727,7 +702,64 @@ void HudLayer::onMouseUp(Event* event)
 bool HudLayer::onTouchBegan(Touch* touch, Event* event)
 {
     if (!_inventory || !_toolbar) return false;
+
+    // 获取点击位置
     Vec2 p = touch->getLocation();
+
+    // 优先检测背包 (Backpack) - 逻辑与 onMouseDown 保持一致
+    if (_backpack && _backpack->isVisible())
+    {
+        // 检测关闭按钮
+        if (isPointInCloseButton(p))
+        {
+            _backpack->setVisible(false);
+            _consumingClick = true; // 标记正在处理点击
+            updateInventoryUI();
+            return true; // return true 表示吞噬事件，不再向下传递
+        }
+
+        // 检测背包格子 -> 开始拖拽
+        int slotIndex = getSlotIndexFromPoint(p);
+        if (slotIndex != -1)
+        {
+            if (_inventory->hasItem(slotIndex))
+            {
+                _isDragging = true;
+                _dragSourceIndex = slotIndex;
+                _consumingClick = true;
+
+                // 创建拖拽图标
+                const Item& item = _inventory->getItem(slotIndex);
+                _draggedItemSprite = Sprite::create(item.iconPath);
+                if (_draggedItemSprite)
+                {
+                    _draggedItemSprite->setOpacity(180);
+                    _draggedItemSprite->setScale(1.0f);
+                    _draggedItemSprite->setPosition(p);
+                    addChild(_draggedItemSprite, 1000);
+
+                    if (item.quantity > 1) {
+                        _draggedItemQty = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16);
+                        _draggedItemQty->setColor(Color3B::WHITE);
+                        _draggedItemQty->enableOutline(Color4B::BLACK, 2);
+                        _draggedItemQty->setPosition(Vec2(p.x + 20, p.y - 20));
+                        addChild(_draggedItemQty, 1001);
+                    }
+                }
+                updateInventoryUI();
+            }
+            return true; // 吞噬事件
+        }
+
+        // 如果点在背包背景内，吞噬事件，防止穿透到工具栏
+        Vec2 localP = _backpack->convertToNodeSpace(p);
+        Size bpSize = _backpack->getContentSize();
+        if (Rect(0, 0, bpSize.width, bpSize.height).containsPoint(localP)) {
+            _consumingClick = true;
+            return true;
+        }
+    }
+
     float scale = _toolbar->getScale();
     Size originalSize = _toolbar->getContentSize();
     Vec2 toolbarPos = _toolbar->getPosition();
@@ -762,9 +794,70 @@ bool HudLayer::onTouchBegan(Touch* touch, Event* event)
     return true;
 }
 
+void HudLayer::onTouchMoved(Touch* touch, Event* event)
+{
+    // 只有在拖拽状态下才更新位置
+    if (_isDragging && _draggedItemSprite)
+    {
+        // touch->getLocation() 返回的是 GL 坐标
+        Vec2 loc = touch->getLocation();
+
+        _draggedItemSprite->setPosition(loc);
+
+        // 如果有数字标签，也跟着一起动
+        if (_draggedItemQty)
+        {
+            _draggedItemQty->setPosition(Vec2(loc.x + 20, loc.y - 20));
+        }
+    }
+}
+
 void HudLayer::onTouchEnded(Touch* touch, Event* event)
 {
     _consumingClick = false;
+
+    // 如果正在拖拽，处理物品放下逻辑
+    if (_isDragging)
+    {
+        // 获取松手时的坐标 (Touch 坐标是准确的)
+        Vec2 pos = touch->getLocation();
+
+        bool actionTaken = false;
+
+        // 检测是否扔进垃圾桶
+        if (isPointInTrashCan(pos))
+        {
+            _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
+            actionTaken = true;
+        }
+        else
+        {
+            // 检测是否放入背包格子 (交换/放置)
+            int targetSlot = getSlotIndexFromPoint(pos);
+            if (targetSlot != -1)
+            {
+                _inventory->swapItems(_dragSourceIndex, targetSlot);
+                actionTaken = true;
+            }
+        }
+
+        // 清理拖拽的图标
+        if (_draggedItemSprite) {
+            _draggedItemSprite->removeFromParent();
+            _draggedItemSprite = nullptr;
+        }
+        if (_draggedItemQty) {
+            _draggedItemQty->removeFromParent();
+            _draggedItemQty = nullptr;
+        }
+
+        // 重置状态
+        _isDragging = false;
+        _dragSourceIndex = -1;
+
+        // 刷新界面
+        updateInventoryUI();
+    }
 }
 
 void HudLayer::onTouchCancelled(Touch* touch, Event* event)

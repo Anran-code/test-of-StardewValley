@@ -24,6 +24,7 @@ public:
     void onMouseDown(cocos2d::Event* event); // Added mouse click handling for toolbar
     void onMouseUp(cocos2d::Event* event);
     bool onTouchBegan(cocos2d::Touch* touch, cocos2d::Event* event);
+    void onTouchMoved(cocos2d::Touch* touch, cocos2d::Event* event);
     void onTouchEnded(cocos2d::Touch* touch, cocos2d::Event* event);
     void onTouchCancelled(cocos2d::Touch* touch, cocos2d::Event* event);
     void onMouseMove(cocos2d::Event* event); // Added for drag
