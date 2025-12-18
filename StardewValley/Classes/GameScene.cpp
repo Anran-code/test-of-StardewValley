@@ -199,6 +199,86 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         }
     }
 
+    if (_type == BackgroundType::Home)
+    {
+        auto map = TMXTiledMap::create("map/home.tmx");
+        if (map)
+        {
+            Size mapSizeTiles = map->getMapSize();
+            Size tileSize = map->getTileSize();
+            float mapWidth = mapSizeTiles.width * tileSize.width;
+            float mapHeight = mapSizeTiles.height * tileSize.height;
+
+            auto visibleSize = Director::getInstance()->getVisibleSize();
+            Vec2 origin = Director::getInstance()->getVisibleOrigin();
+            float offsetX = origin.x + (visibleSize.width - mapWidth) * 0.5f;
+            float offsetY = origin.y + (visibleSize.height - mapHeight) * 0.5f;
+
+            map->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+            map->setPosition(Vec2::ZERO);
+            addChild(map, 0);
+
+            setPosition(Vec2(offsetX, offsetY));
+
+            _map = map;
+            _backgroundNode = map;
+
+            _seasonOverlay = LayerColor::create(Color4B(0, 0, 0, 0), mapWidth, mapHeight);
+            if (_seasonOverlay)
+            {
+                _map->addChild(_seasonOverlay, 2);
+            }
+
+            _groundLayer = _map->getLayer("floor");
+            if (!_groundLayer)
+            {
+                if (_map->getChildrenCount() > 0)
+                {
+                    _groundLayer = dynamic_cast<TMXLayer*>(_map->getChildren().at(0));
+                }
+            }
+
+            auto player = Player::create("player.png", tileSize.height);
+            if (!player)
+            {
+                player = Player::create("HelloWorld.png", tileSize.height);
+            }
+            if (player)
+            {
+                float startX = mapWidth * 0.5f;
+                float startY = mapHeight * 0.5f;
+                player->setPosition(Vec2(startX, startY));
+                addChild(player, 1);
+
+                _player = player;
+
+                _facingDebug = DrawNode::create();
+                _map->addChild(_facingDebug, 100);
+
+                scheduleUpdate();
+
+                auto listener = EventListenerKeyboard::create();
+                listener->onKeyPressed = CC_CALLBACK_2(BackgroundLayer::onKeyPressed, this);
+                listener->onKeyReleased = CC_CALLBACK_2(BackgroundLayer::onKeyReleased, this);
+                _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
+
+                auto mouseListener = EventListenerMouse::create();
+                mouseListener->onMouseDown = CC_CALLBACK_1(BackgroundLayer::onMouseDown, this);
+                _eventDispatcher->addEventListenerWithSceneGraphPriority(mouseListener, this);
+
+                _boundaryLeftRect = Rect(tileSize.width, 0.0f, tileSize.width, mapHeight);
+                _boundaryRightRect = Rect(mapWidth - tileSize.width * 2.0f, 0.0f, tileSize.width, mapHeight);
+                _boundaryBottomRect = Rect(0.0f, tileSize.height, mapWidth, tileSize.height);
+                _boundaryTopRect = Rect(0.0f, mapHeight - tileSize.height * 2.0f, mapWidth, tileSize.height);
+                _hasBoundary = true;
+
+                updateSeasonFilter();
+
+                return true;
+            }
+        }
+    }
+
     std::string imageFile;
 
     switch (_type)
