@@ -1,5 +1,5 @@
 #include "Menu.h"
-#include"HomeScene.h"
+#include"GameScene.h"
 USING_NS_CC;
 
 Scene* MenuScene::createScene()
@@ -97,9 +97,9 @@ void MenuScene::menuCloseCallback(Ref* pSender)
 
 void MenuScene::menuNewCallback(Ref* pSender)
 {
-    // 1. ���� HomeScene ����
-    // HomeScene::createScene() ���� HomeScene.h �ж���ľ�̬����
-    auto scene = HomeScene::createScene();
+    // 1. ���� GameScene ����
+    // GameScene::createScene() ���� GameScene.h �ж���ľ�̬����
+    auto scene = GameScene::createScene();
 
     // 2. ʹ�� Director �л�����
     // ʹ�� replaceScene �滻��ǰ���еĳ���

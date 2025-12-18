@@ -51,7 +51,7 @@ list(APPEND GAME_SOURCE
      Classes/AppDelegate.cpp
      Classes/HelloWorldScene.cpp
      Classes/Menu.cpp
-     Classes/HomeScene.cpp
+     Classes/GameScene.cpp
      Classes/Player.cpp
      Classes/GameClock.cpp
      Classes/Wallet.cpp
@@ -63,7 +63,7 @@ list(APPEND GAME_HEADER
      Classes/AppDelegate.h
      Classes/HelloWorldScene.h
      Classes/Menu.h
-     Classes/HomeScene.h
+     Classes/GameScene.h
      Classes/Player.h
      Classes/GameClock.h
      Classes/Wallet.h

@@ -2,7 +2,7 @@
 #include "GameClock.h"
 #include "Wallet.h"
 #include "Inventory.h"
-#include "HomeScene.h"
+#include "GameScene.h"
 
 USING_NS_CC;
 
@@ -243,7 +243,7 @@ void HudLayer::updateInventoryUI()
     if (_debugBounds)
     {
         _debugBounds->clear();
-        if (HomeScene::sDebugMode)
+        if (GameScene::sDebugMode)
         {
             float w = originalSize.width * scale;
             float h = originalSize.height * scale;
@@ -342,7 +342,7 @@ void HudLayer::updateInventoryUI()
         float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
         
         // Debug Drawing for Backpack Hit Areas
-        if (_debugBounds && HomeScene::sDebugMode)
+        if (_debugBounds && GameScene::sDebugMode)
         {
             // Draw Close Button
             float cbLeft = bpLeft + (CLOSE_BTN_LEFT * bpScale);
