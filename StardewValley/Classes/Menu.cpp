@@ -42,7 +42,7 @@ bool MenuScene::init()
     // 2.����
     auto ttsprite = Sprite::create("ui/menu_logo.png");
     ttsprite->setPosition(Vec2(visibleSize.width / 2 + origin.x, visibleSize.height*0.75 + origin.y));
-
+    ttsprite->setScale(0.5);
     // add the sprite as a child to this layer
     this->addChild(ttsprite);
 
@@ -58,7 +58,7 @@ bool MenuScene::init()
     }
     else
     {
-        float x1 = origin.x + 0.75 * visibleSize.width - closeItem->getContentSize().width / 2;
+        float x1 = origin.x + 0.7 * visibleSize.width - closeItem->getContentSize().width / 2;
         float y1 = origin.y + 0.15 * visibleSize.height + closeItem->getContentSize().height / 2;
         closeItem->setPosition(Vec2(x1, y1));
         closeItem->setScale(2.0);
@@ -75,7 +75,7 @@ bool MenuScene::init()
     }
     else
     {
-        float x2 = origin.x + 0.25 * visibleSize.width - newItem->getContentSize().width / 2;
+        float x2 = origin.x + 0.4 * visibleSize.width - newItem->getContentSize().width / 2;
         float y2 = origin.y + 0.15 * visibleSize.height + newItem->getContentSize().height / 2;
         newItem->setPosition(Vec2(x2, y2));
         newItem->setScale(2.0);

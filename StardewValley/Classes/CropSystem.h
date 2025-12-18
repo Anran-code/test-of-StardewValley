@@ -25,6 +25,10 @@ struct CropData
     std::string matureSprite;
     std::vector<int> sproutThresholdDays;
     std::vector<GameClock::Season> allowedSeasons;
+    
+    // For Inventory
+    std::string itemName;
+    std::string itemIcon;
 };
 
 struct CropInstance
@@ -43,18 +47,34 @@ struct TileSlot
     std::unique_ptr<CropInstance> crop;
 };
 
+class GameClock;
+class Wallet;
+class Inventory;
+// class Basket;
+
 class CropSystem
 {
 public:
     static CropSystem* getInstance();
 
-    void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet);
-    void setBasket(class Basket* basket);
+    void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory);
+    // void setBasket(Basket* basket);
     void setSelectedCrop(CropType type);
     void tillTile(const cocos2d::Vec2& tileIndex);
     bool plantSelected(const cocos2d::Vec2& tileIndex);
     void waterTile(const cocos2d::Vec2& tileIndex);
     bool harvestTile(const cocos2d::Vec2& tileIndex);
+    bool removeWithered(const cocos2d::Vec2& tileIndex);
+    bool destroyTile(const cocos2d::Vec2& tileIndex);
+    
+    // Check methods for UI feedback
+    bool canTill(const cocos2d::Vec2& tileIndex) const;
+    bool canPlant(const cocos2d::Vec2& tileIndex, CropType type) const;
+    bool canWater(const cocos2d::Vec2& tileIndex) const;
+    bool canHarvest(const cocos2d::Vec2& tileIndex) const;
+    bool canClearWithered(const cocos2d::Vec2& tileIndex) const;
+    bool canDestroy(const cocos2d::Vec2& tileIndex) const;
+
     void updateDailyGrowth();
     int getSellPrice(CropType type) const;
 
@@ -66,7 +86,8 @@ private:
     cocos2d::TMXLayer* _groundLayer;
     GameClock* _clock;
     Wallet* _wallet;
-    class Basket* _basket;
+    Inventory* _inventory;
+    // Basket* _basket;
     CropType _selected;
     int _lastProcessedDay;
     int _lastProcessedSeason;

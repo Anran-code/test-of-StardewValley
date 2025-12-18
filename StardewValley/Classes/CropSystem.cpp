@@ -1,6 +1,7 @@
 #include "CropSystem.h"
 #include "cocos2d.h"
-#include "Basket.h"
+#include "Inventory.h"
+// #include "Basket.h"
 
 using namespace cocos2d;
 
@@ -17,14 +18,15 @@ CropSystem::CropSystem()
     , _groundLayer(nullptr)
     , _clock(nullptr)
     , _wallet(nullptr)
-    , _basket(nullptr)
+    , _inventory(nullptr)
+
     , _selected(CropType::Parsnip)
     , _lastProcessedDay(-1)
     , _lastProcessedSeason(-1)
 {
 }
 
-void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet)
+void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory)
 {
     if (map) _map = map;
     if (_map)
@@ -37,6 +39,7 @@ void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet)
     }
     if (clock) _clock = clock;
     if (wallet) _wallet = wallet;
+    if (inventory) _inventory = inventory;
     loadCropData();
     ensureGridSize();
     if (_clock)
@@ -46,30 +49,53 @@ void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet)
     }
 }
 
-void CropSystem::setBasket(Basket* basket)
-{
-    _basket = basket;
-}
+
 
 void CropSystem::setSelectedCrop(CropType type)
 {
     _selected = type;
 }
 
+bool CropSystem::canTill(const Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    // Can till if not already tilled and no crop (though crop usually implies tilled)
+    // Also usually need to check for obstacles, but obstacles are handled in HomeScene.
+    // CropSystem only cares about soil state.
+    return !slot.tilled && !slot.crop;
+}
+
 void CropSystem::tillTile(const Vec2& tileIndex)
 {
-    if (!inBounds(tileIndex)) return;
-    _tiles[(int)tileIndex.x][(int)tileIndex.y].tilled = true;
+    if (!canTill(tileIndex)) return;
+    
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    slot.tilled = true;
     darkenTile(tileIndex);
+}
+
+bool CropSystem::canPlant(const Vec2& tileIndex, CropType type) const
+{
+    if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    if (!slot.tilled) return false;
+    if (slot.crop) return false;
+
+    // Check season
+    if (!isSeasonAllowed(type, _clock->getSeason()))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CropSystem::plantSelected(const Vec2& tileIndex)
 {
-    if (!inBounds(tileIndex)) return false;
+    if (!canPlant(tileIndex, _selected)) return false;
+
     auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
-    if (!slot.tilled) return false;
-    if (slot.crop) return false;
-    const auto& d = _data[_selected];
+    const auto& d = _data[_selected]; // Use internal map, assume exists if enum valid
 
     auto inst = std::make_unique<CropInstance>();
     inst->type = _selected;
@@ -85,24 +111,46 @@ bool CropSystem::plantSelected(const Vec2& tileIndex)
     return true;
 }
 
+bool CropSystem::canWater(const Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    return slot.tilled && !slot.watered;
+}
+
 void CropSystem::waterTile(const Vec2& tileIndex)
 {
-    if (!inBounds(tileIndex)) return;
+    if (!canWater(tileIndex)) return;
     auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
-    if (!slot.tilled) return;
     slot.watered = true;
     waterTintTile(tileIndex);
 }
 
-bool CropSystem::harvestTile(const Vec2& tileIndex)
+bool CropSystem::canHarvest(const Vec2& tileIndex) const
 {
     if (!inBounds(tileIndex)) return false;
-    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     if (!slot.crop) return false;
+    
     auto* inst = slot.crop.get();
-    const auto& d = _data[inst->type];
     if (inst->withered) return false;
-    if (inst->daysWatered < d.growthDays) return false;
+    
+    // Check if fully grown
+    // Need to look up data. _data is member.
+    auto it = _data.find(inst->type);
+    if (it == _data.end()) return false;
+    const auto& d = it->second;
+    
+    return inst->daysWatered >= d.growthDays;
+}
+
+bool CropSystem::harvestTile(const Vec2& tileIndex)
+{
+    if (!canHarvest(tileIndex)) return false;
+    
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    auto* inst = slot.crop.get();
+    const auto& d = _data[inst->type]; // Safe because canHarvest checked it
 
     int yieldCount = 1;
     if (inst->type == CropType::Potato)
@@ -110,22 +158,91 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         float r = RandomHelper::random_real<float>(0.0f, 1.0f);
         if (r < 0.25f) yieldCount += 1;
     }
-    if (_basket)
+    
+    if (_inventory)
     {
-        if (!_basket->addCrop(inst->type, yieldCount))
-        {
-            return false;
-        }
+        Item item = Item::createCrop(inst->type, d.itemName, d.itemIcon, yieldCount);
+        _inventory->addItem(item);
+        Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
     }
-    else if (_wallet)
-    {
-        _wallet->addMoney(d.sellPrice * yieldCount);
-    }
+    
     if (inst->sprite)
     {
         inst->sprite->removeFromParent();
     }
     slot.crop.reset();
+    return true;
+}
+
+bool CropSystem::canClearWithered(const Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    if (!slot.crop) return false;
+    return slot.crop->withered;
+}
+
+bool CropSystem::removeWithered(const Vec2& tileIndex)
+{
+    if (!canClearWithered(tileIndex)) return false;
+    
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    if (slot.crop->sprite)
+    {
+        slot.crop->sprite->removeFromParent();
+    }
+    slot.crop.reset();
+    
+    if (slot.tilled)
+    {
+        if (slot.watered)
+        {
+            waterTintTile(tileIndex);
+        }
+        else
+        {
+            darkenTile(tileIndex);
+        }
+    }
+    else
+    {
+        resetTileColor(tileIndex);
+    }
+    
+    return true;
+}
+
+bool CropSystem::canDestroy(const Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return false;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    // Can destroy if tilled (regardless of crop or water state)
+    return slot.tilled;
+}
+
+bool CropSystem::destroyTile(const Vec2& tileIndex)
+{
+    if (!canDestroy(tileIndex)) return false;
+    
+    auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    
+    // Remove crop if exists
+    if (slot.crop)
+    {
+        if (slot.crop->sprite)
+        {
+            slot.crop->sprite->removeFromParent();
+        }
+        slot.crop.reset();
+    }
+    
+    // Untill
+    slot.tilled = false;
+    slot.watered = false;
+    
+    // Reset visual
+    resetTileColor(tileIndex);
+    
     return true;
 }
 
@@ -157,14 +274,18 @@ void CropSystem::updateDailyGrowth()
                         placeOrUpdateSprite(Vec2(x, y), inst);
                     }
                 }
-                if (!inst->withered)
+                if (slot.watered)
                 {
-                    if (slot.watered)
+                    if (!inst->withered)
                     {
                         inst->daysWatered += 1;
                     }
                     slot.watered = false;
+                    darkenTile(Vec2(x, y));
+                }
 
+                if (!inst->withered)
+                {
                     int newStage = 0;
                     for (int i = 0; i < (int)d.sproutThresholdDays.size(); ++i)
                     {
@@ -188,6 +309,7 @@ void CropSystem::updateDailyGrowth()
                         {
                             path = d.matureSprite;
                         }
+                        
                         if (inst->sprite)
                         {
                             inst->sprite->setTexture(path);
@@ -196,42 +318,32 @@ void CropSystem::updateDailyGrowth()
                         }
                     }
                 }
-                if (slot.tilled)
-                {
-                    darkenTile(Vec2(x, y));
-                }
-                else
-                {
-                    resetTileColor(Vec2(x, y));
-                }
             }
             else
             {
-                if (slot.tilled)
+                // No crop
+                // If it was watered, dry it up next day
+                if (slot.watered)
                 {
-                    if (!slot.watered)
-                    {
-                        float r = RandomHelper::random_real<float>(0.0f, 1.0f);
-                        if (r < 0.3f)
-                        {
-                            slot.tilled = false;
-                            resetTileColor(Vec2(x, y));
-                        }
-                        else
-                        {
-                            darkenTile(Vec2(x, y));
-                        }
-                    }
-                    else
-                    {
-                        darkenTile(Vec2(x, y));
-                    }
                     slot.watered = false;
+                    // Keep tilled but remove water color
+                    // Darken is for tilled, WaterTint is for water.
+                    // We need to revert to just Darken.
+                    darkenTile(Vec2(x, y));
                 }
-                else
-                {
-                    resetTileColor(Vec2(x, y));
-                }
+                
+                // Logic for untilled if left alone? Stardew does this randomly.
+                // For now, let's keep it tilled until manually changed or decay logic added.
+            }
+            
+            // Season change decay for tilled soil?
+            if (seasonChanged)
+            {
+                // In Stardew, tilled soil might decay on season change unless crop was there?
+                // For simplicity, maybe reset everything if season changes?
+                // User didn't ask for this yet.
+                // But if season changed, existing crops might wither (handled above).
+                // Empty tilled soil might stay.
             }
         }
     }
@@ -250,6 +362,8 @@ void CropSystem::loadCropData()
     parsnip.sproutSprites = { "Crop/Parsnip_sprout_1.png", "Crop/Parsnip_sprout_2.png", "Crop/Parsnip_sprout_3.png" };
     parsnip.matureSprite = "Crop/Parsnip.png";
     parsnip.sproutThresholdDays = { 1, 2, 3 };
+    parsnip.itemName = "Parsnip";
+    parsnip.itemIcon = "Crop/Parsnip.png";
 
     CropData cauliflower;
     cauliflower.growthDays = 12;
@@ -258,6 +372,8 @@ void CropSystem::loadCropData()
     cauliflower.sproutSprites = { "Crop/Cauliflower_sprout_1.png", "Crop/Cauliflower_sprout_2.png", "Crop/Cauliflower_sprout_3.png", "Crop/Cauliflower_sprout_4.png" };
     cauliflower.matureSprite = "Crop/Cauliflower.png";
     cauliflower.sproutThresholdDays = { 3, 6, 9, 11 };
+    cauliflower.itemName = "Cauliflower";
+    cauliflower.itemIcon = "Crop/Cauliflower.png";
 
     CropData potato;
     potato.growthDays = 6;
@@ -266,6 +382,9 @@ void CropSystem::loadCropData()
     potato.sproutSprites = { "Crop/Potato_sprout_1.png", "Crop/Potato_sprout_2.png", "Crop/Potato_sprout_3.png", "Crop/Potato_sprout_4.png", "Crop/Potato_sprout_5.png" };
     potato.matureSprite = "Crop/Potato.png";
     potato.sproutThresholdDays = { 1, 2, 3, 4, 5 };
+    potato.itemName = "Potato";
+    potato.itemIcon = "Crop/Potato.png";
+    
     parsnip.allowedSeasons = { GameClock::Season::Spring };
     cauliflower.allowedSeasons = { GameClock::Season::Spring };
     potato.allowedSeasons = { GameClock::Season::Spring };

@@ -3,6 +3,8 @@
 
 #include "cocos2d.h"
 #include "Player.h"
+#include "Inventory.h"
+#include "GameClock.h"
 
 enum class BackgroundType
 {
@@ -22,7 +24,23 @@ public:
 
     cocos2d::Vec2 getFacingTile() const;
 
- private:
+private:
+    void onMouseDown(cocos2d::Event* event); // New mouse handling
+
+    // Obstacle management
+    struct Obstacle {
+        int type; // 0: Wood, 1: Stone, 2: Weed
+        cocos2d::Sprite* sprite;
+        bool active;
+    };
+    std::unordered_map<int, Obstacle> _obstacles; // Key: tileIndex y * width + x
+    void initObstacles();
+    void spawnObstacles(int count); // Spawn a specific number of obstacles
+    void removeObstacle(const cocos2d::Vec2& tileIndex);
+    bool hasObstacle(const cocos2d::Vec2& tileIndex);
+    int getObstacleType(const cocos2d::Vec2& tileIndex);
+    bool checkCollisionWithObstacles(const cocos2d::Rect& box);
+
     BackgroundType _type;
     cocos2d::TMXTiledMap* _map;
     cocos2d::TMXLayer* _groundLayer;
@@ -42,7 +60,14 @@ public:
     bool _hasBoundary;
     bool _enteredHome;
     bool _exitedRight;
- 
+    bool _isDebugMode;
+
+    // Seasonal filter support
+    GameClock::Season _lastSeason;
+    cocos2d::Node* _backgroundNode;
+    cocos2d::LayerColor* _seasonOverlay;
+    void updateSeasonFilter();
+
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
  
@@ -68,6 +93,12 @@ public:
     static cocos2d::Vec2 sLastFarmPlayerPos;
     static bool sHasLastFarmPlayerPos;
 
+    static Inventory* sInventory; // Shared inventory
+    static class GameClock* sClock;
+    static class Wallet* sWallet;
+    static class HudLayer* sHud;
+    static bool sDebugMode;
+
     virtual bool init();
     bool initWithStartType(BackgroundType type);
     virtual ~HomeScene();
@@ -82,11 +113,11 @@ private:
     BackgroundType _startType;
     class GameClock* _clock;
     class Wallet* _wallet;
-    class Basket* _basket;
+
     class HudLayer* _hud;
-    static class GameClock* sClock;
-    static class Wallet* sWallet;
-    static class Basket* sBasket;
+    // static class Basket* sBasket; // Ignore basket
+
+    Inventory* _inventory; // Member inventory pointer
 
     virtual void update(float dt) override;
 };

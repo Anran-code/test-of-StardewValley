@@ -32,6 +32,12 @@ public:
     void setYear(int y);
     void setSeason(Season s);
 
+    void addDay(int days);
+    void addHour(int hours);
+
+    // Checks if it's 2:00 AM or later, and advances day if so
+    void checkTurnOfDay();
+
     int getWeekdayIndex() const;
     int getWeekOfSeason() const;
     std::string getWeekdayString() const;
