@@ -3,6 +3,7 @@
 #include "Wallet.h"
 #include "HudLayer.h"
 #include "CropSystem.h"
+#include "SimpleAudioEngine.h"
 // #include "Basket.h" // Ignore Shop related includes
 // #include "ShopLayer.h" // Ignore Shop related includes
 
@@ -10,6 +11,7 @@ USING_NS_CC;
 
 HudLayer* GameScene::sHud = nullptr;
 bool GameScene::sDebugMode = false;
+std::string g_CurrentBgmPath = "";
 
 // Static member initialization for BackgroundLayer persistence
 std::unordered_map<int, BackgroundLayer::ObstacleSaveData> BackgroundLayer::sSavedObstacles;
@@ -508,16 +510,19 @@ void BackgroundLayer::updateSeasonFilter()
     Color3B tintColor = Color3B::WHITE;
     Color4B overlayColor = Color4B(0, 0, 0, 0);
     BlendFunc overlayBlend = BlendFunc::ALPHA_NON_PREMULTIPLIED;
+    std::string bgmPath = "";
 
     switch (season)
     {
     case GameClock::Season::Spring:
         // Default
+        bgmPath = "bgm/Spring.mp3";
         tintColor = Color3B(255, 255, 255);
         overlayColor = Color4B(0, 0, 0, 0);
         break;
     case GameClock::Season::Summer:
         // Brighter / Sunny
+        bgmPath = "bgm/Summer.mp3";
         tintColor = Color3B(255, 255, 255);
         // Additive yellow/white for brightness
         overlayColor = Color4B(255, 255, 200, 40); 
@@ -526,18 +531,36 @@ void BackgroundLayer::updateSeasonFilter()
     case GameClock::Season::Fall:
         // Brownish / Autumn / Deep
         // Darker and deeper brown
+        bgmPath = "bgm/Fall.mp3";
         tintColor = Color3B(200, 150, 110);
         overlayColor = Color4B(0, 0, 0, 0);
         break;
     case GameClock::Season::Winter:
         // Gray / White / Cold / Dim
         // Lower brightness for "dim" feel
+        bgmPath = "bgm/Winter.mp3";
         tintColor = Color3B(180, 180, 190);
         // Normal blending (not additive) to make it look like a white fog/snow cover
         // This will reduce contrast and make it look "whiter" but not "brighter"
         overlayColor = Color4B(220, 230, 240, 50);
         overlayBlend = BlendFunc::ALPHA_NON_PREMULTIPLIED;
         break;
+    }
+
+    if (!bgmPath.empty())
+    {
+        if (g_CurrentBgmPath != bgmPath)
+        {
+            CocosDenshion::SimpleAudioEngine::getInstance()->playBackgroundMusic(bgmPath.c_str(), true);
+            g_CurrentBgmPath = bgmPath;
+        }
+        else
+        {
+            if (!CocosDenshion::SimpleAudioEngine::getInstance()->isBackgroundMusicPlaying())
+            {
+                CocosDenshion::SimpleAudioEngine::getInstance()->playBackgroundMusic(bgmPath.c_str(), true);
+            }
+        }
     }
 
     if (_backgroundNode)
@@ -1606,7 +1629,9 @@ bool GameScene::init()
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
-    auto backgroundLayer = BackgroundLayer::create(BackgroundType::Farm);
+    // Default to Home for new game
+    GameScene::sStartAtHomeBed = true;
+    auto backgroundLayer = BackgroundLayer::create(BackgroundType::Home);
     if (backgroundLayer)
     {
         addChild(backgroundLayer, 0);
@@ -1637,6 +1662,8 @@ bool GameScene::init()
     }
     CropSystem::getInstance()->init(nullptr, _clock, _wallet, _inventory);
     scheduleUpdate();
+
+    GameScene::sStartAtHomeBed = false;
 
     return true;
 }
