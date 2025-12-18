@@ -741,8 +741,12 @@ void HudLayer::onMouseUp(Event* event)
         // Check Trash Can
         if (isPointInTrashCan(pos))
         {
-            _inventory->removeItem(_dragSourceIndex, 9999); // Remove all
-            actionTaken = true;
+            const auto& item = _inventory->getItem(_dragSourceIndex);
+            if (item.type != ItemType::Tool)
+            {
+                _inventory->removeItem(_dragSourceIndex, 9999); // Remove all
+                actionTaken = true;
+            }
         }
         else
         {
@@ -901,8 +905,12 @@ void HudLayer::onTouchEnded(Touch* touch, Event* event)
         // 检测是否扔进垃圾桶
         if (isPointInTrashCan(pos))
         {
-            _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
-            actionTaken = true;
+            const auto& item = _inventory->getItem(_dragSourceIndex);
+            if (item.type != ItemType::Tool)
+            {
+                _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
+                actionTaken = true;
+            }
         }
         else
         {

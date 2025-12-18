@@ -64,6 +64,10 @@ Item& Inventory::getItem(int slotIndex)
 void Inventory::removeItem(int slotIndex, int count)
 {
     if (slotIndex < 0 || slotIndex >= (int)_items.size()) return;
+    
+    // Tools cannot be removed/destroyed
+    if (_items[slotIndex].type == ItemType::Tool) return;
+
     if (_items[slotIndex].quantity > 0)
     {
         _items[slotIndex].quantity -= count;
