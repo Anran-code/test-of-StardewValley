@@ -34,6 +34,15 @@ private:
         cocos2d::Sprite* sprite;
         bool active;
     };
+    
+    struct ObstacleSaveData {
+        int type;
+        bool active;
+    };
+    static std::unordered_map<int, ObstacleSaveData> sSavedObstacles;
+    static bool sObstaclesInitialized;
+    static int sLastObstacleSeason;
+
     std::unordered_map<int, Obstacle> _obstacles; // Key: tileIndex y * width + x
     void initObstacles();
     void spawnObstacles(int count); // Spawn a specific number of obstacles
@@ -99,6 +108,7 @@ private:
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
  
     virtual void update(float dt) override;
+    virtual void onExit() override;
 };
 
 class FarmMapUtils

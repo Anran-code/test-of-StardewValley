@@ -59,6 +59,7 @@ public:
     static CropSystem* getInstance();
 
     void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory);
+    void setMap(cocos2d::TMXTiledMap* map); // New method to handle map switching
     // void setBasket(Basket* basket);
     void setSelectedCrop(CropType type);
     void tillTile(const cocos2d::Vec2& tileIndex);

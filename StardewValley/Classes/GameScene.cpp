@@ -10,6 +10,12 @@ USING_NS_CC;
 
 HudLayer* GameScene::sHud = nullptr;
 bool GameScene::sDebugMode = false;
+
+// Static member initialization for BackgroundLayer persistence
+std::unordered_map<int, BackgroundLayer::ObstacleSaveData> BackgroundLayer::sSavedObstacles;
+bool BackgroundLayer::sObstaclesInitialized = false;
+int BackgroundLayer::sLastObstacleSeason = -1;
+
 BackgroundLayer* BackgroundLayer::create(BackgroundType type)
 {
     BackgroundLayer* ret = new (std::nothrow) BackgroundLayer();
@@ -253,9 +259,11 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     }
                 }
         
-        initObstacles(); // Init obstacles for Farm type
-
         CropSystem::getInstance()->init(_map, GameScene::sClock, GameScene::sWallet, GameScene::sInventory);
+        // Explicitly set map (init does it, but redundant call is safe)
+        CropSystem::getInstance()->setMap(_map);
+
+        initObstacles(); // Init obstacles for Farm type
         
         // Initial update for Farm
         updateSeasonFilter();
@@ -478,6 +486,24 @@ void BackgroundLayer::updateSeasonFilter()
     if (!GameScene::sClock) return;
 
     auto season = GameScene::sClock->getSeason();
+
+    // Check for season change to spawn new obstacles (Dynamic update)
+    if (_type == BackgroundType::Farm)
+    {
+        int currentSeasonInt = (int)season;
+        if (sLastObstacleSeason != -1 && sLastObstacleSeason != currentSeasonInt)
+        {
+            // Season changed! Spawn more obstacles
+            if (_map)
+            {
+                Size mapSize = _map->getMapSize();
+                int newObstacleCount = (mapSize.width * mapSize.height) / 20;
+                spawnObstacles(newObstacleCount);
+            }
+            sLastObstacleSeason = currentSeasonInt;
+        }
+    }
+
     Color3B tintColor = Color3B::WHITE;
     Color4B overlayColor = Color4B(0, 0, 0, 0);
     BlendFunc overlayBlend = BlendFunc::ALPHA_NON_PREMULTIPLIED;
@@ -1361,6 +1387,15 @@ Vec2 FarmMapUtils::worldToGrid(const Vec2& worldPos, Sprite* mapSprite, int cols
     return Vec2(col, row);
 }
 
+void BackgroundLayer::onExit()
+{
+    if (_type == BackgroundType::Farm)
+    {
+        CropSystem::getInstance()->setMap(nullptr);
+    }
+    Layer::onExit();
+}
+
 Scene* GameScene::createScene()
 {
     return GameScene::create();
@@ -1668,6 +1703,9 @@ void BackgroundLayer::spawnObstacles(int count)
         
         // Check if already has obstacle
         if (hasObstacle(Vec2(x, y))) continue;
+
+        // Check if occupied by crop or tilled soil
+        if (!CropSystem::getInstance()->canTill(Vec2(x, y))) continue;
         
         int type = RandomHelper::random_int(0, 2); // 0, 1, 2
         
@@ -1699,6 +1737,12 @@ void BackgroundLayer::spawnObstacles(int count)
             obs.sprite = sprite;
             obs.active = true;
             _obstacles[key] = obs;
+
+            // Save to static storage
+            ObstacleSaveData data;
+            data.type = type;
+            data.active = true;
+            sSavedObstacles[key] = data;
         }
     }
 }
@@ -1707,8 +1751,72 @@ void BackgroundLayer::initObstacles()
 {
     if (!_map) return;
     Size mapSize = _map->getMapSize();
-    int obstacleCount = (mapSize.width * mapSize.height) / 30;
-    spawnObstacles(obstacleCount);
+    Size tileSize = _map->getTileSize();
+    float mapHeight = mapSize.height * tileSize.height;
+
+    int currentSeason = -1;
+    if (GameScene::sClock)
+    {
+        currentSeason = (int)GameScene::sClock->getSeason();
+    }
+
+    if (sObstaclesInitialized)
+    {
+        // Restore from saved data
+        for (const auto& pair : sSavedObstacles)
+        {
+            int key = pair.first;
+            const auto& data = pair.second;
+            
+            if (!data.active) continue;
+
+            int x = key % (int)mapSize.width;
+            int y = key / (int)mapSize.width;
+            
+            std::string file;
+            if (data.type == 0) file = "block/Wood.png";
+            else if (data.type == 1) file = "block/Stone.png";
+            else if (data.type == 2) file = "block/Fiber.png";
+            
+            auto sprite = Sprite::create(file);
+            if (sprite)
+            {
+                float cxPos = (x + 0.5f) * tileSize.width;
+                float cyPos = mapHeight - (y + 0.5f) * tileSize.height;
+                sprite->setPosition(Vec2(cxPos, cyPos));
+                
+                if (sprite->getContentSize().width > tileSize.width)
+                {
+                    sprite->setScale(tileSize.width / sprite->getContentSize().width);
+                }
+                
+                int zOrder = static_cast<int>(mapHeight - cyPos);
+                addChild(sprite, zOrder);
+                
+                Obstacle obs;
+                obs.type = data.type;
+                obs.sprite = sprite;
+                obs.active = true;
+                _obstacles[key] = obs;
+            }
+        }
+
+        // Check for season change to spawn new obstacles
+        if (sLastObstacleSeason != -1 && currentSeason != -1 && sLastObstacleSeason != currentSeason)
+        {
+            // Season changed! Spawn more obstacles (e.g. 5% of map size)
+            int newObstacleCount = (mapSize.width * mapSize.height) / 20; 
+            spawnObstacles(newObstacleCount);
+            sLastObstacleSeason = currentSeason;
+        }
+    }
+    else
+    {
+        int obstacleCount = (mapSize.width * mapSize.height) / 30;
+        spawnObstacles(obstacleCount);
+        sObstaclesInitialized = true;
+        sLastObstacleSeason = currentSeason;
+    }
 }
 
 bool BackgroundLayer::hasObstacle(const Vec2& tileIndex)
@@ -1792,6 +1900,9 @@ void BackgroundLayer::removeObstacle(const Vec2& tileIndex)
     {
         if (it->second.sprite) it->second.sprite->removeFromParent();
         _obstacles.erase(it);
+        
+        // Remove from persistence
+        sSavedObstacles.erase(key);
         
         // TODO: Add item to inventory (Wood, Stone, Fiber)
     }

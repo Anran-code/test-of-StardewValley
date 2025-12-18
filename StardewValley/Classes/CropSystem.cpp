@@ -28,7 +28,43 @@ CropSystem::CropSystem()
 
 void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory)
 {
-    if (map) _map = map;
+    if (map) setMap(map);
+    
+    if (clock) _clock = clock;
+    if (wallet) _wallet = wallet;
+    if (inventory) _inventory = inventory;
+    loadCropData();
+    
+    // Only initialize day/season tracking if not yet set
+    if (_clock && _lastProcessedDay == -1)
+    {
+        _lastProcessedDay = _clock->getDay();
+        _lastProcessedSeason = (int)_clock->getSeason();
+    }
+}
+
+void CropSystem::setMap(TMXTiledMap* map)
+{
+    if (_map == map) return;
+
+    // Clear sprite pointers as they belong to the old map
+    if (!_tiles.empty())
+    {
+        for (auto& row : _tiles)
+        {
+            for (auto& slot : row)
+            {
+                if (slot.crop)
+                {
+                    slot.crop->sprite = nullptr;
+                }
+            }
+        }
+    }
+
+    _map = map;
+    _groundLayer = nullptr;
+
     if (_map)
     {
         _groundLayer = _map->getLayer("ground");
@@ -36,16 +72,7 @@ void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet, Invent
         {
             _groundLayer = dynamic_cast<TMXLayer*>(_map->getChildren().at(0));
         }
-    }
-    if (clock) _clock = clock;
-    if (wallet) _wallet = wallet;
-    if (inventory) _inventory = inventory;
-    loadCropData();
-    ensureGridSize();
-    if (_clock)
-    {
-        _lastProcessedDay = _clock->getDay();
-        _lastProcessedSeason = (int)_clock->getSeason();
+        ensureGridSize();
     }
 }
 
@@ -253,14 +280,14 @@ bool CropSystem::destroyTile(const Vec2& tileIndex)
 
 void CropSystem::updateDailyGrowth()
 {
-    if (!_clock || !_map) return;
+    if (!_clock) return;
     int day = _clock->getDay();
     if (_lastProcessedDay == day) return;
     auto season = _clock->getSeason();
     bool seasonChanged = (_lastProcessedSeason != (int)season);
 
-    Size mapTiles = _map->getMapSize();
-    int width = (int)mapTiles.width;
+    if (_tiles.empty()) return;
+    int width = (int)_tiles.size();
 
     if (_activeTileIndices.empty())
     {
@@ -276,44 +303,49 @@ void CropSystem::updateDailyGrowth()
     {
         int x = key % width;
         int y = key / width;
+        
+        if (x < 0 || x >= width || y < 0 || y >= (int)_tiles[0].size()) continue;
+
         auto& slot = _tiles[x][y];
         bool stillActive = false;
-            if (slot.crop)
+        if (slot.crop)
+        {
+            auto* inst = slot.crop.get();
+            const auto& d = _data[inst->type];
+            if (seasonChanged && !isSeasonAllowed(inst->type, season))
             {
-                auto* inst = slot.crop.get();
-                const auto& d = _data[inst->type];
-                if (seasonChanged && !isSeasonAllowed(inst->type, season))
+                inst->withered = true;
+                if (_map && inst->sprite)
                 {
-                    inst->withered = true;
-                    if (inst->sprite)
-                    {
-                        inst->sprite->setTexture("Crop/Wilted_crop.png");
-                        fitSpriteToTile(inst->sprite);
-                        placeOrUpdateSprite(Vec2(x, y), inst);
-                    }
+                    inst->sprite->setTexture("Crop/Wilted_crop.png");
+                    fitSpriteToTile(inst->sprite);
+                    placeOrUpdateSprite(Vec2(x, y), inst);
                 }
-                if (slot.watered)
-                {
-                    if (!inst->withered)
-                    {
-                        inst->daysWatered += 1;
-                    }
-                    slot.watered = false;
-                    darkenTile(Vec2(x, y));
-                }
-
+            }
+            if (slot.watered)
+            {
                 if (!inst->withered)
                 {
-                    int newStage = 0;
-                    for (int i = 0; i < (int)d.sproutThresholdDays.size(); ++i)
-                    {
-                        if (inst->daysWatered >= d.sproutThresholdDays[i]) newStage = i + 1;
-                    }
-                    if (inst->daysWatered >= d.growthDays) newStage = (int)d.sproutSprites.size() + 1;
+                    inst->daysWatered += 1;
+                }
+                slot.watered = false;
+                darkenTile(Vec2(x, y)); // Safe if _groundLayer is null
+            }
 
-                    if (newStage != inst->stageIndex)
+            if (!inst->withered)
+            {
+                int newStage = 0;
+                for (int i = 0; i < (int)d.sproutThresholdDays.size(); ++i)
+                {
+                    if (inst->daysWatered >= d.sproutThresholdDays[i]) newStage = i + 1;
+                }
+                if (inst->daysWatered >= d.growthDays) newStage = (int)d.sproutSprites.size() + 1;
+
+                if (newStage != inst->stageIndex)
+                {
+                    inst->stageIndex = newStage;
+                    if (_map)
                     {
-                        inst->stageIndex = newStage;
                         std::string path;
                         if (newStage == 0)
                         {
@@ -334,27 +366,39 @@ void CropSystem::updateDailyGrowth()
                             fitSpriteToTile(inst->sprite);
                             placeOrUpdateSprite(Vec2(x, y), inst);
                         }
+                        else
+                        {
+                            // Create if missing
+                            inst->sprite = Sprite::create(path);
+                            if (inst->sprite)
+                            {
+                                fitSpriteToTile(inst->sprite);
+                                placeOrUpdateSprite(Vec2(x, y), inst);
+                                _map->addChild(inst->sprite, 50);
+                            }
+                        }
                     }
                 }
             }
-            else
+        }
+        else
+        {
+            if (slot.watered)
             {
-                if (slot.watered)
-                {
-                    slot.watered = false;
-                    darkenTile(Vec2(x, y));
-                }
+                slot.watered = false;
+                darkenTile(Vec2(x, y));
             }
+        }
 
-            if (slot.crop || slot.watered)
-            {
-                stillActive = true;
-            }
+        if (slot.crop || slot.watered)
+        {
+            stillActive = true;
+        }
 
-            if (!stillActive)
-            {
-                toRemove.push_back(key);
-            }
+        if (!stillActive)
+        {
+            toRemove.push_back(key);
+        }
     }
 
     for (int key : toRemove)
@@ -412,6 +456,67 @@ void CropSystem::ensureGridSize()
 {
     if (!_map) return;
     Size mapTiles = _map->getMapSize();
+    
+    // Check if we can restore state
+    if (!_tiles.empty() && 
+        _tiles.size() == (int)mapTiles.width && 
+        !_tiles[0].empty() && 
+        _tiles[0].size() == (int)mapTiles.height)
+    {
+        // Restore visual state
+        for (int x = 0; x < _tiles.size(); ++x)
+        {
+            for (int y = 0; y < _tiles[x].size(); ++y)
+            {
+                auto& slot = _tiles[x][y];
+                
+                // Restore soil visual
+                if (slot.tilled)
+                {
+                    if (slot.watered) waterTintTile(Vec2(x, y));
+                    else darkenTile(Vec2(x, y));
+                }
+                
+                // Restore crop sprite
+                if (slot.crop)
+                {
+                    auto* inst = slot.crop.get();
+                    // Previous sprite is invalid
+                    inst->sprite = nullptr;
+                    
+                    const auto& d = _data[inst->type];
+                    std::string path;
+                    
+                    if (inst->withered)
+                    {
+                        path = "Crop/Wilted_crop.png";
+                    }
+                    else if (inst->stageIndex == 0)
+                    {
+                        path = d.seedlingSprite;
+                    }
+                    else if (inst->stageIndex <= (int)d.sproutSprites.size())
+                    {
+                        path = d.sproutSprites[inst->stageIndex - 1];
+                    }
+                    else
+                    {
+                        path = d.matureSprite;
+                    }
+                    
+                    inst->sprite = Sprite::create(path);
+                    if (inst->sprite)
+                    {
+                        fitSpriteToTile(inst->sprite);
+                        placeOrUpdateSprite(Vec2(x, y), inst);
+                        _map->addChild(inst->sprite, 50);
+                    }
+                }
+            }
+        }
+        return;
+    }
+
     _tiles.clear();
     _activeTileIndices.clear();
     _tiles.resize((int)mapTiles.width);
