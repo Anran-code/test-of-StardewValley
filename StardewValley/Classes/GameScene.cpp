@@ -1829,6 +1829,22 @@ void BackgroundLayer::spawnObstacles(int count)
 
         // Check forbidden zones (Home, Exit, Pool, Boundaries)
         if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) continue;
+        
+        // --- NEW: Prevent spawning near Home Door (Entrance Buffer Zone) ---
+        if (_hasHomeRect)
+        {
+            // Define a buffer zone around the door
+            float bufferSize = tileSize.width * 3.0f;
+            Rect doorBuffer = _homeDoorRect;
+            doorBuffer.origin.x -= bufferSize;
+            doorBuffer.origin.y -= bufferSize;
+            doorBuffer.size.width += bufferSize * 2.0f;
+            doorBuffer.size.height += bufferSize * 2.0f;
+            
+            if (doorBuffer.intersectsRect(tileRect)) continue;
+        }
+        // ------------------------------------------------------------------
+
         if (_hasRightExit && _rightExitRect.intersectsRect(tileRect)) continue;
         if (_hasPoolRect && !_poolRects.empty())
         {
