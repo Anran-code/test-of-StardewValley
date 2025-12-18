@@ -86,6 +86,21 @@ void CropSystem::setSelectedCrop(CropType type)
 bool CropSystem::canTill(const Vec2& tileIndex) const
 {
     if (!inBounds(tileIndex)) return false;
+
+    // Check ground tile ID for valid soil (yellow plots)
+    if (_groundLayer)
+    {
+        uint32_t gid = _groundLayer->getTileGIDAt(tileIndex);
+        // Remove flags (flipped/rotated)
+        gid &= 0x1FFFFFFF;
+        
+        // 228 and 227 are the yellow dirt tiles
+        if (gid != 228 && gid != 227)
+        {
+            return false;
+        }
+    }
+
     const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     // Can till if not already tilled and no crop (though crop usually implies tilled)
     // Also usually need to check for obstacles, but obstacles are handled in HomeScene.
