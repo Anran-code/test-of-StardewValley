@@ -226,6 +226,16 @@ void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             updateInventoryUI(); // Force UI refresh immediately
         }
     }
+    else if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
+    {
+        if (_backpack && _backpack->isVisible())
+        {
+            _backpack->setVisible(false);
+            updateInventoryUI();
+            event->stopPropagation();
+            return;
+        }
+    }
     
     // Number keys for toolbar selection
     int slot = -1;
