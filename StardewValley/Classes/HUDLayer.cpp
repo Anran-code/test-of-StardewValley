@@ -6,6 +6,35 @@
 
 USING_NS_CC;
 
+HudLayer::HudLayer()
+    : _mouseListener(nullptr)
+    , _touchListener(nullptr)
+    , _debugBounds(nullptr)
+    , _clock(nullptr)
+    , _wallet(nullptr)
+    , _inventory(nullptr)
+    , _toolbar(nullptr)
+    , _backpack(nullptr)
+    , _selector(nullptr)
+    , _cachedToolbarLeft(0.0f)
+    , _cachedToolbarBottom(0.0f)
+    , _cachedScale(1.0f)
+    , _timeLabel(nullptr)
+    , _dateLabel(nullptr)
+    , _weekLabel(nullptr)
+    , _moneyLabel(nullptr)
+{
+}
+
+HudLayer::~HudLayer()
+{
+    if (_selector)
+    {
+        _selector->release();
+        _selector = nullptr;
+    }
+}
+
 HudLayer* HudLayer::create(GameClock* clock, Wallet* wallet, Inventory* inventory)
 {
     HudLayer* ret = new (std::nothrow) HudLayer();

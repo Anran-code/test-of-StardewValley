@@ -51,6 +51,7 @@ private:
     cocos2d::Rect _homeDoorRect;
     cocos2d::Rect _homeDoorTunnelRect;
     cocos2d::Rect _homeExitDoorRect;
+    cocos2d::Rect _bedRect;
     cocos2d::Rect _rightExitRect;
     cocos2d::Rect _boundaryLeftRect;
     cocos2d::Rect _boundaryRightRect;
@@ -58,6 +59,7 @@ private:
     cocos2d::Rect _boundaryBottomRect;
     bool _hasHomeRect;
     bool _hasHomeExitDoor;
+    bool _hasBedRect;
     bool _exitedHomeDoor;
     bool _hasRightExit;
     bool _hasBoundary;
@@ -67,11 +69,18 @@ private:
     bool _canEnterHomeDoor;
     bool _canExitHomeDoor;
 
+    bool _sleepDialogActive;
+    bool _isSleeping;
+
     // Seasonal filter support
     GameClock::Season _lastSeason;
     cocos2d::Node* _backgroundNode;
     cocos2d::LayerColor* _seasonOverlay;
+    cocos2d::LayerColor* _sleepOverlay;
     void updateSeasonFilter();
+    void showSleepDialog();
+    void beginSleep();
+    void cancelSleepDialog();
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);

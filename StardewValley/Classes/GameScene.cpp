@@ -38,6 +38,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _facingDebug = nullptr;
     _hasHomeRect = false;
     _hasHomeExitDoor = false;
+    _hasBedRect = false;
     _exitedHomeDoor = false;
     _enteredHome = false;
     _hasRightExit = false;
@@ -47,8 +48,12 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _canEnterHomeDoor = false;
     _canExitHomeDoor = false;
 
+    _sleepDialogActive = false;
+    _isSleeping = false;
+
     _backgroundNode = nullptr;
     _seasonOverlay = nullptr;
+    _sleepOverlay = nullptr;
     // Force update on first frame
     _lastSeason = (GameClock::Season)-1;
 
@@ -301,19 +306,21 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             if (player)
             {
                 Vec2 spawnPos(mapWidth * 0.5f, mapHeight * 0.5f);
-                if (GameScene::sStartAtHomeBed)
+                auto bedGroup = _map->getObjectGroup("bed");
+                if (bedGroup)
                 {
-                    auto bedGroup = _map->getObjectGroup("bed");
-                    if (bedGroup)
+                    const auto& objs = bedGroup->getObjects();
+                    if (!objs.empty())
                     {
-                        const auto& objs = bedGroup->getObjects();
-                        if (!objs.empty())
+                        const auto& dict = objs.front().asValueMap();
+                        float bx = dict.at("x").asFloat();
+                        float by = dict.at("y").asFloat();
+                        float bw = dict.at("width").asFloat();
+                        float bh = dict.at("height").asFloat();
+                        _bedRect = Rect(bx, by, bw, bh);
+                        _hasBedRect = true;
+                        if (GameScene::sStartAtHomeBed)
                         {
-                            const auto& dict = objs.front().asValueMap();
-                            float bx = dict.at("x").asFloat();
-                            float by = dict.at("y").asFloat();
-                            float bw = dict.at("width").asFloat();
-                            float bh = dict.at("height").asFloat();
                             spawnPos = Vec2(bx + bw * 0.5f, by + bh * 0.5f);
                         }
                     }
@@ -465,6 +472,98 @@ void BackgroundLayer::updateSeasonFilter()
     }
     
     _lastSeason = season;
+}
+
+void BackgroundLayer::showSleepDialog()
+{
+    if (_sleepDialogActive || _isSleeping) return;
+    _sleepDialogActive = true;
+    auto director = Director::getInstance();
+    Size visibleSize = director->getVisibleSize();
+    Vec2 origin = director->getVisibleOrigin();
+    if (!_sleepOverlay)
+    {
+        _sleepOverlay = LayerColor::create(Color4B(0, 0, 0, 160));
+        _sleepOverlay->setContentSize(visibleSize);
+        _sleepOverlay->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+        Vec2 layerWorldPos = this->getPosition();
+        _sleepOverlay->setPosition(origin - layerWorldPos);
+        auto label = Label::createWithSystemFont("Do you want to sleep? press Y/N", "Arial", 32.0f);
+        if (label)
+        {
+            label->setPosition(Vec2(visibleSize.width * 0.5f, visibleSize.height * 0.5f));
+            _sleepOverlay->addChild(label);
+        }
+        addChild(_sleepOverlay, 5000);
+    }
+    else
+    {
+        _sleepOverlay->setVisible(true);
+        _sleepOverlay->setOpacity(160);
+    }
+}
+
+void BackgroundLayer::beginSleep()
+{
+    if (_isSleeping) return;
+    _isSleeping = true;
+    if (_sleepOverlay)
+    {
+        _sleepOverlay->setVisible(true);
+        _sleepOverlay->stopAllActions();
+        _sleepOverlay->setOpacity(160);
+        auto fadeIn = FadeTo::create(0.7f, 255);
+        auto apply = CallFunc::create([this]() {
+            if (GameScene::sClock)
+            {
+                GameScene::sClock->setHour(6);
+                GameScene::sClock->setMinute(0);
+                GameScene::sClock->addDay(1);
+            }
+            CropSystem::getInstance()->updateDailyGrowth();
+            if (_player && _hasBedRect)
+            {
+                Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
+                _player->setPosition(pos);
+            }
+        });
+        auto wait = DelayTime::create(0.7f);
+        auto fadeOut = FadeTo::create(0.7f, 0);
+        auto finish = CallFunc::create([this]() {
+            if (_sleepOverlay)
+            {
+                _sleepOverlay->setVisible(false);
+            }
+            _isSleeping = false;
+        });
+        _sleepOverlay->runAction(Sequence::create(fadeIn, apply, wait, fadeOut, finish, nullptr));
+    }
+    else
+    {
+        if (GameScene::sClock)
+        {
+            GameScene::sClock->setHour(6);
+            GameScene::sClock->setMinute(0);
+            GameScene::sClock->addDay(1);
+        }
+        CropSystem::getInstance()->updateDailyGrowth();
+        if (_player && _hasBedRect)
+        {
+            Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
+            _player->setPosition(pos);
+        }
+        _isSleeping = false;
+    }
+}
+
+void BackgroundLayer::cancelSleepDialog()
+{
+    _sleepDialogActive = false;
+    if (_sleepOverlay)
+    {
+        _sleepOverlay->setVisible(false);
+        _sleepOverlay->stopAllActions();
+    }
 }
 
 void BackgroundLayer::update(float dt)
@@ -791,6 +890,23 @@ void BackgroundLayer::update(float dt)
 
 void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
+    if (_sleepDialogActive)
+    {
+        if (keyCode == EventKeyboard::KeyCode::KEY_Y)
+        {
+            _sleepDialogActive = false;
+            beginSleep();
+        }
+        else if (keyCode == EventKeyboard::KeyCode::KEY_N || keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
+        {
+            cancelSleepDialog();
+        }
+        return;
+    }
+    if (_isSleeping)
+    {
+        return;
+    }
     if (_type == BackgroundType::Farm)
     {
         Vec2 tile = getFacingTile();
@@ -854,6 +970,21 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
     }
     if (keyCode == EventKeyboard::KeyCode::KEY_X)
     {
+        if (_type == BackgroundType::Home && _hasBedRect && _map && _groundLayer && _player)
+        {
+            Vec2 tileIndex = getFacingTile();
+            if (tileIndex.x >= 0 && tileIndex.y >= 0)
+            {
+                Size tileSize2 = _map->getTileSize();
+                Vec2 tilePos = _groundLayer->getPositionAt(tileIndex);
+                Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+                if (facingRect.intersectsRect(_bedRect))
+                {
+                    showSleepDialog();
+                    return;
+                }
+            }
+        }
         if (_type == BackgroundType::Farm && _canEnterHomeDoor && !_enteredHome && _map && _groundLayer && _player)
         {
             _enteredHome = true;

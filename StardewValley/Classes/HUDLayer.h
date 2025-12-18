@@ -12,6 +12,9 @@ class Inventory; // Forward decl
 class HudLayer : public cocos2d::Layer
 {
 public:
+    HudLayer();
+    virtual ~HudLayer();
+
     static HudLayer* create(GameClock* clock, Wallet* wallet, Inventory* inventory);
 
     bool initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inventory);
