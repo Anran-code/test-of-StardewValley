@@ -26,7 +26,8 @@ private:
         int price;
         int stock;
         std::string image;
-        std::function<void()> onBuy;
+        std::function<bool()> onBuy;
+        cocos2d::MenuItemImage* icon;
     };
 
     Wallet* _wallet;
@@ -36,6 +37,8 @@ private:
     cocos2d::Label* _basketTitle;
     cocos2d::Label* _basketDetails;
     cocos2d::Label* _basketTotal;
+    cocos2d::Label* _moneyLabel;
+    std::vector<cocos2d::Label*> _itemLabels;
 };
 
 #endif

@@ -112,7 +112,10 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
     }
     if (_basket)
     {
-        _basket->addCrop(inst->type, yieldCount);
+        if (!_basket->addCrop(inst->type, yieldCount))
+        {
+            return false;
+        }
     }
     else if (_wallet)
     {
