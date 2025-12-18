@@ -19,6 +19,11 @@ public:
     void update(float dt);
     void setSecondsPerMinute(float spm);
     void setSecondsPerTenMinutes(float sptm);
+    
+    // Pause/Resume
+    void pause() { _paused = true; }
+    void resume() { _paused = false; }
+    bool isPaused() const { return _paused; }
 
     int getHour() const;
     int getMinute() const;
@@ -52,6 +57,7 @@ private:
     Season _season;
     float _acc;
     float _secondsPerTenMinutes;
+    bool _paused = false;
 };
 
 #endif

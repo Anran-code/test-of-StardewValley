@@ -392,6 +392,9 @@ void HudLayer::updateInventoryUI()
     // RENDER BACKPACK ITEMS
     if (_backpack && _backpack->isVisible())
     {       
+        // Pause Game Clock
+        if (_clock) _clock->pause();
+
         // Show Dark Overlay
         if (_darkOverlay)
         {
@@ -574,6 +577,9 @@ void HudLayer::updateInventoryUI()
     {
         // Backpack is CLOSED
         
+        // Resume Game Clock
+        if (_clock) _clock->resume();
+
         // Hide Dark Overlay
         if (_darkOverlay)
         {
