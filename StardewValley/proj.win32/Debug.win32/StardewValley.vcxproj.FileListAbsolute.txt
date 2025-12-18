@@ -1,2 +1,3 @@
 D:\test-of-StardewValley\StardewValley\proj.win32\Debug.win32\StardewValley.exe
 C:\Users\A\Desktop\test-of-StardewValley\StardewValley\proj.win32\Debug.win32\StardewValley.exe
+D:\Git\test-of-StardewValley\StardewValley\proj.win32\Debug.win32\StardewValley.exe

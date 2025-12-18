@@ -9,11 +9,14 @@ GameClock::GameClock()
     , _season(Season::Spring)
     , _acc(0.0f)
     , _secondsPerTenMinutes(7.0f)
+    , _paused(false)
 {
 }
 
 void GameClock::update(float dt)
 {
+    if (_paused) return;
+
     _acc += dt;
     while (_acc >= _secondsPerTenMinutes)
     {

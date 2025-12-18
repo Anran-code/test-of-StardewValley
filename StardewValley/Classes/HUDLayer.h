@@ -53,6 +53,7 @@ private:
 
     cocos2d::Sprite* _toolbar;
     cocos2d::Sprite* _backpack;
+    cocos2d::LayerColor* _darkOverlay; // Dim background for backpack
     cocos2d::Sprite* _selector; // Highlight for selected tool
 
     // Stored layout data for mouse hit testing
@@ -89,6 +90,12 @@ private:
     const float TRASH_LEFT = 990.0f;
     const float TRASH_BOTTOM = 229.0f;
 
+    // Info Area (Money & Time)
+    const float INFO_AREA_W = 810.0f;
+    const float INFO_AREA_H = 277.0f;
+    const float INFO_AREA_LEFT = 127.0f;
+    const float INFO_AREA_BOTTOM = 80.0f;
+
     // Backpack Drag State
     bool _isDragging = false;
     int _dragSourceIndex = -1;
@@ -99,6 +106,11 @@ private:
     cocos2d::Label* _dateLabel;
     cocos2d::Label* _weekLabel;
     cocos2d::Label* _moneyLabel;
+    
+    // Backpack Info Labels
+    cocos2d::Label* _bpCurrentGoldLabel;
+    cocos2d::Label* _bpTotalEarningsLabel;
+    cocos2d::Label* _bpDateLabel;
 
     std::vector<cocos2d::Sprite*> _itemSprites; // Sprites for items in slots
     std::vector<cocos2d::Label*> _quantityLabels; // Labels for quantities
