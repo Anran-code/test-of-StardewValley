@@ -64,6 +64,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _sleepOverlay = nullptr;
     _fishingOverlay = nullptr;
     _fishingLabel = nullptr;
+    _fishingGame = nullptr;
     _isFishing = false;
     _fishBite = false;
     _fishingElapsed = 0.0f;
@@ -678,6 +679,13 @@ void BackgroundLayer::startFishing()
         }
 
         addChild(_fishingOverlay, 6000);
+        cocos2d::Size gameSize(visibleSize.width * 0.4f, visibleSize.height * 0.6f);
+        _fishingGame = FishingMiniGame::create(gameSize);
+        if (_fishingGame)
+        {
+            _fishingGame->setPosition(Vec2(visibleSize.width * 0.5f - gameSize.width * 0.5f, visibleSize.height * 0.5f - gameSize.height * 0.5f));
+            _fishingOverlay->addChild(_fishingGame, 1);
+        }
     }
     else
     {
@@ -687,7 +695,11 @@ void BackgroundLayer::startFishing()
         _fishingOverlay->setPosition(origin - layerWorldPos);
         if (_fishingLabel)
         {
-            _fishingLabel->setString("Fishing... Wait for a bite");
+            _fishingLabel->setString("Press space to control the green block");
+        }
+        if (_fishingGame)
+        {
+            _fishingGame->restart();
         }
     }
 }
@@ -720,11 +732,29 @@ void BackgroundLayer::endFishing(bool success)
         {
             GameScene::sWallet->addMoney(reward);
         }
+        if (GameScene::sInventory)
+        {
+            Item fish;
+            fish.type = ItemType::Crop;
+            fish.name = "Fish";
+            fish.iconPath = "fish.png";
+            fish.quantity = 1;
+            fish.maxStack = 999;
+            GameScene::sInventory->addItem(fish);
+            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+        }
         if (_fishingLabel)
         {
             char buf[64];
-            std::snprintf(buf, sizeof(buf), "You are succeed!", reward);
+            std::snprintf(buf, sizeof(buf), "You are succeed!+%dg", reward);
             _fishingLabel->setString(buf);
+        }
+    }
+    else
+    {
+        if (_fishingLabel)
+        {
+            _fishingLabel->setString("you failed");
         }
     }
 
@@ -745,18 +775,10 @@ void BackgroundLayer::update(float dt)
 {
     if (_isFishing)
     {
-        _fishingElapsed += dt;
-        if (!_fishBite && _fishingElapsed >= _biteTime)
+        if (_fishingGame && _fishingGame->isFinished())
         {
-            _fishBite = true;
-            if (_fishingLabel)
-            {
-                _fishingLabel->setString("Hit! Press SPACE to reel in");
-            }
-        }
-        else if (_fishBite && _fishingElapsed > _biteTime + _biteWindow)
-        {
-            endFishing(false);
+            bool success = _fishingGame->isSuccess();
+            endFishing(success);
         }
     }
 
@@ -796,6 +818,17 @@ void BackgroundLayer::update(float dt)
             Rect boxX = box;
             boxX.origin.x += delta.x;
             bool blockX = boxX.intersectsRect(_homeRect) || (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
+            if (!blockX && _hasPoolRect && !_poolRects.empty())
+            {
+                for (const auto& r : _poolRects)
+                {
+                    if (boxX.intersectsRect(r))
+                    {
+                        blockX = true;
+                        break;
+                    }
+                }
+            }
             if (!blockX)
             {
                 pos.x += delta.x;
@@ -834,6 +867,17 @@ void BackgroundLayer::update(float dt)
             {
                 blockY = true;
             }
+            if (!blockY && _hasPoolRect && !_poolRects.empty())
+            {
+                for (const auto& r : _poolRects)
+                {
+                    if (boxY.intersectsRect(r))
+                    {
+                        blockY = true;
+                        break;
+                    }
+                }
+            }
             if (!blockY)
             {
                 pos.y += delta.y;
@@ -844,6 +888,17 @@ void BackgroundLayer::update(float dt)
             Rect boxX = box;
             boxX.origin.x += delta.x;
             bool blockX = (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
+            if (!blockX && _hasPoolRect && !_poolRects.empty())
+            {
+                for (const auto& r : _poolRects)
+                {
+                    if (boxX.intersectsRect(r))
+                    {
+                        blockX = true;
+                        break;
+                    }
+                }
+            }
             if (!blockX)
             {
                 pos.x += delta.x;
@@ -851,6 +906,17 @@ void BackgroundLayer::update(float dt)
             Rect boxY = box;
             boxY.origin.y += delta.y;
             bool blockY = (_hasBoundary && (boxY.intersectsRect(_boundaryTopRect) || boxY.intersectsRect(_boundaryBottomRect))) || checkCollisionWithObstacles(boxY);
+            if (!blockY && _hasPoolRect && !_poolRects.empty())
+            {
+                for (const auto& r : _poolRects)
+                {
+                    if (boxY.intersectsRect(r))
+                    {
+                        blockY = true;
+                        break;
+                    }
+                }
+            }
             if (!blockY)
             {
                 pos.y += delta.y;
@@ -941,6 +1007,20 @@ void BackgroundLayer::update(float dt)
                 Vec2 p1(tilePos.x, tilePos.y);
                 Vec2 p2(tilePos.x + tileSize2.width, tilePos.y + tileSize2.height);
 
+                Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+                bool inPool = false;
+                if (_hasPoolRect && !_poolRects.empty())
+                {
+                    for (const auto& r : _poolRects)
+                    {
+                        if (facingRect.intersectsRect(r))
+                        {
+                            inPool = true;
+                            break;
+                        }
+                    }
+                }
+
                 bool isValid = false;
                 
                 if (CropSystem::getInstance()->canHarvest(tileIndex))
@@ -970,7 +1050,10 @@ void BackgroundLayer::update(float dt)
                                 switch (item->toolType)
                                 {
                                 case ToolType::Hoe:
-                                    isValid = CropSystem::getInstance()->canTill(tileIndex);
+                                    if (!inPool)
+                                    {
+                                        isValid = CropSystem::getInstance()->canTill(tileIndex);
+                                    }
                                     break;
                                 case ToolType::WateringCan:
                                     isValid = CropSystem::getInstance()->canWater(tileIndex);
@@ -980,6 +1063,9 @@ void BackgroundLayer::update(float dt)
                                     break;
                                 case ToolType::Pickaxe:
                                     isValid = CropSystem::getInstance()->canDestroy(tileIndex);
+                                    break;
+                                case ToolType::FishingRod:
+                                    isValid = inPool;
                                     break;
                                 default:
                                     break;
@@ -1093,11 +1179,11 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
     if (_isFishing)
     {
-        if (_fishBite && keyCode == EventKeyboard::KeyCode::KEY_SPACE)
+        if (_fishingGame)
         {
-            endFishing(true);
+            _fishingGame->onKeyPressed(keyCode);
         }
-        else if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
+        if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
         {
             endFishing(false);
         }
@@ -1277,6 +1363,14 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 
 void BackgroundLayer::onKeyReleased(EventKeyboard::KeyCode keyCode, Event* event)
 {
+    if (_isFishing)
+    {
+        if (_fishingGame)
+        {
+            _fishingGame->onKeyReleased(keyCode);
+        }
+        return;
+    }
     if (_player)
     {
         // In debug mode, if arrow keys are used, do not pass them to the player
@@ -1684,9 +1778,22 @@ void BackgroundLayer::spawnObstacles(int count)
         Vec2 pos(cxPos, cyPos);
         Rect tileRect(x * tileSize.width, mapHeight - (y + 1) * tileSize.height, tileSize.width, tileSize.height);
 
-        // Check forbidden zones (Home, Exit, Boundaries)
+        // Check forbidden zones (Home, Exit, Pool, Boundaries)
         if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) continue;
         if (_hasRightExit && _rightExitRect.intersectsRect(tileRect)) continue;
+        if (_hasPoolRect && !_poolRects.empty())
+        {
+            bool insidePool = false;
+            for (const auto& r : _poolRects)
+            {
+                if (r.intersectsRect(tileRect))
+                {
+                    insidePool = true;
+                    break;
+                }
+            }
+            if (insidePool) continue;
+        }
         
         if (_hasBoundary)
         {
