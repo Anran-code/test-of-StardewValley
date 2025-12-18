@@ -14,7 +14,11 @@ enum class CropType
 {
     Parsnip,
     Cauliflower,
-    Potato
+    Potato,
+    Fish,
+    Anchovy,
+    Bream,
+    LargemouthBass
 };
 
 struct CropData
@@ -79,6 +83,7 @@ public:
 
     void updateDailyGrowth();
     int getSellPrice(CropType type) const;
+    const CropData* getCropData(CropType type) const;
 
 private:
     static CropSystem* sInstance;

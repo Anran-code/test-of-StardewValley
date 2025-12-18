@@ -197,6 +197,7 @@ void ShopLayer::refreshBasketView()
         case CropType::Parsnip: name = "Parsnip"; break;
         case CropType::Cauliflower: name = "Cauliflower"; break;
         case CropType::Potato: name = "Potato"; break;
+        case CropType::Fish: name = "Fish"; break;
         }
         char buf[128];
         std::snprintf(buf, sizeof(buf), "%s x%d", name.c_str(), kv.second);

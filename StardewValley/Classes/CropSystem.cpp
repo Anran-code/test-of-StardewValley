@@ -462,9 +462,41 @@ void CropSystem::loadCropData()
     cauliflower.allowedSeasons = { GameClock::Season::Spring };
     potato.allowedSeasons = { GameClock::Season::Spring };
 
+    CropData fish;
+    fish.growthDays = 0;
+    fish.sellPrice = 50;
+    fish.itemName = "Fish";
+    fish.itemIcon = "fish.png";
+    fish.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
+
+    CropData anchovy;
+    anchovy.growthDays = 0;
+    anchovy.sellPrice = 30;
+    anchovy.itemName = "Anchovy";
+    anchovy.itemIcon = "Anchovy.png";
+    anchovy.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Fall };
+
+    CropData bream;
+    bream.growthDays = 0;
+    bream.sellPrice = 45;
+    bream.itemName = "Bream";
+    bream.itemIcon = "Bream.png";
+    bream.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
+
+    CropData largemouthBass;
+    largemouthBass.growthDays = 0;
+    largemouthBass.sellPrice = 100;
+    largemouthBass.itemName = "Largemouth Bass";
+    largemouthBass.itemIcon = "Largemouth_Bass.png";
+    largemouthBass.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
+
     _data[CropType::Parsnip] = parsnip;
     _data[CropType::Cauliflower] = cauliflower;
     _data[CropType::Potato] = potato;
+    _data[CropType::Fish] = fish;
+    _data[CropType::Anchovy] = anchovy;
+    _data[CropType::Bream] = bream;
+    _data[CropType::LargemouthBass] = largemouthBass;
 }
 
 void CropSystem::ensureGridSize()
@@ -656,4 +688,14 @@ int CropSystem::getSellPrice(CropType type) const
     auto it = _data.find(type);
     if (it == _data.end()) return 0;
     return it->second.sellPrice;
+}
+
+const CropData* CropSystem::getCropData(CropType type) const
+{
+    auto it = _data.find(type);
+    if (it != _data.end())
+    {
+        return &it->second;
+    }
+    return nullptr;
 }

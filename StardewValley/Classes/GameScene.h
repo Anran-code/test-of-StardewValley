@@ -99,6 +99,7 @@ private:
     float _fishingElapsed;
     float _biteTime;
     float _biteWindow;
+    CropType _currentFishType; // Track which fish is on the line
     void updateSeasonFilter();
     void showSleepDialog();
     void beginSleep();

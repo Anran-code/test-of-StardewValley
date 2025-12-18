@@ -41,6 +41,8 @@ public:
         _fishTarget = _fishPos;
         _fishSpeed = 120.0f;
         _fishChangeTimer = 0.5f;
+        _fishChangeIntervalMin = 0.4f;
+        _fishChangeIntervalMax = 1.0f;
         _progress = 0.0f;
         _finished = false;
         _success = false;
@@ -50,6 +52,13 @@ public:
         scheduleUpdate();
         redraw();
         return true;
+    }
+
+    void setupDifficulty(float speed, float intervalMin, float intervalMax)
+    {
+        _fishSpeed = speed;
+        _fishChangeIntervalMin = intervalMin;
+        _fishChangeIntervalMax = intervalMax;
     }
 
     virtual void update(float dt) override
@@ -140,6 +149,8 @@ private:
     float _fishTarget = 0.0f;
     float _fishSpeed = 0.0f;
     float _fishChangeTimer = 0.0f;
+    float _fishChangeIntervalMin = 0.4f;
+    float _fishChangeIntervalMax = 1.0f;
     float _progress = 0.0f;
     bool _finished = false;
     bool _success = false;
@@ -187,7 +198,7 @@ private:
             float maxY = _height - margin;
             float r = cocos2d::RandomHelper::random_real(0.0f, 1.0f);
             _fishTarget = minY + (maxY - minY) * r;
-            _fishChangeTimer = cocos2d::RandomHelper::random_real(0.4f, 1.0f);
+            _fishChangeTimer = cocos2d::RandomHelper::random_real(_fishChangeIntervalMin, _fishChangeIntervalMax);
         }
         float diff = _fishTarget - _fishPos;
         float maxStep = _fishSpeed * dt;
@@ -241,56 +252,65 @@ private:
         {
             _meterDraw->clear();
         }
-        cocos2d::Vec2 a(0.0f, 0.0f);
-        cocos2d::Vec2 b(_width, _height);
-        _draw->drawSolidRect(a, b, cocos2d::Color4F(0.0f, 0.0f, 0.0f, 0.5f));
-        _draw->drawRect(a, b, cocos2d::Color4F(1.0f, 1.0f, 1.0f, 1.0f));
 
+        // Layout constants
+        float trackWidth = _width * 0.75f;
+        float meterWidth = _width * 0.20f;
+        float gap = _width * 0.05f;
+
+        // 1. Draw Water Track
+        cocos2d::Vec2 trackBL(0.0f, 0.0f);
+        cocos2d::Vec2 trackTR(trackWidth, _height);
+        
+        // Deep blue background for water
+        _draw->drawSolidRect(trackBL, trackTR, cocos2d::Color4F(0.0f, 0.1f, 0.4f, 0.9f));
+        // Gold/Brown border
+        _draw->drawRect(trackBL, trackTR, cocos2d::Color4F(0.8f, 0.6f, 0.2f, 1.0f));
+
+        // 2. Draw Green Bar (The "Bobber" control)
         float half = _barHeight * 0.5f;
         float barMin = _barPos - half;
         float barMax = _barPos + half;
-        if (barMin < 0.0f)
-        {
-            barMin = 0.0f;
-        }
-        if (barMax > _height)
-        {
-            barMax = _height;
-        }
-        float barLeft = _width * 0.15f;
-        float barRight = _width * 0.45f;
-        cocos2d::Vec2 bar1(barLeft, barMin);
-        cocos2d::Vec2 bar2(barRight, barMax);
-        _draw->drawSolidRect(bar1, bar2, cocos2d::Color4F(0.2f, 0.8f, 0.2f, 0.8f));
-        _draw->drawRect(bar1, bar2, cocos2d::Color4F(0.0f, 1.0f, 0.0f, 1.0f));
+        if (barMin < 0.0f) barMin = 0.0f;
+        if (barMax > _height) barMax = _height;
+        
+        float barMargin = 4.0f;
+        cocos2d::Vec2 barBL(barMargin, barMin);
+        cocos2d::Vec2 barTR(trackWidth - barMargin, barMax);
+        
+        _draw->drawSolidRect(barBL, barTR, cocos2d::Color4F(0.4f, 0.8f, 0.2f, 0.6f)); // Semi-transparent green body
+        _draw->drawRect(barBL, barTR, cocos2d::Color4F(0.2f, 0.6f, 0.1f, 1.0f)); // Dark green border
 
-        float fishHalf = 6.0f;
-        float fy1 = _fishPos - fishHalf;
-        float fy2 = _fishPos + fishHalf;
-        float fishLeft = barLeft + (barRight - barLeft) * 0.25f;
-        float fishRight = barLeft + (barRight - barLeft) * 0.75f;
-        cocos2d::Vec2 fish1(fishLeft, fy1);
-        cocos2d::Vec2 fish2(fishRight, fy2);
-        _draw->drawSolidRect(fish1, fish2, cocos2d::Color4F(1.0f, 1.0f, 0.0f, 1.0f));
-        _draw->drawRect(fish1, fish2, cocos2d::Color4F(1.0f, 1.0f, 0.0f, 1.0f));
+        // 3. Draw Fish
+        float fishSize = 16.0f;
+        float fy1 = _fishPos - fishSize * 0.5f;
+        float fy2 = _fishPos + fishSize * 0.5f;
+        float fishCenterX = trackWidth * 0.5f;
+        
+        cocos2d::Vec2 fishBL(fishCenterX - fishSize * 0.5f, fy1);
+        cocos2d::Vec2 fishTR(fishCenterX + fishSize * 0.5f, fy2);
+        
+        _draw->drawSolidRect(fishBL, fishTR, cocos2d::Color4F(1.0f, 0.8f, 0.2f, 1.0f)); // Orange/Yellow fish
+        _draw->drawRect(fishBL, fishTR, cocos2d::Color4F(0.8f, 0.4f, 0.0f, 1.0f));
 
+        // 4. Draw Progress Meter (Vertical on right)
         if (_meterDraw)
         {
-            float meterHeight = 10.0f;
-            float meterY2 = _height - 4.0f;
-            float meterY1 = meterY2 - meterHeight;
-            if (meterY1 < 0.0f)
+            cocos2d::Vec2 meterBL(trackWidth + gap, 0.0f);
+            cocos2d::Vec2 meterTR(trackWidth + gap + meterWidth, _height);
+
+            // Dark background for meter
+            _meterDraw->drawSolidRect(meterBL, meterTR, cocos2d::Color4F(0.1f, 0.1f, 0.1f, 0.8f));
+            _meterDraw->drawRect(meterBL, meterTR, cocos2d::Color4F(0.0f, 0.0f, 0.0f, 1.0f));
+
+            if (_progress > 0.0f)
             {
-                meterY1 = 0.0f;
-                meterY2 = meterHeight;
+                float fillHeight = _height * _progress;
+                cocos2d::Vec2 fillTR(trackWidth + gap + meterWidth, fillHeight);
+                
+                // Green to Gold gradient logic could be added, but solid green is fine
+                _meterDraw->drawSolidRect(meterBL, fillTR, cocos2d::Color4F(0.2f, 0.9f, 0.2f, 1.0f));
             }
-            cocos2d::Vec2 m1(0.0f, meterY1);
-            cocos2d::Vec2 m2(_width, meterY2);
-            _meterDraw->drawRect(m1, m2, cocos2d::Color4F(1.0f, 1.0f, 1.0f, 1.0f));
-            float fillWidth = _width * _progress;
-            cocos2d::Vec2 f1(0.0f, meterY1);
-            cocos2d::Vec2 f2(fillWidth, meterY2);
-            _meterDraw->drawSolidRect(f1, f2, cocos2d::Color4F(0.0f, 0.6f, 1.0f, 0.9f));
         }
     }
 };

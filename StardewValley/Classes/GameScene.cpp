@@ -664,42 +664,101 @@ void BackgroundLayer::startFishing()
 
     if (!_fishingOverlay)
     {
-        _fishingOverlay = LayerColor::create(Color4B(0, 0, 0, 160));
+        _fishingOverlay = LayerColor::create(Color4B(0, 0, 0, 0));
         _fishingOverlay->setContentSize(visibleSize);
         _fishingOverlay->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
-        Vec2 layerWorldPos = this->getPosition();
-        _fishingOverlay->setPosition(origin - layerWorldPos);
+        // Position relative to screen (not moving with BackgroundLayer)
+        _fishingOverlay->setPosition(origin);
 
-        auto label = Label::createWithSystemFont("Fishing... Wait for a bite", "Arial", 32.0f);
+        auto label = Label::createWithSystemFont("Fishing... Wait for a bite", "Arial", 16.0f);
         if (label)
         {
-            label->setPosition(Vec2(visibleSize.width * 0.5f, visibleSize.height * 0.5f));
             _fishingOverlay->addChild(label);
             _fishingLabel = label;
         }
 
-        addChild(_fishingOverlay, 6000);
-        cocos2d::Size gameSize(visibleSize.width * 0.4f, visibleSize.height * 0.6f);
+        // Add to GameScene (Parent of BackgroundLayer) to be above HudLayer (z=1000)
+        if (this->getParent())
+        {
+            this->getParent()->addChild(_fishingOverlay, 6000);
+        }
+        else
+        {
+            addChild(_fishingOverlay, 6000);
+        }
+        
+        // Stardew Valley style: Narrow vertical bar
+        float gameWidth = 80.0f;
+        float gameHeight = visibleSize.height * 0.5f; 
+        cocos2d::Size gameSize(gameWidth, gameHeight);
+        
         _fishingGame = FishingMiniGame::create(gameSize);
+        
+        // Position on left side (15% of screen width)
+        float gameX = visibleSize.width * 0.15f;
+
+        // Select Random Fish
+        int r = cocos2d::RandomHelper::random_int(0, 2);
+        if (r == 0) _currentFishType = CropType::Anchovy;
+        else if (r == 1) _currentFishType = CropType::Bream;
+        else _currentFishType = CropType::LargemouthBass;
+
         if (_fishingGame)
         {
-            _fishingGame->setPosition(Vec2(visibleSize.width * 0.5f - gameSize.width * 0.5f, visibleSize.height * 0.5f - gameSize.height * 0.5f));
+            // Apply difficulty based on fish type
+            if (_currentFishType == CropType::Anchovy) {
+                _fishingGame->setupDifficulty(80.0f, 0.8f, 1.5f); // Easy
+            } else if (_currentFishType == CropType::Bream) {
+                _fishingGame->setupDifficulty(120.0f, 0.5f, 1.0f); // Medium
+            } else {
+                _fishingGame->setupDifficulty(180.0f, 0.3f, 0.7f); // Hard
+            }
+
+            // Center horizontally at gameX, but move up vertically to avoid toolbar
+            // visibleSize.height * 0.6f puts center at 60% height
+            float centerY = visibleSize.height * 0.55f; 
+            _fishingGame->setPosition(Vec2(gameX - gameSize.width * 0.5f, centerY - gameSize.height * 0.5f));
             _fishingOverlay->addChild(_fishingGame, 1);
+        }
+
+        if (label)
+        {
+            // Position label above the fishing game
+            // Using same centerY logic
+            float centerY = visibleSize.height * 0.55f;
+            float labelY = centerY + (gameHeight * 0.5f) + 20.0f;
+            label->setPosition(Vec2(gameX, labelY));
         }
     }
     else
     {
         _fishingOverlay->setVisible(true);
-        _fishingOverlay->setOpacity(160);
-        Vec2 layerWorldPos = this->getPosition();
-        _fishingOverlay->setPosition(origin - layerWorldPos);
+        _fishingOverlay->setOpacity(0);
+        // Ensure position is fixed to screen
+        _fishingOverlay->setPosition(origin);
+        
         if (_fishingLabel)
         {
             _fishingLabel->setString("Press space to control the green block");
         }
+        
+        // Select Random Fish for next attempt
+        int r = cocos2d::RandomHelper::random_int(0, 2);
+        if (r == 0) _currentFishType = CropType::Anchovy;
+        else if (r == 1) _currentFishType = CropType::Bream;
+        else _currentFishType = CropType::LargemouthBass;
+
         if (_fishingGame)
         {
             _fishingGame->restart();
+            // Apply difficulty based on fish type
+            if (_currentFishType == CropType::Anchovy) {
+                _fishingGame->setupDifficulty(80.0f, 0.8f, 1.5f); // Easy
+            } else if (_currentFishType == CropType::Bream) {
+                _fishingGame->setupDifficulty(120.0f, 0.5f, 1.0f); // Medium
+            } else {
+                _fishingGame->setupDifficulty(180.0f, 0.3f, 0.7f); // Hard
+            }
         }
     }
 }
@@ -712,42 +771,32 @@ void BackgroundLayer::endFishing(bool success)
 
     if (_fishingOverlay)
     {
-        if (success)
-        {
-            _fishingOverlay->stopAllActions();
-            _fishingOverlay->setOpacity(200);
-        }
-        else
-        {
-            _fishingOverlay->stopAllActions();
-        }
+        _fishingOverlay->stopAllActions();
+        _fishingOverlay->setOpacity(0);
     }
 
     if (success)
     {
-        int baseReward = 30;
-        int extra = cocos2d::RandomHelper::random_int(0, 70);
-        int reward = baseReward + extra;
-        if (GameScene::sWallet)
-        {
-            GameScene::sWallet->addMoney(reward);
-        }
         if (GameScene::sInventory)
         {
-            Item fish;
-            fish.type = ItemType::Crop;
-            fish.name = "Fish";
-            fish.iconPath = "fish.png";
-            fish.quantity = 1;
-            fish.maxStack = 999;
-            GameScene::sInventory->addItem(fish);
-            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
-        }
-        if (_fishingLabel)
-        {
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "You are succeed!+%dg", reward);
-            _fishingLabel->setString(buf);
+            const CropData* data = CropSystem::getInstance()->getCropData(_currentFishType);
+            if (data)
+            {
+                Item fish;
+                fish.type = ItemType::Crop;
+                fish.cropType = _currentFishType;
+                fish.name = data->itemName;
+                fish.iconPath = data->itemIcon;
+                fish.quantity = 1;
+                fish.maxStack = 999;
+                GameScene::sInventory->addItem(fish);
+                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                
+                if (_fishingLabel)
+                {
+                    _fishingLabel->setString("You caught a " + data->itemName + "!");
+                }
+            }
         }
     }
     else
