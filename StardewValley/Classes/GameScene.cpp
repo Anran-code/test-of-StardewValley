@@ -37,6 +37,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _zoom = 2.0f;
     _facingDebug = nullptr;
     _hasHomeRect = false;
+    _hasHomeExitDoor = false;
+    _exitedHomeDoor = false;
     _enteredHome = false;
     _hasRightExit = false;
     _exitedRight = false;
@@ -81,6 +83,22 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 }
             }
 
+            auto startGroup = _map->getObjectGroup("start");
+            if (startGroup)
+            {
+                const auto& startObjs = startGroup->getObjects();
+                if (!startObjs.empty())
+                {
+                    const auto& dict = startObjs.front().asValueMap();
+                    float sx = dict.at("x").asFloat();
+                    float sy = dict.at("y").asFloat();
+                    float sw = dict.at("width").asFloat();
+                    float sh = dict.at("height").asFloat();
+                    GameScene::sFarmStartPos = Vec2(sx + sw * 0.5f, sy + sh * 0.5f);
+                    GameScene::sHasFarmStartPos = true;
+                }
+            }
+
             auto player = Player::create("player.png", tileSize.height);
             if (!player)
             {
@@ -88,7 +106,17 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             }
             if (player)
             {
-                player->setPosition(Vec2(mapWidth * 0.5f, mapHeight * 0.5f));
+                Vec2 spawnPos(mapWidth * 0.5f, mapHeight * 0.5f);
+                if (GameScene::sSpawnAtFarmStart && GameScene::sHasFarmStartPos)
+                {
+                    spawnPos = GameScene::sFarmStartPos;
+                }
+                else if (GameScene::sHasLastFarmPlayerPos)
+                {
+                    spawnPos = GameScene::sLastFarmPlayerPos;
+                }
+
+                player->setPosition(spawnPos);
                 addChild(player, 1);
 
                 _player = player;
@@ -96,10 +124,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 _facingDebug = DrawNode::create();
                 _map->addChild(_facingDebug, 100);
 
-                if (GameScene::sHasLastFarmPlayerPos)
-                {
-                    _player->setPosition(GameScene::sLastFarmPlayerPos);
-                }
+                GameScene::sSpawnAtFarmStart = false;
 
                 auto follow = Follow::create(_player);
                 this->runAction(follow);
@@ -134,26 +159,38 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         float hw = dict.at("width").asFloat();
                         float hh = dict.at("height").asFloat();
                         _homeRect = Rect(hx, hy, hw, hh);
-                        float doorW = tileSize.width;
-                        float doorH = tileSize.height * 2.0f;
-                        float baseDoorX = _homeRect.getMinX() + (_homeRect.size.width - doorW) * 0.5f + tileSize.width * 1.35f;
-                        float baseCenterX = baseDoorX + doorW * 0.5f;
-                        float alignedCenterX = std::round(baseCenterX / tileSize.width) * tileSize.width + tileSize.width;
-                        float fineOffset = -tileSize.width * 0.40f;
-                        float doorX = alignedCenterX - doorW * 0.5f + fineOffset;
-                        float doorY = std::floor(_homeRect.getMinY() / tileSize.height) * tileSize.height;
-                        _homeDoorRect = Rect(doorX, doorY, doorW, doorH);
-                        float extendDown = tileSize.height * 0.3f;
-                        _homeDoorTunnelRect = Rect(doorX, doorY - extendDown, doorW, doorH + extendDown);
                         _hasHomeRect = true;
+
                         float exitW = tileSize.width * 2.0f;
                         float exitH = tileSize.height * 6.0f;
                         float exitX = _boundaryRightRect.getMinX() - exitW;
                         float exitY = (mapHeight - exitH) * 0.5f - tileSize.height * 7.0f;
                         _rightExitRect = Rect(exitX, exitY, exitW, exitH);
                         _hasRightExit = true;
-            }
-        }
+                    }
+                }
+
+                auto doorGroup = _map->getObjectGroup("door");
+                if (doorGroup)
+                {
+                    const auto& objs = doorGroup->getObjects();
+                    if (!objs.empty())
+                    {
+                        const auto& dict = objs.front().asValueMap();
+                        float dx = dict.at("x").asFloat();
+                        float dy = dict.at("y").asFloat();
+                        float dw = dict.at("width").asFloat();
+                        float dh = dict.at("height").asFloat();
+                        _homeDoorRect = Rect(dx, dy, dw, dh);
+                        float extendDown = tileSize.height * 0.3f;
+                        _homeDoorTunnelRect = Rect(dx, dy - extendDown, dw, dh + extendDown);
+                        if (!_hasHomeRect)
+                        {
+                            _homeRect = _homeDoorRect;
+                            _hasHomeRect = true;
+                        }
+                    }
+                }
         
         initObstacles(); // Init obstacles for Farm type
 
@@ -238,6 +275,22 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 }
             }
 
+            auto doorGroup = _map->getObjectGroup("door");
+            if (doorGroup)
+            {
+                const auto& objs = doorGroup->getObjects();
+                if (!objs.empty())
+                {
+                    const auto& dict = objs.front().asValueMap();
+                    float dx = dict.at("x").asFloat();
+                    float dy = dict.at("y").asFloat();
+                    float dw = dict.at("width").asFloat();
+                    float dh = dict.at("height").asFloat();
+                    _homeExitDoorRect = Rect(dx, dy, dw, dh);
+                    _hasHomeExitDoor = true;
+                }
+            }
+
             auto player = Player::create("player.png", tileSize.height);
             if (!player)
             {
@@ -269,7 +322,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 _boundaryLeftRect = Rect(tileSize.width, 0.0f, tileSize.width, mapHeight);
                 _boundaryRightRect = Rect(mapWidth - tileSize.width * 2.0f, 0.0f, tileSize.width, mapHeight);
                 _boundaryBottomRect = Rect(0.0f, tileSize.height, mapWidth, tileSize.height);
-                _boundaryTopRect = Rect(0.0f, mapHeight - tileSize.height * 2.0f, mapWidth, tileSize.height);
+                float topLimitY = mapHeight - tileSize.height * 5.0f;
+                _boundaryTopRect = Rect(0.0f, topLimitY, mapWidth, mapHeight - topLimitY);
                 _hasBoundary = true;
 
                 updateSeasonFilter();
@@ -512,24 +566,23 @@ void BackgroundLayer::update(float dt)
         _player->setLocalZOrder(static_cast<int>(mapHeight - _player->getPositionY()));
     }
 
-    if (_hasHomeRect && !_enteredHome)
+    if (_type == BackgroundType::Farm && _hasHomeRect && !_enteredHome && _map && _groundLayer)
     {
-        Rect box = _player->getBoundingBox();
-        Size tileSize2 = _map->getTileSize();
-        float stripH = std::min(tileSize2.height * 0.3f, _homeDoorRect.size.height);
-        Rect topStrip(_homeDoorRect.getMinX(), _homeDoorRect.getMaxY() - stripH, _homeDoorRect.size.width, stripH);
-                if (box.intersectsRect(topStrip))
-                {
-                    float centerX = (box.origin.x + box.getMaxX()) * 0.5f;
-                    if (centerX >= _homeDoorRect.getMinX() && centerX <= _homeDoorRect.getMaxX())
-                    {
-                        _enteredHome = true;
-                        GameScene::sLastFarmPlayerPos = _player->getPosition();
-                        GameScene::sHasLastFarmPlayerPos = true;
-                        auto next = GameScene::createScene(BackgroundType::Home);
+        Vec2 tileIndex = getFacingTile();
+        if (tileIndex.x >= 0 && tileIndex.y >= 0)
+        {
+            Size tileSize2 = _map->getTileSize();
+            Vec2 tilePos = _groundLayer->getPositionAt(tileIndex);
+            Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+            if (facingRect.intersectsRect(_homeDoorRect))
+            {
+                _enteredHome = true;
+                GameScene::sLastFarmPlayerPos = _player->getPosition();
+                GameScene::sHasLastFarmPlayerPos = true;
+                auto next = GameScene::createScene(BackgroundType::Home);
                 if (next)
                 {
-                    auto trans = TransitionMoveInR::create(0.5f, next);
+                    auto trans = TransitionFade::create(0.5f, next);
                     Director::getInstance()->replaceScene(trans);
                 }
             }
@@ -554,6 +607,28 @@ void BackgroundLayer::update(float dt)
         }
     }
 
+    if (_type == BackgroundType::Home && _hasHomeExitDoor && !_exitedHomeDoor && _map && _groundLayer)
+    {
+        Vec2 tileIndex = getFacingTile();
+        if (tileIndex.x >= 0 && tileIndex.y >= 0)
+        {
+            Size tileSize2 = _map->getTileSize();
+            Vec2 tilePos = _groundLayer->getPositionAt(tileIndex);
+            Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+            if (facingRect.intersectsRect(_homeExitDoorRect))
+            {
+                _exitedHomeDoor = true;
+                GameScene::sSpawnAtFarmStart = true;
+                auto next = GameScene::createScene(BackgroundType::Farm);
+                if (next)
+                {
+                    auto trans = TransitionFade::create(0.5f, next);
+                    Director::getInstance()->replaceScene(trans);
+                }
+            }
+        }
+    }
+
     if (_facingDebug && _groundLayer)
     {
         _facingDebug->clear();
@@ -562,78 +637,77 @@ void BackgroundLayer::update(float dt)
         Vec2 tileIndex = getFacingTile();
         if (tileIndex.x >= 0 && tileIndex.y >= 0)
         {
-            Size tileSize2 = _map->getTileSize();
-
-            Vec2 tilePos = _groundLayer->getPositionAt(tileIndex);
-
-            Vec2 centerPos(tilePos.x + tileSize2.width * 0.5f,
-                tilePos.y + tileSize2.height * 0.5f);
-            _facingDebug->drawDot(centerPos, 4.0f, Color4F::YELLOW);
-
-            Vec2 p1(tilePos.x, tilePos.y);
-            Vec2 p2(tilePos.x + tileSize2.width, tilePos.y + tileSize2.height);
-
-            // Determine if action is valid on this tile
-            bool isValid = false;
-            
-            // 1. Check Harvest (High priority, works with any item)
-            if (CropSystem::getInstance()->canHarvest(tileIndex))
+            if (!(_type == BackgroundType::Home && tileIndex.y < 3))
             {
-                isValid = true;
-            }
-            else
-            {
-                // Check Obstacles
-                if (hasObstacle(tileIndex))
+                Size tileSize2 = _map->getTileSize();
+
+                Vec2 tilePos = _groundLayer->getPositionAt(tileIndex);
+
+                Vec2 centerPos(tilePos.x + tileSize2.width * 0.5f,
+                    tilePos.y + tileSize2.height * 0.5f);
+                _facingDebug->drawDot(centerPos, 4.0f, Color4F::YELLOW);
+
+                Vec2 p1(tilePos.x, tilePos.y);
+                Vec2 p2(tilePos.x + tileSize2.width, tilePos.y + tileSize2.height);
+
+                bool isValid = false;
+                
+                if (CropSystem::getInstance()->canHarvest(tileIndex))
                 {
-                    const Item* item = GameScene::sInventory ? GameScene::sInventory->getSelectedItem() : nullptr;
-                    if (item && item->type == ItemType::Tool)
-                    {
-                        int obsType = getObstacleType(tileIndex);
-                        if (obsType == 0 && item->toolType == ToolType::Axe) isValid = true;      // Wood
-                        else if (obsType == 1 && item->toolType == ToolType::Pickaxe) isValid = true; // Stone
-                        else if (obsType == 2 && item->toolType == ToolType::Scythe) isValid = true;  // Weed
-                    }
+                    isValid = true;
                 }
                 else
                 {
-                    // Check Tool / Plant (No obstacle)
-                    const Item* item = GameScene::sInventory ? GameScene::sInventory->getSelectedItem() : nullptr;
-                    if (item)
+                    if (hasObstacle(tileIndex))
                     {
-                        if (item->type == ItemType::Tool)
+                        const Item* item = GameScene::sInventory ? GameScene::sInventory->getSelectedItem() : nullptr;
+                        if (item && item->type == ItemType::Tool)
                         {
-                            switch (item->toolType)
-                            {
-                            case ToolType::Hoe:
-                                isValid = CropSystem::getInstance()->canTill(tileIndex);
-                                break;
-                            case ToolType::WateringCan:
-                                isValid = CropSystem::getInstance()->canWater(tileIndex);
-                                break;
-                            case ToolType::Scythe:
-                                isValid = CropSystem::getInstance()->canClearWithered(tileIndex);
-                                break;
-                            case ToolType::Pickaxe:
-                                isValid = CropSystem::getInstance()->canDestroy(tileIndex);
-                                break;
-                            default:
-                                break;
-                            }
+                            int obsType = getObstacleType(tileIndex);
+                            if (obsType == 0 && item->toolType == ToolType::Axe) isValid = true;
+                            else if (obsType == 1 && item->toolType == ToolType::Pickaxe) isValid = true;
+                            else if (obsType == 2 && item->toolType == ToolType::Scythe) isValid = true;
                         }
-                        else if (item->type == ItemType::Seed)
+                    }
+                    else
+                    {
+                        const Item* item = GameScene::sInventory ? GameScene::sInventory->getSelectedItem() : nullptr;
+                        if (item)
                         {
-                            isValid = CropSystem::getInstance()->canPlant(tileIndex, item->cropType);
+                            if (item->type == ItemType::Tool)
+                            {
+                                switch (item->toolType)
+                                {
+                                case ToolType::Hoe:
+                                    isValid = CropSystem::getInstance()->canTill(tileIndex);
+                                    break;
+                                case ToolType::WateringCan:
+                                    isValid = CropSystem::getInstance()->canWater(tileIndex);
+                                    break;
+                                case ToolType::Scythe:
+                                    isValid = CropSystem::getInstance()->canClearWithered(tileIndex);
+                                    break;
+                                case ToolType::Pickaxe:
+                                    isValid = CropSystem::getInstance()->canDestroy(tileIndex);
+                                    break;
+                                default:
+                                    break;
+                                }
+                            }
+                            else if (item->type == ItemType::Seed)
+                            {
+                                isValid = CropSystem::getInstance()->canPlant(tileIndex, item->cropType);
+                            }
                         }
                     }
                 }
+
+                Color4F boxColor = isValid ? Color4F(0.0f, 1.0f, 0.0f, 0.3f) : Color4F(1.0f, 0.0f, 0.0f, 0.3f);
+                Color4F borderColor = isValid ? Color4F(0.0f, 1.0f, 0.0f, 1.0f) : Color4F(1.0f, 0.0f, 0.0f, 1.0f);
+
+                _facingDebug->drawSolidRect(p1, p2, boxColor);
+                _facingDebug->drawRect(p1, p2, borderColor);
             }
-
-            Color4F boxColor = isValid ? Color4F(0.0f, 1.0f, 0.0f, 0.3f) : Color4F(1.0f, 0.0f, 0.0f, 0.3f);
-            Color4F borderColor = isValid ? Color4F(0.0f, 1.0f, 0.0f, 1.0f) : Color4F(1.0f, 0.0f, 0.0f, 1.0f);
-
-            _facingDebug->drawSolidRect(p1, p2, boxColor);
-            _facingDebug->drawRect(p1, p2, borderColor);
         }
 
         if (_hasRightExit)
@@ -938,6 +1012,9 @@ GameClock* GameScene::sClock = nullptr;
 Wallet* GameScene::sWallet = nullptr;
 Vec2 GameScene::sLastFarmPlayerPos = Vec2::ZERO;
 bool GameScene::sHasLastFarmPlayerPos = false;
+Vec2 GameScene::sFarmStartPos = Vec2::ZERO;
+bool GameScene::sHasFarmStartPos = false;
+bool GameScene::sSpawnAtFarmStart = false;
 
 Inventory* GameScene::sInventory = nullptr; // Define sInventory
 
@@ -946,7 +1023,7 @@ void GameScene::switchTo(BackgroundType type, float duration)
     auto next = GameScene::createScene(type);
     if (next)
     {
-        auto trans = TransitionMoveInR::create(duration, next);
+        auto trans = TransitionFade::create(duration, next);
         Director::getInstance()->replaceScene(trans);
     }
 }
@@ -956,7 +1033,7 @@ void GameScene::switchViaRightExit(float duration)
     auto next = GameScene::createScene(BackgroundType::Path);
     if (next)
     {
-        auto trans = TransitionMoveInR::create(duration, next);
+        auto trans = TransitionFade::create(duration, next);
         Director::getInstance()->replaceScene(trans);
     }
 }

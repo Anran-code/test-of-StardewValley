@@ -50,12 +50,15 @@ private:
     cocos2d::Rect _homeRect;
     cocos2d::Rect _homeDoorRect;
     cocos2d::Rect _homeDoorTunnelRect;
+    cocos2d::Rect _homeExitDoorRect;
     cocos2d::Rect _rightExitRect;
     cocos2d::Rect _boundaryLeftRect;
     cocos2d::Rect _boundaryRightRect;
     cocos2d::Rect _boundaryTopRect;
     cocos2d::Rect _boundaryBottomRect;
     bool _hasHomeRect;
+    bool _hasHomeExitDoor;
+    bool _exitedHomeDoor;
     bool _hasRightExit;
     bool _hasBoundary;
     bool _enteredHome;
@@ -92,6 +95,9 @@ public:
     static void switchViaRightExit(float duration = 0.5f);
     static cocos2d::Vec2 sLastFarmPlayerPos;
     static bool sHasLastFarmPlayerPos;
+    static cocos2d::Vec2 sFarmStartPos;
+    static bool sHasFarmStartPos;
+    static bool sSpawnAtFarmStart;
 
     static Inventory* sInventory; // Shared inventory
     static class GameClock* sClock;
