@@ -15,9 +15,11 @@ public:
     static HudLayer* create(GameClock* clock, Wallet* wallet, Inventory* inventory);
 
     bool initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inventory);
+    virtual void onExit() override;
 
     void refresh();
     void updateInventoryUI();
+    void updateSelectorPosition();
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onScroll(cocos2d::Event* event); // Mouse scroll for toolbar selection

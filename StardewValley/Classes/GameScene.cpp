@@ -44,6 +44,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _exitedRight = false;
     _hasBoundary = false;
     _isDebugMode = false;
+    _canEnterHomeDoor = false;
+    _canExitHomeDoor = false;
 
     _backgroundNode = nullptr;
     _seasonOverlay = nullptr;
@@ -298,9 +300,25 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             }
             if (player)
             {
-                float startX = mapWidth * 0.5f;
-                float startY = mapHeight * 0.5f;
-                player->setPosition(Vec2(startX, startY));
+                Vec2 spawnPos(mapWidth * 0.5f, mapHeight * 0.5f);
+                if (GameScene::sStartAtHomeBed)
+                {
+                    auto bedGroup = _map->getObjectGroup("bed");
+                    if (bedGroup)
+                    {
+                        const auto& objs = bedGroup->getObjects();
+                        if (!objs.empty())
+                        {
+                            const auto& dict = objs.front().asValueMap();
+                            float bx = dict.at("x").asFloat();
+                            float by = dict.at("y").asFloat();
+                            float bw = dict.at("width").asFloat();
+                            float bh = dict.at("height").asFloat();
+                            spawnPos = Vec2(bx + bw * 0.5f, by + bh * 0.5f);
+                        }
+                    }
+                }
+                player->setPosition(spawnPos);
                 addChild(player, 1);
 
                 _player = player;
@@ -453,12 +471,6 @@ void BackgroundLayer::update(float dt)
 {
     if (GameScene::sClock && GameScene::sClock->getSeason() != _lastSeason)
     {
-        if (_type == BackgroundType::Farm && _map)
-        {
-             Size mapSize = _map->getMapSize();
-             int initialCount = (mapSize.width * mapSize.height) / 10;
-             spawnObstacles(initialCount / 3);
-        }
         updateSeasonFilter();
     }
 
@@ -466,6 +478,9 @@ void BackgroundLayer::update(float dt)
     {
         return;
     }
+
+    _canEnterHomeDoor = false;
+    _canExitHomeDoor = false;
 
     Size mapSizeTiles = _map->getMapSize();
     Size tileSize = _map->getTileSize();
@@ -576,15 +591,7 @@ void BackgroundLayer::update(float dt)
             Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
             if (facingRect.intersectsRect(_homeDoorRect))
             {
-                _enteredHome = true;
-                GameScene::sLastFarmPlayerPos = _player->getPosition();
-                GameScene::sHasLastFarmPlayerPos = true;
-                auto next = GameScene::createScene(BackgroundType::Home);
-                if (next)
-                {
-                    auto trans = TransitionFade::create(0.5f, next);
-                    Director::getInstance()->replaceScene(trans);
-                }
+                _canEnterHomeDoor = true;
             }
         }
     }
@@ -617,14 +624,7 @@ void BackgroundLayer::update(float dt)
             Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
             if (facingRect.intersectsRect(_homeExitDoorRect))
             {
-                _exitedHomeDoor = true;
-                GameScene::sSpawnAtFarmStart = true;
-                auto next = GameScene::createScene(BackgroundType::Farm);
-                if (next)
-                {
-                    auto trans = TransitionFade::create(0.5f, next);
-                    Director::getInstance()->replaceScene(trans);
-                }
+                _canExitHomeDoor = true;
             }
         }
     }
@@ -852,6 +852,32 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             break;
         }
     }
+    if (keyCode == EventKeyboard::KeyCode::KEY_X)
+    {
+        if (_type == BackgroundType::Farm && _canEnterHomeDoor && !_enteredHome && _map && _groundLayer && _player)
+        {
+            _enteredHome = true;
+            GameScene::sLastFarmPlayerPos = _player->getPosition();
+            GameScene::sHasLastFarmPlayerPos = true;
+            auto next = GameScene::createScene(BackgroundType::Home);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+            }
+        }
+        else if (_type == BackgroundType::Home && _canExitHomeDoor && !_exitedHomeDoor && _map && _groundLayer)
+        {
+            _exitedHomeDoor = true;
+            GameScene::sSpawnAtFarmStart = true;
+            auto next = GameScene::createScene(BackgroundType::Farm);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+            }
+        }
+    }
     if (_player)
     {
         // In debug mode, if arrow keys are used, do not pass them to the player (prevent movement)
@@ -1015,6 +1041,7 @@ bool GameScene::sHasLastFarmPlayerPos = false;
 Vec2 GameScene::sFarmStartPos = Vec2::ZERO;
 bool GameScene::sHasFarmStartPos = false;
 bool GameScene::sSpawnAtFarmStart = false;
+bool GameScene::sStartAtHomeBed = false;
 
 Inventory* GameScene::sInventory = nullptr; // Define sInventory
 
@@ -1130,6 +1157,8 @@ bool GameScene::initWithStartType(BackgroundType type)
     }
     CropSystem::getInstance()->init(nullptr, _clock, _wallet, _inventory);
     scheduleUpdate();
+
+    GameScene::sStartAtHomeBed = false;
 
     return true;
 }
@@ -1329,7 +1358,7 @@ void BackgroundLayer::initObstacles()
 {
     if (!_map) return;
     Size mapSize = _map->getMapSize();
-    int obstacleCount = (mapSize.width * mapSize.height) / 10; // 10% density
+    int obstacleCount = (mapSize.width * mapSize.height) / 30;
     spawnObstacles(obstacleCount);
 }
 

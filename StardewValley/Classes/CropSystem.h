@@ -7,6 +7,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 
 enum class CropType
@@ -93,9 +94,12 @@ private:
     int _lastProcessedSeason;
     std::vector<std::vector<TileSlot>> _tiles;
     std::unordered_map<CropType, CropData> _data;
+    std::unordered_set<int> _activeTileIndices;
 
     void loadCropData();
     void ensureGridSize();
+    void markActive(const cocos2d::Vec2& tileIndex);
+    void unmarkActive(const cocos2d::Vec2& tileIndex);
     void placeOrUpdateSprite(const cocos2d::Vec2& tileIndex, CropInstance* inst);
     void fitSpriteToTile(cocos2d::Sprite* sprite);
     cocos2d::Vec2 tileBottomCenterWorld(const cocos2d::Vec2& tileIndex) const;

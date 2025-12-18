@@ -64,6 +64,8 @@ private:
     bool _enteredHome;
     bool _exitedRight;
     bool _isDebugMode;
+    bool _canEnterHomeDoor;
+    bool _canExitHomeDoor;
 
     // Seasonal filter support
     GameClock::Season _lastSeason;
@@ -98,6 +100,7 @@ public:
     static cocos2d::Vec2 sFarmStartPos;
     static bool sHasFarmStartPos;
     static bool sSpawnAtFarmStart;
+    static bool sStartAtHomeBed;
 
     static Inventory* sInventory; // Shared inventory
     static class GameClock* sClock;

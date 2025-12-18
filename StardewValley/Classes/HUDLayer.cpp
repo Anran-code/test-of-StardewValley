@@ -143,6 +143,21 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     return true;
 }
 
+void HudLayer::onExit()
+{
+    if (_mouseListener)
+    {
+        _eventDispatcher->removeEventListener(_mouseListener);
+        _mouseListener = nullptr;
+    }
+    if (_touchListener)
+    {
+        _eventDispatcher->removeEventListener(_touchListener);
+        _touchListener = nullptr;
+    }
+    Layer::onExit();
+}
+
 void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
     if (keyCode == EventKeyboard::KeyCode::KEY_E)
@@ -176,7 +191,7 @@ void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
     if (slot != -1 && _inventory)
     {
         _inventory->setSelectedSlot(slot);
-        updateInventoryUI();
+        updateSelectorPosition();
     }
 }
 
@@ -198,7 +213,7 @@ void HudLayer::onScroll(Event* event)
             if (current < 0) current = Inventory::TOOLBAR_SIZE - 1;
         }
         _inventory->setSelectedSlot(current);
-        updateInventoryUI();
+        updateSelectorPosition();
     }
 }
 
@@ -317,10 +332,8 @@ void HudLayer::updateInventoryUI()
         float cy = startCenterY;
         _selector->setPosition(Vec2(cx, cy));
         
-        // Scale selector to fit slot size
         Size selSize = _selector->getContentSize();
         if (selSize.width > 0) {
-            // Make selector slightly larger than cell
             float targetSelW = scaledCellWidth * 1.1f;
             _selector->setScale(targetSelW / selSize.width);
         }
@@ -440,6 +453,38 @@ void HudLayer::updateInventoryUI()
                 }
             }
         }
+    }
+}
+
+void HudLayer::updateSelectorPosition()
+{
+    if (!_inventory || !_toolbar || !_selector) return;
+
+    float scale = _toolbar->getScale();
+    Size originalSize = _toolbar->getContentSize();
+    Vec2 toolbarPos = _toolbar->getPosition();
+
+    float toolbarScreenLeft = toolbarPos.x - (originalSize.width * scale * 0.5f);
+    float toolbarScreenBottom = toolbarPos.y;
+
+    float scaledLeftMargin = RAW_LEFT_MARGIN * scale;
+    float scaledBottomMargin = RAW_BOTTOM_MARGIN * scale;
+    float scaledCellWidth = RAW_CELL_WIDTH * scale;
+    float scaledGap = RAW_GAP * scale;
+
+    float startCenterX = toolbarScreenLeft + scaledLeftMargin + (scaledCellWidth * 0.5f);
+    float startCenterY = toolbarScreenBottom + scaledBottomMargin + (RAW_CELL_HEIGHT * scale * 0.5f);
+    float stepX = scaledCellWidth + scaledGap;
+
+    int sel = _inventory->getSelectedSlot();
+    float cx = startCenterX + (sel * stepX);
+    float cy = startCenterY;
+    _selector->setPosition(Vec2(cx, cy));
+
+    Size selSize = _selector->getContentSize();
+    if (selSize.width > 0) {
+        float targetSelW = scaledCellWidth * 1.1f;
+        _selector->setScale(targetSelW / selSize.width);
     }
 }
 

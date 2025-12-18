@@ -73,6 +73,7 @@ void CropSystem::tillTile(const Vec2& tileIndex)
     auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     slot.tilled = true;
     darkenTile(tileIndex);
+    markActive(tileIndex);
 }
 
 bool CropSystem::canPlant(const Vec2& tileIndex, CropType type) const
@@ -108,6 +109,7 @@ bool CropSystem::plantSelected(const Vec2& tileIndex)
     placeOrUpdateSprite(tileIndex, inst.get());
     _map->addChild(inst->sprite, 50);
     slot.crop = std::move(inst);
+    markActive(tileIndex);
     return true;
 }
 
@@ -124,6 +126,7 @@ void CropSystem::waterTile(const Vec2& tileIndex)
     auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
     slot.watered = true;
     waterTintTile(tileIndex);
+    markActive(tileIndex);
 }
 
 bool CropSystem::canHarvest(const Vec2& tileIndex) const
@@ -171,6 +174,7 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         inst->sprite->removeFromParent();
     }
     slot.crop.reset();
+    unmarkActive(tileIndex);
     return true;
 }
 
@@ -243,6 +247,7 @@ bool CropSystem::destroyTile(const Vec2& tileIndex)
     // Reset visual
     resetTileColor(tileIndex);
     
+    unmarkActive(tileIndex);
     return true;
 }
 
@@ -255,11 +260,24 @@ void CropSystem::updateDailyGrowth()
     bool seasonChanged = (_lastProcessedSeason != (int)season);
 
     Size mapTiles = _map->getMapSize();
-    for (int x = 0; x < (int)mapTiles.width; ++x)
+    int width = (int)mapTiles.width;
+
+    if (_activeTileIndices.empty())
     {
-        for (int y = 0; y < (int)mapTiles.height; ++y)
-        {
-            auto& slot = _tiles[x][y];
+        _lastProcessedDay = day;
+        _lastProcessedSeason = (int)season;
+        return;
+    }
+
+    std::vector<int> toRemove;
+    toRemove.reserve(_activeTileIndices.size());
+
+    for (int key : _activeTileIndices)
+    {
+        int x = key % width;
+        int y = key / width;
+        auto& slot = _tiles[x][y];
+        bool stillActive = false;
             if (slot.crop)
             {
                 auto* inst = slot.crop.get();
@@ -321,31 +339,27 @@ void CropSystem::updateDailyGrowth()
             }
             else
             {
-                // No crop
-                // If it was watered, dry it up next day
                 if (slot.watered)
                 {
                     slot.watered = false;
-                    // Keep tilled but remove water color
-                    // Darken is for tilled, WaterTint is for water.
-                    // We need to revert to just Darken.
                     darkenTile(Vec2(x, y));
                 }
-                
-                // Logic for untilled if left alone? Stardew does this randomly.
-                // For now, let's keep it tilled until manually changed or decay logic added.
             }
-            
-            // Season change decay for tilled soil?
-            if (seasonChanged)
+
+            if (slot.crop || slot.watered)
             {
-                // In Stardew, tilled soil might decay on season change unless crop was there?
-                // For simplicity, maybe reset everything if season changes?
-                // User didn't ask for this yet.
-                // But if season changed, existing crops might wither (handled above).
-                // Empty tilled soil might stay.
+                stillActive = true;
             }
-        }
+
+            if (!stillActive)
+            {
+                toRemove.push_back(key);
+            }
+    }
+
+    for (int key : toRemove)
+    {
+        _activeTileIndices.erase(key);
     }
 
     _lastProcessedDay = day;
@@ -399,6 +413,7 @@ void CropSystem::ensureGridSize()
     if (!_map) return;
     Size mapTiles = _map->getMapSize();
     _tiles.clear();
+    _activeTileIndices.clear();
     _tiles.resize((int)mapTiles.width);
     for (int x = 0; x < (int)mapTiles.width; ++x)
     {
@@ -410,6 +425,28 @@ void CropSystem::ensureGridSize()
             _tiles[x][y].crop.reset();
         }
     }
+}
+
+void CropSystem::markActive(const Vec2& tileIndex)
+{
+    if (!_map) return;
+    Size mapTiles = _map->getMapSize();
+    int x = (int)tileIndex.x;
+    int y = (int)tileIndex.y;
+    if (x < 0 || y < 0 || x >= (int)mapTiles.width || y >= (int)mapTiles.height) return;
+    int key = y * (int)mapTiles.width + x;
+    _activeTileIndices.insert(key);
+}
+
+void CropSystem::unmarkActive(const Vec2& tileIndex)
+{
+    if (!_map) return;
+    Size mapTiles = _map->getMapSize();
+    int x = (int)tileIndex.x;
+    int y = (int)tileIndex.y;
+    if (x < 0 || y < 0 || x >= (int)mapTiles.width || y >= (int)mapTiles.height) return;
+    int key = y * (int)mapTiles.width + x;
+    _activeTileIndices.erase(key);
 }
 
 bool CropSystem::inBounds(const Vec2& tileIndex) const
