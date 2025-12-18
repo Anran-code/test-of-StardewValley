@@ -5,6 +5,7 @@
 #include "Player.h"
 #include "Inventory.h"
 #include "GameClock.h"
+#include <vector>
 
 enum class BackgroundType
 {
@@ -47,11 +48,13 @@ private:
     Player* _player;
     float _zoom;
     cocos2d::DrawNode* _facingDebug;
+    cocos2d::DrawNode* _poolDebug;
     cocos2d::Rect _homeRect;
     cocos2d::Rect _homeDoorRect;
     cocos2d::Rect _homeDoorTunnelRect;
     cocos2d::Rect _homeExitDoorRect;
     cocos2d::Rect _bedRect;
+    std::vector<cocos2d::Rect> _poolRects;
     cocos2d::Rect _rightExitRect;
     cocos2d::Rect _boundaryLeftRect;
     cocos2d::Rect _boundaryRightRect;
@@ -60,6 +63,7 @@ private:
     bool _hasHomeRect;
     bool _hasHomeExitDoor;
     bool _hasBedRect;
+    bool _hasPoolRect;
     bool _exitedHomeDoor;
     bool _hasRightExit;
     bool _hasBoundary;
@@ -77,10 +81,19 @@ private:
     cocos2d::Node* _backgroundNode;
     cocos2d::LayerColor* _seasonOverlay;
     cocos2d::LayerColor* _sleepOverlay;
+    cocos2d::LayerColor* _fishingOverlay;
+    cocos2d::Label* _fishingLabel;
+    bool _isFishing;
+    bool _fishBite;
+    float _fishingElapsed;
+    float _biteTime;
+    float _biteWindow;
     void updateSeasonFilter();
     void showSleepDialog();
     void beginSleep();
     void cancelSleepDialog();
+    void startFishing();
+    void endFishing(bool success);
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);

@@ -64,6 +64,10 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
         if (_wallet && _wallet->spendMoney(200)) { this->refreshBasketView(); return true; }
         return false;
     }});
+    _items.push_back({ "Fishing Rod", 500, 1, "tools/Pole.png", [this]() -> bool {
+        if (_wallet && _wallet->spendMoney(500)) { this->refreshBasketView(); return true; }
+        return false;
+    }});
 
     float rowY = topY;
     float rowGap = 90.0f;

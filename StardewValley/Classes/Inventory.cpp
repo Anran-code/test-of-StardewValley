@@ -5,18 +5,15 @@ Inventory::Inventory()
     _items.resize(BACKPACK_SIZE); // Initialize empty slots
     _selectedSlot = 0;
     
-    // Default items
-    // Tools
     _items[0] = Item::createTool(ToolType::Hoe, "Hoe", "tools/hoe.png");
     _items[1] = Item::createTool(ToolType::Axe, "Axe", "tools/axe.png");
     _items[2] = Item::createTool(ToolType::Pickaxe, "Pickaxe", "tools/pickaxe.png");
     _items[3] = Item::createTool(ToolType::WateringCan, "Watering Can", "tools/watering_Can.png");
     _items[4] = Item::createTool(ToolType::Scythe, "Scythe", "tools/Scythe.png");
-
-    // Seeds
-    _items[5] = Item::createSeed(CropType::Parsnip, "Parsnip Seeds", "Crop/Parsnip_Seeds.png", 15);
-    _items[6] = Item::createSeed(CropType::Cauliflower, "Cauliflower Seeds", "Crop/Cauliflower_Seeds.png", 15);
-    _items[7] = Item::createSeed(CropType::Potato, "Potato Seeds", "Crop/Potato_Seeds.png", 15);
+    _items[5] = Item::createTool(ToolType::FishingRod, "Fishing Rod", "tools/Pole.png");
+    _items[6] = Item::createSeed(CropType::Parsnip, "Parsnip Seeds", "Crop/Parsnip_Seeds.png", 15);
+    _items[7] = Item::createSeed(CropType::Cauliflower, "Cauliflower Seeds", "Crop/Cauliflower_Seeds.png", 15);
+    _items[8] = Item::createSeed(CropType::Potato, "Potato Seeds", "Crop/Potato_Seeds.png", 15);
 }
 
 void Inventory::addItem(Item item)

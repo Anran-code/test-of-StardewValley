@@ -18,7 +18,8 @@ enum class ToolType
     Axe,
     Pickaxe,
     WateringCan,
-    Scythe // Added Scythe
+    Scythe,
+    FishingRod
 };
 
 struct Item

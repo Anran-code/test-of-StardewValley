@@ -36,9 +36,11 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _player = nullptr;
     _zoom = 2.0f;
     _facingDebug = nullptr;
+    _poolDebug = nullptr;
     _hasHomeRect = false;
     _hasHomeExitDoor = false;
     _hasBedRect = false;
+    _hasPoolRect = false;
     _exitedHomeDoor = false;
     _enteredHome = false;
     _hasRightExit = false;
@@ -54,6 +56,13 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _backgroundNode = nullptr;
     _seasonOverlay = nullptr;
     _sleepOverlay = nullptr;
+    _fishingOverlay = nullptr;
+    _fishingLabel = nullptr;
+    _isFishing = false;
+    _fishBite = false;
+    _fishingElapsed = 0.0f;
+    _biteTime = 0.0f;
+    _biteWindow = 0.0f;
     // Force update on first frame
     _lastSeason = (GameClock::Season)-1;
 
@@ -175,6 +184,51 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         _rightExitRect = Rect(exitX, exitY, exitW, exitH);
                         _hasRightExit = true;
                     }
+                }
+
+                auto poolGroup = _map->getObjectGroup("pool");
+                if (poolGroup)
+                {
+                    const auto& objs = poolGroup->getObjects();
+                    cocos2d::log("Pool object group found, object count = %d", static_cast<int>(objs.size()));
+                    _poolRects.clear();
+                    for (const auto& obj : objs)
+                    {
+                        const auto& dict = obj.asValueMap();
+                        float px = dict.at("x").asFloat();
+                        float pyTop = dict.at("y").asFloat();
+
+                        float pw = 0.0f;
+                        float ph = 0.0f;
+
+                        auto itW = dict.find("width");
+                        if (itW != dict.end())
+                        {
+                            pw = itW->second.asFloat();
+                        }
+                        auto itH = dict.find("height");
+                        if (itH != dict.end())
+                        {
+                            ph = itH->second.asFloat();
+                        }
+
+                        if (pw <= 0.0f || ph <= 0.0f)
+                        {
+                            cocos2d::log("Pool object skipped: x=%f y=%f w=%f h=%f", px, pyTop, pw, ph);
+                            continue;
+                        }
+
+                        float py = pyTop;
+                        Rect r(px, py, pw, ph);
+                        _poolRects.push_back(r);
+                        cocos2d::log("Pool rect added: x=%f y=%f w=%f h=%f", r.origin.x, r.origin.y, r.size.width, r.size.height);
+                    }
+                    _hasPoolRect = !_poolRects.empty();
+                    cocos2d::log("Total pool rects stored = %d", static_cast<int>(_poolRects.size()));
+                }
+                else
+                {
+                    cocos2d::log("Pool object group not found in TMX map.");
                 }
 
                 auto doorGroup = _map->getObjectGroup("door");
@@ -566,8 +620,120 @@ void BackgroundLayer::cancelSleepDialog()
     }
 }
 
+void BackgroundLayer::startFishing()
+{
+    if (_isFishing) return;
+    if (!_map || !_player) return;
+
+    _isFishing = true;
+    _fishBite = false;
+    _fishingElapsed = 0.0f;
+    _biteTime = cocos2d::RandomHelper::random_real(1.0f, 3.0f);
+    _biteWindow = 1.0f;
+
+    auto director = Director::getInstance();
+    Size visibleSize = director->getVisibleSize();
+    Vec2 origin = director->getVisibleOrigin();
+
+    if (!_fishingOverlay)
+    {
+        _fishingOverlay = LayerColor::create(Color4B(0, 0, 0, 160));
+        _fishingOverlay->setContentSize(visibleSize);
+        _fishingOverlay->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+        Vec2 layerWorldPos = this->getPosition();
+        _fishingOverlay->setPosition(origin - layerWorldPos);
+
+        auto label = Label::createWithSystemFont("Fishing... Wait for a bite", "Arial", 32.0f);
+        if (label)
+        {
+            label->setPosition(Vec2(visibleSize.width * 0.5f, visibleSize.height * 0.5f));
+            _fishingOverlay->addChild(label);
+            _fishingLabel = label;
+        }
+
+        addChild(_fishingOverlay, 6000);
+    }
+    else
+    {
+        _fishingOverlay->setVisible(true);
+        _fishingOverlay->setOpacity(160);
+        Vec2 layerWorldPos = this->getPosition();
+        _fishingOverlay->setPosition(origin - layerWorldPos);
+        if (_fishingLabel)
+        {
+            _fishingLabel->setString("Fishing... Wait for a bite");
+        }
+    }
+}
+
+void BackgroundLayer::endFishing(bool success)
+{
+    _isFishing = false;
+    _fishBite = false;
+    _fishingElapsed = 0.0f;
+
+    if (_fishingOverlay)
+    {
+        if (success)
+        {
+            _fishingOverlay->stopAllActions();
+            _fishingOverlay->setOpacity(200);
+        }
+        else
+        {
+            _fishingOverlay->stopAllActions();
+        }
+    }
+
+    if (success)
+    {
+        int baseReward = 30;
+        int extra = cocos2d::RandomHelper::random_int(0, 70);
+        int reward = baseReward + extra;
+        if (GameScene::sWallet)
+        {
+            GameScene::sWallet->addMoney(reward);
+        }
+        if (_fishingLabel)
+        {
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "You are succeed!", reward);
+            _fishingLabel->setString(buf);
+        }
+    }
+
+    if (_fishingOverlay)
+    {
+        auto fadeOut = FadeTo::create(0.8f, 0);
+        auto hide = CallFunc::create([this]() {
+            if (_fishingOverlay)
+            {
+                _fishingOverlay->setVisible(false);
+            }
+        });
+        _fishingOverlay->runAction(Sequence::create(fadeOut, hide, nullptr));
+    }
+}
+
 void BackgroundLayer::update(float dt)
 {
+    if (_isFishing)
+    {
+        _fishingElapsed += dt;
+        if (!_fishBite && _fishingElapsed >= _biteTime)
+        {
+            _fishBite = true;
+            if (_fishingLabel)
+            {
+                _fishingLabel->setString("Hit! Press SPACE to reel in");
+            }
+        }
+        else if (_fishBite && _fishingElapsed > _biteTime + _biteWindow)
+        {
+            endFishing(false);
+        }
+    }
+
     if (GameScene::sClock && GameScene::sClock->getSeason() != _lastSeason)
     {
         updateSeasonFilter();
@@ -817,7 +983,6 @@ void BackgroundLayer::update(float dt)
             _facingDebug->drawRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
         }
 
-        // 2. Only draw debug collision boxes if debug mode is ON
         if (_isDebugMode)
         {
             if (_hasHomeRect)
@@ -836,6 +1001,17 @@ void BackgroundLayer::update(float dt)
                 _facingDebug->drawRect(Vec2(_boundaryRightRect.getMinX(), _boundaryRightRect.getMinY()), Vec2(_boundaryRightRect.getMaxX(), _boundaryRightRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
                 _facingDebug->drawRect(Vec2(_boundaryTopRect.getMinX(), _boundaryTopRect.getMinY()), Vec2(_boundaryTopRect.getMaxX(), _boundaryTopRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
                 _facingDebug->drawRect(Vec2(_boundaryBottomRect.getMinX(), _boundaryBottomRect.getMinY()), Vec2(_boundaryBottomRect.getMaxX(), _boundaryBottomRect.getMaxY()), Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+            }
+
+            if (_hasPoolRect && !_poolRects.empty())
+            {
+                for (const auto& r : _poolRects)
+                {
+                    Vec2 p1(r.getMinX(), r.getMinY());
+                    Vec2 p2(r.getMaxX(), r.getMaxY());
+                    _facingDebug->drawSolidRect(p1, p2, Color4F(0.0f, 0.5f, 1.0f, 0.2f));
+                    _facingDebug->drawRect(p1, p2, Color4F(0.0f, 0.5f, 1.0f, 1.0f));
+                }
             }
 
             // --- DEBUG: Visualize Player Collision Box (Footprint) ---
@@ -870,7 +1046,6 @@ void BackgroundLayer::update(float dt)
                     float cx = (x + 0.5f) * tileSize.width;
                     float cy = mapHeight - (y + 0.5f) * tileSize.height;
 
-                    // Match the shrink factor used in checkCollisionWithObstacles
                     float shrinkFactor = 0.85f; 
                     float w = tileSize.width * shrinkFactor;
                     float h = tileSize.height * shrinkFactor;
@@ -890,6 +1065,19 @@ void BackgroundLayer::update(float dt)
 
 void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
+    if (_isFishing)
+    {
+        if (_fishBite && keyCode == EventKeyboard::KeyCode::KEY_SPACE)
+        {
+            endFishing(true);
+        }
+        else if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
+        {
+            endFishing(false);
+        }
+        return;
+    }
+
     if (_sleepDialogActive)
     {
         if (keyCode == EventKeyboard::KeyCode::KEY_Y)
@@ -982,6 +1170,36 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
                 {
                     showSleepDialog();
                     return;
+                }
+            }
+        }
+        if (_type == BackgroundType::Farm && _hasPoolRect && _map && _groundLayer && _player)
+        {
+            const Item* item = GameScene::sInventory ? GameScene::sInventory->getSelectedItem() : nullptr;
+            if (item && item->type == ItemType::Tool && item->toolType == ToolType::FishingRod)
+            {
+                Vec2 tileIndex = getFacingTile();
+                if (tileIndex.x >= 0 && tileIndex.y >= 0)
+                {
+                    Size tileSize2 = _map->getTileSize();
+                    Vec2 tilePos = _groundLayer->getPositionAt(tileIndex);
+                    Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+
+                    bool inPool = false;
+                    for (const auto& r : _poolRects)
+                    {
+                        if (facingRect.intersectsRect(r))
+                        {
+                            inPool = true;
+                            break;
+                        }
+                    }
+
+                    if (inPool)
+                    {
+                        startFishing();
+                        return;
+                    }
                 }
             }
         }
