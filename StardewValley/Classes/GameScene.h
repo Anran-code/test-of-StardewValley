@@ -5,6 +5,7 @@
 #include "Player.h"
 #include "Inventory.h"
 #include "GameClock.h"
+#include "FishingMiniGame.h"
 #include <vector>
 
 enum class BackgroundType
@@ -83,6 +84,7 @@ private:
     cocos2d::LayerColor* _sleepOverlay;
     cocos2d::LayerColor* _fishingOverlay;
     cocos2d::Label* _fishingLabel;
+    FishingMiniGame* _fishingGame;
     bool _isFishing;
     bool _fishBite;
     float _fishingElapsed;
