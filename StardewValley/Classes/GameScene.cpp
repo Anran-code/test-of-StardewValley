@@ -5,6 +5,7 @@
 #include "CropSystem.h"
 #include "ExperienceSystem.h"
 #include "EnergySystem.h"
+#include "ForageSystem.h"
 #include "SimpleAudioEngine.h"
 // #include "Basket.h" // Ignore Shop related includes
 // #include "ShopLayer.h" // Ignore Shop related includes
@@ -21,6 +22,15 @@ std::string g_CurrentBgmPath = "";
 std::unordered_map<int, BackgroundLayer::ObstacleSaveData> BackgroundLayer::sSavedObstacles;
 bool BackgroundLayer::sObstaclesInitialized = false;
 int BackgroundLayer::sLastObstacleSeason = -1;
+
+BackgroundLayer::~BackgroundLayer()
+{
+    // Clear ForageSystem layer reference if this is Farm
+    if (_type == BackgroundType::Farm)
+    {
+        ForageSystem::getInstance()->detachLayer();
+    }
+}
 
 BackgroundLayer* BackgroundLayer::create(BackgroundType type)
 {
@@ -294,6 +304,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         CropSystem::getInstance()->setMap(_map);
 
         initObstacles(); // Init obstacles for Farm type
+        ForageSystem::getInstance()->init(this);
         
         // Initial update for Farm
     updateSeasonFilter();
@@ -823,6 +834,19 @@ void BackgroundLayer::showConfirmationDialog(const std::string& message, std::fu
 {
     if (_confirmationOverlay) return;
 
+    if (_player)
+    {
+        // Stop player movement to prevent "ghost walking" while dialog is open
+        _player->onKeyReleased(EventKeyboard::KeyCode::KEY_W);
+        _player->onKeyReleased(EventKeyboard::KeyCode::KEY_S);
+        _player->onKeyReleased(EventKeyboard::KeyCode::KEY_A);
+        _player->onKeyReleased(EventKeyboard::KeyCode::KEY_D);
+        _player->onKeyReleased(EventKeyboard::KeyCode::KEY_UP_ARROW);
+        _player->onKeyReleased(EventKeyboard::KeyCode::KEY_DOWN_ARROW);
+        _player->onKeyReleased(EventKeyboard::KeyCode::KEY_LEFT_ARROW);
+        _player->onKeyReleased(EventKeyboard::KeyCode::KEY_RIGHT_ARROW);
+    }
+
     auto director = Director::getInstance();
     Size visibleSize = director->getVisibleSize();
     Vec2 origin = director->getVisibleOrigin();
@@ -954,6 +978,7 @@ void BackgroundLayer::beginSleep()
             GameScene::sClock->addDay(1);
         }
         CropSystem::getInstance()->updateDailyGrowth();
+        ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
         // Restore Energy
         if (GameScene::sWasFainted)
         {
@@ -1507,7 +1532,8 @@ void BackgroundLayer::update(float dt)
 
                 bool isValid = false;
                 
-                if (CropSystem::getInstance()->canHarvest(tileIndex))
+                if (CropSystem::getInstance()->canHarvest(tileIndex) || 
+                    (_type == BackgroundType::Farm && ForageSystem::getInstance()->hasItem(tileIndex)))
                 {
                     isValid = true;
                 }
@@ -2262,6 +2288,7 @@ void BackgroundLayer::onMouseDown(Event* event)
             GameScene::sClock->addDay(1);
         }
         CropSystem::getInstance()->updateDailyGrowth();
+        ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
         
         if (GameScene::sWasFainted)
         {
@@ -2412,6 +2439,15 @@ void BackgroundLayer::onMouseDown(Event* event)
                 Director::getInstance()->replaceScene(trans);
                 return;
             }
+        }
+    }
+
+    // --- 3. Foraging (Harvest) ---
+    if (_type == BackgroundType::Farm)
+    {
+        if (ForageSystem::getInstance()->tryHarvest(targetTile))
+        {
+            return;
         }
     }
 
@@ -2868,6 +2904,7 @@ void GameScene::update(float dt)
     if (_clock)
     {
         _clock->update(dt);
+        ForageSystem::getInstance()->update(_clock);
     }
     CropSystem::getInstance()->updateDailyGrowth();
 
@@ -2914,3 +2951,72 @@ void GameScene::update(float dt)
         _hud->refresh();
     }
 }
+
+bool BackgroundLayer::isValidSpawnPosition(int x, int y)
+{
+    if (!_map) return false;
+    Size mapSize = _map->getMapSize();
+    Size tileSize = _map->getTileSize();
+    float mapHeight = mapSize.height * tileSize.height;
+
+    // Skip if occupied (home, etc.)
+    // Simplified check: avoid center 5x5 area
+    int cx = mapSize.width / 2;
+    int cy = mapSize.height / 2;
+    if (abs(x - cx) < 3 && abs(y - cy) < 3) return false;
+
+    // Calculate tile position for boundary checks
+    Rect tileRect(x * tileSize.width, mapHeight - (y + 1) * tileSize.height, tileSize.width, tileSize.height);
+
+    // Check forbidden zones (Home, Exit, Pool, Boundaries)
+    if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) return false;
+
+    // --- Prevent spawning near Home Door (Entrance Buffer Zone) ---
+    if (_hasHomeRect)
+    {
+        // Define a buffer zone around the door
+        float bufferSize = tileSize.width * 3.0f;
+        Rect doorBuffer = _homeDoorRect;
+        doorBuffer.origin.x -= bufferSize;
+        doorBuffer.origin.y -= bufferSize;
+        doorBuffer.size.width += bufferSize * 2.0f;
+        doorBuffer.size.height += bufferSize * 2.0f;
+
+        if (doorBuffer.intersectsRect(tileRect)) return false;
+    }
+    // ------------------------------------------------------------------
+
+    if (_hasRightExit && _rightExitRect.intersectsRect(tileRect)) return false;
+    if (_hasPoolRect && !_poolRects.empty())
+    {
+        for (const auto& r : _poolRects)
+        {
+            if (r.intersectsRect(tileRect))
+            {
+                return false;
+            }
+        }
+    }
+
+    if (_hasBoundary)
+    {
+        // Do not spawn inside or beyond the boundaries
+        // Left Boundary
+        if (tileRect.getMinX() < _boundaryLeftRect.getMaxX()) return false;
+        // Right Boundary
+        if (tileRect.getMaxX() > _boundaryRightRect.getMinX()) return false;
+        // Bottom Boundary
+        if (tileRect.getMinY() < _boundaryBottomRect.getMaxY()) return false;
+        // Top Boundary
+        if (tileRect.getMaxY() > _boundaryTopRect.getMinY()) return false;
+    }
+
+    // Check if already has obstacle
+    if (hasObstacle(Vec2(x, y))) return false;
+
+    // Check if occupied by crop or tilled soil
+    if (CropSystem::getInstance()->isOccupied(Vec2(x, y))) return false;
+
+    return true;
+}
+

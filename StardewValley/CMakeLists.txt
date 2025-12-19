@@ -58,6 +58,12 @@ list(APPEND GAME_SOURCE
      Classes/HudLayer.cpp
      Classes/Basket.cpp
      Classes/ShopLayer.cpp
+     Classes/CropSystem.cpp
+     Classes/EnergySystem.cpp
+     Classes/ExperienceSystem.cpp
+     Classes/ForageSystem.cpp
+     Classes/Inventory.cpp
+     Classes/PauseLayer.cpp
      )
 list(APPEND GAME_HEADER
      Classes/AppDelegate.h
@@ -70,6 +76,13 @@ list(APPEND GAME_HEADER
      Classes/HudLayer.h
      Classes/Basket.h
      Classes/ShopLayer.h
+     Classes/CropSystem.h
+     Classes/EnergySystem.h
+     Classes/ExperienceSystem.h
+     Classes/ForageSystem.h
+     Classes/Inventory.h
+     Classes/Item.h
+     Classes/PauseLayer.h
      )
 
 if(ANDROID)
