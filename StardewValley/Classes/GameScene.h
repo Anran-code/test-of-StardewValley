@@ -53,6 +53,18 @@ private:
     bool checkCollisionWithObstacles(const cocos2d::Rect& box);
 
     BackgroundType _type;
+
+public:
+    void showSleepDialog();
+    void beginSleep();
+    void cancelSleepDialog();
+    void startFishing();
+    void endFishing(bool success);
+    void updateSeasonFilter();
+
+    static bool sMidnightWarned;
+
+private:
     cocos2d::TMXTiledMap* _map;
     cocos2d::TMXLayer* _groundLayer;
     Player* _player;
@@ -100,18 +112,18 @@ private:
     float _biteTime;
     float _biteWindow;
     CropType _currentFishType; // Track which fish is on the line
-    void updateSeasonFilter();
-    void showSleepDialog();
-    void beginSleep();
-    void cancelSleepDialog();
-    void startFishing();
-    void endFishing(bool success);
+
+    // Sleep/Faint input handling
+    bool _waitingForSleepInput;
+    cocos2d::Label* _sleepLabel;
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
  
     virtual void update(float dt) override;
     virtual void onExit() override;
+    
+    // Force rebuild
 };
 
 class FarmMapUtils
@@ -142,6 +154,7 @@ public:
     static class Wallet* sWallet;
     static class HudLayer* sHud;
     static bool sDebugMode;
+    static bool sMidnightWarned;
 
     virtual bool init();
     bool initWithStartType(BackgroundType type);

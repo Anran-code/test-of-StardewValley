@@ -3,6 +3,7 @@
 #include "Wallet.h"
 #include "Inventory.h"
 #include "GameScene.h"
+#include "EnergySystem.h"
 
 USING_NS_CC;
 
@@ -16,6 +17,9 @@ HudLayer::HudLayer()
     , _toolbar(nullptr)
     , _backpack(nullptr)
     , _selector(nullptr)
+    , _energyBarBackground(nullptr)
+    , _energyBarFill(nullptr)
+    , _energyLabel(nullptr)
     , _cachedToolbarLeft(0.0f)
     , _cachedToolbarBottom(0.0f)
     , _cachedScale(1.0f)
@@ -23,6 +27,7 @@ HudLayer::HudLayer()
     , _dateLabel(nullptr)
     , _weekLabel(nullptr)
     , _moneyLabel(nullptr)
+    , _lowEnergyWarned(false)
 {
 }
 
@@ -203,6 +208,32 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         }
     });
     _eventDispatcher->addEventListenerWithSceneGraphPriority(notifListener, this);
+
+    // Energy Bar UI
+    float barWidth = 20.0f;
+    float barHeight = 150.0f;
+    float barX = visibleSize.width - 40.0f;
+    float barY = 150.0f; // Above money area
+
+    _energyBarBackground = DrawNode::create();
+    _energyBarBackground->drawSolidRect(Vec2(0, 0), Vec2(barWidth, barHeight), Color4F(0.2f, 0.2f, 0.2f, 0.8f));
+    _energyBarBackground->setPosition(Vec2(barX, barY));
+    addChild(_energyBarBackground);
+
+    _energyBarFill = DrawNode::create();
+    _energyBarFill->setPosition(Vec2(barX, barY));
+    addChild(_energyBarFill);
+
+    _energyLabel = Label::createWithSystemFont("270", "Arial", 12);
+    _energyLabel->setPosition(Vec2(barX + barWidth * 0.5f, barY - 10.0f));
+    addChild(_energyLabel);
+
+    auto energyListener = EventListenerCustom::create("ENERGY_UPDATED", [this](EventCustom* event) {
+        this->updateEnergyUI();
+    });
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(energyListener, this);
+
+    updateEnergyUI();
 
     refresh();
     updateInventoryUI();
@@ -1169,4 +1200,41 @@ void HudLayer::showNotification(const std::string& message)
     auto remove = RemoveSelf::create();
     
     label->runAction(Sequence::create(fadeIn, delay, spawn, remove, nullptr));
+}
+
+void HudLayer::updateEnergyUI()
+{
+    if (!_energyBarFill || !_energyLabel) return;
+
+    auto es = EnergySystem::getInstance();
+    float current = es->getCurrentEnergy();
+    float max = es->getMaxEnergy();
+    float pct = current / max;
+    if (pct < 0.0f) pct = 0.0f;
+    if (pct > 1.0f) pct = 1.0f;
+
+    _energyBarFill->clear();
+    
+    // Background size is 20x150. Fill height = 150 * pct.
+    float barWidth = 20.0f;
+    float barHeight = 150.0f;
+    
+    Color4F color = Color4F::GREEN;
+    if (pct < 0.2f) {
+        color = Color4F::RED;
+        if (!_lowEnergyWarned) {
+            showNotification("You're starting to feel exhausted...");
+            _lowEnergyWarned = true;
+        }
+    }
+    else {
+        if (pct < 0.5f) color = Color4F::YELLOW;
+        _lowEnergyWarned = false;
+    }
+    
+    _energyBarFill->drawSolidRect(Vec2(0, 0), Vec2(barWidth, barHeight * pct), color);
+
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%d", (int)current);
+    _energyLabel->setString(buf);
 }

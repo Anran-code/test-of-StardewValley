@@ -34,6 +34,9 @@ public:
     void onTouchCancelled(cocos2d::Touch* touch, cocos2d::Event* event);
     void onMouseMove(cocos2d::Event* event); // Added for drag
 
+    // Energy System UI
+    void updateEnergyUI();
+
     CREATE_FUNC(HudLayer);
 
 public:
@@ -47,6 +50,8 @@ public:
     void showNotification(const std::string& message);
 
 private:
+    bool _lowEnergyWarned;
+
     cocos2d::EventListenerMouse* _mouseListener;
     cocos2d::EventListenerTouchOneByOne* _touchListener;
     cocos2d::DrawNode* _debugBounds;
@@ -114,6 +119,11 @@ private:
     cocos2d::Label* _bpCurrentGoldLabel;
     cocos2d::Label* _bpTotalEarningsLabel;
     cocos2d::Label* _bpDateLabel;
+
+    // Energy UI
+    cocos2d::DrawNode* _energyBarBackground;
+    cocos2d::DrawNode* _energyBarFill;
+    cocos2d::Label* _energyLabel;
 
     std::vector<cocos2d::Sprite*> _itemSprites; // Sprites for items in slots
     std::vector<cocos2d::Label*> _quantityLabels; // Labels for quantities

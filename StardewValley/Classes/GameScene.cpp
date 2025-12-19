@@ -4,6 +4,7 @@
 #include "HudLayer.h"
 #include "CropSystem.h"
 #include "ExperienceSystem.h"
+#include "EnergySystem.h"
 #include "SimpleAudioEngine.h"
 // #include "Basket.h" // Ignore Shop related includes
 // #include "ShopLayer.h" // Ignore Shop related includes
@@ -12,6 +13,7 @@ USING_NS_CC;
 
 HudLayer* GameScene::sHud = nullptr;
 bool GameScene::sDebugMode = false;
+bool GameScene::sMidnightWarned = false;
 std::string g_CurrentBgmPath = "";
 
 // Static member initialization for BackgroundLayer persistence
@@ -73,6 +75,10 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _fishingElapsed = 0.0f;
     _biteTime = 0.0f;
     _biteWindow = 0.0f;
+    
+    _waitingForSleepInput = false;
+    _sleepLabel = nullptr;
+
     // Force update on first frame
     _lastSeason = (GameClock::Season)-1;
 
@@ -388,6 +394,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         if (GameScene::sStartAtHomeBed)
                         {
                             spawnPos = Vec2(bx + bw * 0.5f, by + bh * 0.5f);
+                            GameScene::sStartAtHomeBed = false;
                         }
                     }
                 }
@@ -612,39 +619,64 @@ void BackgroundLayer::beginSleep()
 {
     if (_isSleeping) return;
     _isSleeping = true;
+
+    // Ensure sleep overlay exists for fainting/sleeping animation
+    if (!_sleepOverlay)
+    {
+        auto director = Director::getInstance();
+        Size visibleSize = director->getVisibleSize();
+        _sleepOverlay = LayerColor::create(Color4B(0, 0, 0, 0));
+        _sleepOverlay->setContentSize(visibleSize);
+        _sleepOverlay->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+        addChild(_sleepOverlay, 5000);
+    }
+
     if (_sleepOverlay)
     {
+        // Update overlay position to cover current screen (counteract map scrolling)
+        auto director = Director::getInstance();
+        Vec2 origin = director->getVisibleOrigin();
+        Vec2 layerWorldPos = this->getPosition();
+        _sleepOverlay->setPosition(origin - layerWorldPos);
+
         _sleepOverlay->setVisible(true);
         _sleepOverlay->stopAllActions();
-        _sleepOverlay->setOpacity(160);
-        auto fadeIn = FadeTo::create(0.7f, 255);
-        auto apply = CallFunc::create([this]() {
-            if (GameScene::sClock)
-            {
-                GameScene::sClock->setHour(6);
-                GameScene::sClock->setMinute(0);
-                GameScene::sClock->addDay(1);
-            }
-            CropSystem::getInstance()->updateDailyGrowth();
-            if (_player && _hasBedRect)
-            {
-                Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
-                _player->setPosition(pos);
-            }
-        });
-        auto wait = DelayTime::create(0.7f);
-        auto fadeOut = FadeTo::create(0.7f, 0);
-        auto finish = CallFunc::create([this]() {
-            if (_sleepOverlay)
-            {
-                _sleepOverlay->setVisible(false);
-            }
-            _isSleeping = false;
-        });
-        _sleepOverlay->runAction(Sequence::create(fadeIn, apply, wait, fadeOut, finish, nullptr));
+        _sleepOverlay->setOpacity(0); // Start transparent
+        
+        auto fadeIn = FadeTo::create(3.0f, 255);
+        
+        std::function<void()> sleepCallback = [this]() {
+             this->_waitingForSleepInput = true;
+             
+             // Show prompt label
+             if (!this->_sleepLabel)
+             {
+                 // auto visibleSize = Director::getInstance()->getVisibleSize(); // No longer needed here if using overlay size
+                 this->_sleepLabel = Label::createWithSystemFont("Click to continue", "Arial", 48);
+                 if (this->_sleepLabel)
+                 {
+                     Size overlaySize = this->_sleepOverlay->getContentSize();
+                     this->_sleepLabel->setPosition(Vec2(overlaySize.width * 0.45f, overlaySize.height * 0.5f));
+                     this->_sleepLabel->setAnchorPoint(Vec2::ANCHOR_MIDDLE);
+                     this->_sleepOverlay->addChild(this->_sleepLabel);
+                 }
+             }
+             
+             if (this->_sleepLabel)
+             {
+                 this->_sleepLabel->setVisible(true);
+                 this->_sleepLabel->stopAllActions();
+                 this->_sleepLabel->runAction(RepeatForever::create(Sequence::create(FadeTo::create(0.5f, 150), FadeTo::create(0.5f, 255), nullptr)));
+             }
+        };
+        
+        auto waitForInput = CallFunc::create(sleepCallback);
+        
+        _sleepOverlay->runAction(Sequence::create(fadeIn, waitForInput, nullptr));
     }
     else
     {
+        // Fallback if overlay creation failed (unlikely)
         if (GameScene::sClock)
         {
             GameScene::sClock->setHour(6);
@@ -652,6 +684,18 @@ void BackgroundLayer::beginSleep()
             GameScene::sClock->addDay(1);
         }
         CropSystem::getInstance()->updateDailyGrowth();
+        // Restore Energy
+        EnergySystem::getInstance()->resetEnergy();
+        GameScene::sMidnightWarned = false;
+        
+        if (_type != BackgroundType::Home)
+        {
+             GameScene::sStartAtHomeBed = true;
+             auto next = GameScene::createScene(BackgroundType::Home);
+             Director::getInstance()->replaceScene(next);
+             return;
+        }
+
         if (_player && _hasBedRect)
         {
             Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
@@ -675,6 +719,9 @@ void BackgroundLayer::startFishing()
 {
     if (_isFishing) return;
     if (!_map || !_player) return;
+
+    // Consume Energy
+    EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
 
     _isFishing = true;
     _fishBite = false;
@@ -849,6 +896,39 @@ void BackgroundLayer::endFishing(bool success)
 
 void BackgroundLayer::update(float dt)
 {
+    // Keep sleep overlay centered on screen
+    if (_sleepOverlay && _sleepOverlay->isVisible())
+    {
+        auto director = Director::getInstance();
+        Vec2 origin = director->getVisibleOrigin();
+        Vec2 layerWorldPos = this->getPosition();
+        _sleepOverlay->setPosition(origin - layerWorldPos);
+    }
+
+    // Time-based checks (Midnight Warning & 2:00 AM Fainting)
+    if (GameScene::sClock && !_isSleeping)
+    {
+        int hour = GameScene::sClock->getHour();
+
+        // Midnight Warning (0:00 to 1:50)
+        if (hour >= 0 && hour < 2)
+        {
+            if (!GameScene::sMidnightWarned)
+            {
+                std::string msg = "It's getting late...";
+                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+                GameScene::sMidnightWarned = true;
+            }
+        }
+        // 2:00 AM Fainting
+        else if (hour == 2)
+        {
+             std::string msg = "You passed out...";
+             Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+             beginSleep();
+        }
+    }
+
     if (_isFishing)
     {
         if (_fishingGame && _fishingGame->isFinished())
@@ -1305,9 +1385,11 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             break;
         case EventKeyboard::KeyCode::KEY_T:
             CropSystem::getInstance()->tillTile(tile);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
             break;
         case EventKeyboard::KeyCode::KEY_G:
             CropSystem::getInstance()->waterTile(tile);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
             break;
         case EventKeyboard::KeyCode::KEY_H:
             CropSystem::getInstance()->harvestTile(tile);
@@ -1699,6 +1781,58 @@ void BackgroundLayer::onMouseDown(Event* event)
 {
     EventMouse* e = (EventMouse*)event;
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
+
+    if (_waitingForSleepInput)
+    {
+        _waitingForSleepInput = false;
+        if (_sleepLabel) _sleepLabel->setVisible(false);
+
+        // Wake up logic
+        if (GameScene::sClock)
+        {
+            GameScene::sClock->setHour(6);
+            GameScene::sClock->setMinute(0);
+            GameScene::sClock->addDay(1);
+        }
+        CropSystem::getInstance()->updateDailyGrowth();
+        EnergySystem::getInstance()->resetEnergy();
+        GameScene::sMidnightWarned = false;
+        
+        if (_type != BackgroundType::Home)
+        {
+             GameScene::sStartAtHomeBed = true;
+             auto next = GameScene::createScene(BackgroundType::Home);
+             Director::getInstance()->replaceScene(next);
+             return;
+        }
+
+        if (_player && _hasBedRect)
+        {
+            Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
+            _player->setPosition(pos);
+        }
+        
+        // Fade out overlay
+        if (_sleepOverlay)
+        {
+            _sleepOverlay->stopAllActions();
+            _sleepOverlay->runAction(Sequence::create(
+                FadeTo::create(1.0f, 0),
+                CallFunc::create([this](){ 
+                    _sleepOverlay->setVisible(false); 
+                    _isSleeping = false;
+                }),
+                nullptr
+            ));
+        }
+        else
+        {
+            _isSleeping = false;
+        }
+
+        return;
+    }
+
     Vec2 clickPos = e->getLocation();
     if (GameScene::sHud && (GameScene::sHud->isPointInToolbarWorld(clickPos) || GameScene::sHud->isConsumingClick())) return;
 
@@ -1836,6 +1970,11 @@ void BackgroundLayer::onMouseDown(Event* event)
         if (removed)
         {
             removeObstacle(targetTile);
+            // Scythe does not consume energy in Stardew Valley
+            if (item->toolType != ToolType::Scythe)
+            {
+                EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
+            }
             // Optional: Drop item?
             return;
         }
@@ -1854,15 +1993,18 @@ void BackgroundLayer::onMouseDown(Event* event)
         {
         case ToolType::Hoe:
             CropSystem::getInstance()->tillTile(targetTile);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
             break;
         case ToolType::WateringCan:
             CropSystem::getInstance()->waterTile(targetTile);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
             break;
         case ToolType::Scythe:
             CropSystem::getInstance()->removeWithered(targetTile);
             break;
         case ToolType::Pickaxe:
             CropSystem::getInstance()->destroyTile(targetTile);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
             break;
         default:
             break;
@@ -2175,6 +2317,43 @@ void GameScene::update(float dt)
         _clock->update(dt);
     }
     CropSystem::getInstance()->updateDailyGrowth();
+
+    // Check for fainting
+    if (EnergySystem::getInstance()->isExhausted())
+    {
+        // Set to minimal energy to prevent re-triggering loop, actual restore happens in sleep
+        EnergySystem::getInstance()->setEnergy(1.0f);
+        
+        int fee = 100; // Medical fee
+        int currentMoney = _wallet ? _wallet->getMoney() : 0;
+        int actualFee = fee;
+        
+        if (currentMoney < fee)
+        {
+            actualFee = currentMoney;
+            if (_wallet) _wallet->setMoney(0);
+        }
+        else
+        {
+            if (_wallet) _wallet->spendMoney(fee);
+        }
+
+        // Show notification
+        std::string msg = "You fainted! Medical fee: " + std::to_string(actualFee) + "g";
+        Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+
+        // Trigger sleep via BackgroundLayer
+        for (auto child : getChildren())
+        {
+            auto bg = dynamic_cast<BackgroundLayer*>(child);
+            if (bg)
+            {
+                bg->beginSleep();
+                break;
+            }
+        }
+    }
+
     if (_hud)
     {
         _hud->refresh();

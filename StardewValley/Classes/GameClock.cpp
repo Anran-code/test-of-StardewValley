@@ -38,6 +38,8 @@ void GameClock::update(float dt)
 
 void GameClock::checkTurnOfDay()
 {
+    // Logic moved to BackgroundLayer to allow for "Fainting" animation
+    /*
     int minutesSinceSixAM = 0;
     if (_hour >= 6)
     {
@@ -54,6 +56,7 @@ void GameClock::checkTurnOfDay()
         _minute = 0;
         addDay(1);
     }
+    */
 }
 
 void GameClock::setSecondsPerMinute(float spm)

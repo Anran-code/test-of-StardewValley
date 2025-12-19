@@ -50,6 +50,9 @@
     <ClInclude Include="..\Classes\Player.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\Classes\EnergySystem.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="game.rc">
