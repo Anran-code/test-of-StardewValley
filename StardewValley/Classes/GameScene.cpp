@@ -53,6 +53,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasHomeExitDoor = false;
     _hasBedRect = false;
     _hasPoolRect = false;
+    _hasHouseRect = false;
     _exitedHomeDoor = false;
     _enteredHome = false;
     _hasRightExit = false;
@@ -314,6 +315,174 @@ bool BackgroundLayer::initWithType(BackgroundType type)
 
                      return true;
                  }
+            }
+        }
+    }
+
+    if (_type == BackgroundType::Town)
+    {
+        auto map = TMXTiledMap::create("map/town.tmx");
+        if (map)
+        {
+            map->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+            map->setPosition(Vec2::ZERO);
+            addChild(map, 0);
+
+            _map = map;
+            _backgroundNode = map;
+
+            Size mapSizeTiles = map->getMapSize();
+            Size tileSize = map->getTileSize();
+            float mapWidth = mapSizeTiles.width * tileSize.width;
+            float mapHeight = mapSizeTiles.height * tileSize.height;
+
+            _seasonOverlay = LayerColor::create(Color4B(0, 0, 0, 0), mapWidth, mapHeight);
+            if (_seasonOverlay)
+            {
+                addChild(_seasonOverlay, 2);
+            }
+
+            _groundLayer = _map->getLayer("ground");
+            if (!_groundLayer)
+            {
+                if (_map->getChildrenCount() > 0)
+                {
+                    _groundLayer = dynamic_cast<TMXLayer*>(_map->getChildren().at(0));
+                }
+            }
+
+            auto housesGroup = _map->getObjectGroup("houses");
+            if (housesGroup)
+            {
+                const auto& objs = housesGroup->getObjects();
+                _houseRects.clear();
+                for (const auto& obj : objs)
+                {
+                    const auto& dict = obj.asValueMap();
+                    float baseX = dict.at("x").asFloat();
+                    float baseY = dict.at("y").asFloat();
+
+                    float hw = 0.0f;
+                    float hh = 0.0f;
+                    auto itW = dict.find("width");
+                    if (itW != dict.end())
+                    {
+                        hw = itW->second.asFloat();
+                    }
+                    auto itH = dict.find("height");
+                    if (itH != dict.end())
+                    {
+                        hh = itH->second.asFloat();
+                    }
+
+                    if (hw > 0.0f && hh > 0.0f)
+                    {
+                        Rect r(baseX, baseY, hw, hh);
+                        _houseRects.push_back(r);
+                    }
+
+                    auto itPoints = dict.find("points");
+                    if (itPoints != dict.end())
+                    {
+                        const auto& points = itPoints->second.asValueVector();
+                        if (!points.empty())
+                        {
+                            bool first = true;
+                            float minX = 0.0f;
+                            float maxX = 0.0f;
+                            float minY = 0.0f;
+                            float maxY = 0.0f;
+
+                            for (const auto& v : points)
+                            {
+                                const auto& pDict = v.asValueMap();
+                                auto itPX = pDict.find("x");
+                                auto itPY = pDict.find("y");
+                                if (itPX == pDict.end() || itPY == pDict.end())
+                                {
+                                    continue;
+                                }
+
+                                float localX = itPX->second.asFloat();
+                                float localY = itPY->second.asFloat();
+
+                                float worldX = baseX + localX;
+                                float worldY = baseY - localY;
+
+                                if (first)
+                                {
+                                    minX = maxX = worldX;
+                                    minY = maxY = worldY;
+                                    first = false;
+                                }
+                                else
+                                {
+                                    if (worldX < minX) minX = worldX;
+                                    if (worldX > maxX) maxX = worldX;
+                                    if (worldY < minY) minY = worldY;
+                                    if (worldY > maxY) maxY = worldY;
+                                }
+                            }
+
+                            if (!first && maxX > minX && maxY > minY)
+                            {
+                                Rect r(minX, minY, maxX - minX, maxY - minY);
+                                _houseRects.push_back(r);
+                            }
+                        }
+                    }
+                }
+                _hasHouseRect = !_houseRects.empty();
+            }
+
+            Vec2 spawnPos(mapWidth * 0.5f, mapHeight * 0.5f);
+            auto homewayGroup = _map->getObjectGroup("homeway");
+            if (homewayGroup)
+            {
+                const auto& objs = homewayGroup->getObjects();
+                if (!objs.empty())
+                {
+                    const auto& dict = objs.front().asValueMap();
+                    float hx = dict.at("x").asFloat();
+                    float hy = dict.at("y").asFloat();
+                    float hw = dict.at("width").asFloat();
+                    float hh = dict.at("height").asFloat();
+                    spawnPos = Vec2(hx + hw * 0.5f, hy + hh * 0.5f);
+                }
+            }
+
+            auto player = Player::create("player.png", tileSize.height);
+            if (!player)
+            {
+                player = Player::create("HelloWorld.png", tileSize.height);
+            }
+            if (player)
+            {
+                player->setPosition(spawnPos);
+                addChild(player, 1);
+                _player = player;
+
+                _facingDebug = DrawNode::create();
+                _map->addChild(_facingDebug, 100);
+
+                auto follow = Follow::create(_player);
+                this->runAction(follow);
+
+                setScale(_zoom);
+                scheduleUpdate();
+
+                auto listener = EventListenerKeyboard::create();
+                listener->onKeyPressed = CC_CALLBACK_2(BackgroundLayer::onKeyPressed, this);
+                listener->onKeyReleased = CC_CALLBACK_2(BackgroundLayer::onKeyReleased, this);
+                _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
+
+                auto mouseListener = EventListenerMouse::create();
+                mouseListener->onMouseDown = CC_CALLBACK_1(BackgroundLayer::onMouseDown, this);
+                _eventDispatcher->addEventListenerWithSceneGraphPriority(mouseListener, this);
+
+                updateSeasonFilter();
+
+                return true;
             }
         }
     }
@@ -1052,7 +1221,7 @@ void BackgroundLayer::update(float dt)
     float mapHeight = mapSizeTiles.height * tileSize.height;
 
     Vec2 velocity = _player->getMoveVelocity();
-    if (velocity.lengthSquared() > 0.0f)
+        if (velocity.lengthSquared() > 0.0f)
     {
         Vec2 delta = velocity * dt;
         Vec2 pos = _player->getPosition();
@@ -1072,6 +1241,17 @@ void BackgroundLayer::update(float dt)
             if (!blockX && _hasPoolRect && !_poolRects.empty())
             {
                 for (const auto& r : _poolRects)
+                {
+                    if (boxX.intersectsRect(r))
+                    {
+                        blockX = true;
+                        break;
+                    }
+                }
+            }
+            if (!blockX && _hasHouseRect && !_houseRects.empty())
+            {
+                for (const auto& r : _houseRects)
                 {
                     if (boxX.intersectsRect(r))
                     {
@@ -1129,6 +1309,17 @@ void BackgroundLayer::update(float dt)
                     }
                 }
             }
+            if (!blockY && _hasHouseRect && !_houseRects.empty())
+            {
+                for (const auto& r : _houseRects)
+                {
+                    if (boxY.intersectsRect(r))
+                    {
+                        blockY = true;
+                        break;
+                    }
+                }
+            }
             if (!blockY)
             {
                 pos.y += delta.y;
@@ -1150,6 +1341,17 @@ void BackgroundLayer::update(float dt)
                     }
                 }
             }
+            if (!blockX && _hasHouseRect && !_houseRects.empty())
+            {
+                for (const auto& r : _houseRects)
+                {
+                    if (boxX.intersectsRect(r))
+                    {
+                        blockX = true;
+                        break;
+                    }
+                }
+            }
             if (!blockX)
             {
                 pos.x += delta.x;
@@ -1160,6 +1362,17 @@ void BackgroundLayer::update(float dt)
             if (!blockY && _hasPoolRect && !_poolRects.empty())
             {
                 for (const auto& r : _poolRects)
+                {
+                    if (boxY.intersectsRect(r))
+                    {
+                        blockY = true;
+                        break;
+                    }
+                }
+            }
+            if (!blockY && _hasHouseRect && !_houseRects.empty())
+            {
+                for (const auto& r : _houseRects)
                 {
                     if (boxY.intersectsRect(r))
                     {
@@ -1490,6 +1703,10 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         if (keyCode == EventKeyboard::KeyCode::KEY_Y)
         {
             _sleepDialogActive = false;
+            if (_sleepOverlay)
+            {
+                _sleepOverlay->removeAllChildren();
+            }
             beginSleep();
         }
         else if (keyCode == EventKeyboard::KeyCode::KEY_N || keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
@@ -1859,7 +2076,7 @@ void GameScene::switchTo(BackgroundType type, float duration)
 
 void GameScene::switchViaRightExit(float duration)
 {
-    auto next = GameScene::createScene(BackgroundType::Path);
+    auto next = GameScene::createScene(BackgroundType::Town);
     if (next)
     {
         auto trans = TransitionFade::create(duration, next);
