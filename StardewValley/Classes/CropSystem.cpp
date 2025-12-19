@@ -659,7 +659,7 @@ void CropSystem::loadCropData()
     anchovy.baseYield = 1;
     anchovy.extraYieldChance = 0.0f;
     anchovy.itemName = "Anchovy";
-    anchovy.itemIcon = "Anchovy.png";
+    anchovy.itemIcon = "fish/Anchovy.png";
     anchovy.energyRestore = 13;
     anchovy.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Fall };
 
@@ -671,7 +671,7 @@ void CropSystem::loadCropData()
     bream.baseYield = 1;
     bream.extraYieldChance = 0.0f;
     bream.itemName = "Bream";
-    bream.itemIcon = "Bream.png";
+    bream.itemIcon = "fish/Bream.png";
     bream.energyRestore = 13;
     bream.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
 
@@ -683,7 +683,7 @@ void CropSystem::loadCropData()
     largemouthBass.baseYield = 1;
     largemouthBass.extraYieldChance = 0.0f;
     largemouthBass.itemName = "Largemouth Bass";
-    largemouthBass.itemIcon = "Largemouth_Bass.png";
+    largemouthBass.itemIcon = "fish/Largemouth_Bass.png";
     largemouthBass.energyRestore = 38;
     largemouthBass.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
 
