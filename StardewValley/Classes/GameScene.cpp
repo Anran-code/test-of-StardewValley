@@ -70,7 +70,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasRightExit = false;
     _exitedRight = false;
     _hasBoundary = false;
-    _isDebugMode = false;
+    _isDebugMode = GameScene::sDebugMode;
     _canEnterHomeDoor = false;
     _canExitHomeDoor = false;
     _canEnterTownFromRight = false;
@@ -677,6 +677,9 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     sprite->setPosition(Vec2(visibleSize.width / 2 + origin.x, visibleSize.height / 2 + origin.y));
 
     addChild(sprite, 0);
+
+    _facingDebug = DrawNode::create();
+    addChild(_facingDebug, 100);
 
     // Create season overlay for static backgrounds
     // It should cover the whole screen or the sprite?
@@ -1478,14 +1481,16 @@ void BackgroundLayer::update(float dt)
         }
     }
 
-    if (_facingDebug && _groundLayer)
+    if (_facingDebug)
     {
         _facingDebug->clear();
 
         // 1. Always draw facing tile cursor (User requirement: always visible)
-        Vec2 tileIndex = getFacingTile();
-        if (tileIndex.x >= 0 && tileIndex.y >= 0)
+        if (_groundLayer && _map)
         {
+            Vec2 tileIndex = getFacingTile();
+            if (tileIndex.x >= 0 && tileIndex.y >= 0)
+            {
             if (!(_type == BackgroundType::Home && tileIndex.y < 3))
             {
                 Size tileSize2 = _map->getTileSize();
@@ -1579,6 +1584,7 @@ void BackgroundLayer::update(float dt)
                 _facingDebug->drawRect(p1, p2, borderColor);
             }
         }
+        }
 
         if (_isDebugMode)
         {
@@ -1617,6 +1623,41 @@ void BackgroundLayer::update(float dt)
                 Vec2 r2(_rightExitRect.getMaxX(), _rightExitRect.getMaxY());
                 _facingDebug->drawSolidRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 0.2f));
                 _facingDebug->drawRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 1.0f));
+            }
+
+            if (_hasBedRect)
+            {
+                Vec2 r1(_bedRect.getMinX(), _bedRect.getMinY());
+                Vec2 r2(_bedRect.getMaxX(), _bedRect.getMaxY());
+                _facingDebug->drawSolidRect(r1, r2, Color4F(0.0f, 0.0f, 1.0f, 0.2f)); // Blue for bed
+                _facingDebug->drawRect(r1, r2, Color4F(0.0f, 0.0f, 1.0f, 1.0f));
+            }
+
+            if (_hasHomeExitDoor)
+            {
+                Vec2 r1(_homeExitDoorRect.getMinX(), _homeExitDoorRect.getMinY());
+                Vec2 r2(_homeExitDoorRect.getMaxX(), _homeExitDoorRect.getMaxY());
+                _facingDebug->drawSolidRect(r1, r2, Color4F(0.0f, 1.0f, 0.0f, 0.2f)); // Green for exit
+                _facingDebug->drawRect(r1, r2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
+            }
+
+            if (_hasTownHomewayRect)
+            {
+                Vec2 r1(_townHomewayRect.getMinX(), _townHomewayRect.getMinY());
+                Vec2 r2(_townHomewayRect.getMaxX(), _townHomewayRect.getMaxY());
+                _facingDebug->drawSolidRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 0.2f)); // Yellow for way back
+                _facingDebug->drawRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 1.0f));
+            }
+
+            if (_hasHouseRect && !_houseRects.empty())
+            {
+                for (const auto& r : _houseRects)
+                {
+                    Vec2 p1(r.getMinX(), r.getMinY());
+                    Vec2 p2(r.getMaxX(), r.getMaxY());
+                    _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 0.0f, 0.2f)); // Red tint for houses
+                    _facingDebug->drawRect(p1, p2, Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+                }
             }
 
             if (_player)
@@ -1660,6 +1701,30 @@ void BackgroundLayer::update(float dt)
                         Vec2(obsRect.getMaxX(), obsRect.getMaxY()),
                         Color4F(1.0f, 0.0f, 0.0f, 1.0f) // Red for obstacles
                     );
+                }
+
+                // Debug draw for Forage Items
+                const auto& forageItems = ForageSystem::getInstance()->getItems();
+                for (const auto& item : forageItems)
+                {
+                    // Only draw items for the current map
+                    if (item.mapType == _type)
+                    {
+                        float cx = (item.tilePosition.x + 0.5f) * tileSize.width;
+                        float cy = mapHeight - (item.tilePosition.y + 0.5f) * tileSize.height;
+
+                        float shrinkFactor = 0.85f; 
+                        float w = tileSize.width * shrinkFactor;
+                        float h = tileSize.height * shrinkFactor;
+
+                        Rect itemRect(cx - w * 0.5f, cy - h * 0.5f, w, h);
+                    
+                        _facingDebug->drawRect(
+                            Vec2(itemRect.getMinX(), itemRect.getMinY()),
+                            Vec2(itemRect.getMaxX(), itemRect.getMaxY()),
+                            Color4F(1.0f, 0.5f, 0.0f, 1.0f) // Orange for forage items
+                        );
+                    }
                 }
             }
         }
@@ -1752,17 +1817,21 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
     {
         return;
     }
+
+    if (keyCode == EventKeyboard::KeyCode::KEY_GRAVE)
+    {
+        _isDebugMode = !_isDebugMode;
+        GameScene::sDebugMode = _isDebugMode;
+        if (GameScene::sHud) { GameScene::sHud->updateInventoryUI(); }
+        Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("DEBUG_MODE_CHANGED");
+        return;
+    }
+
     if (_type == BackgroundType::Farm)
     {
         Vec2 tile = getFacingTile();
         switch (keyCode)
         {
-        case EventKeyboard::KeyCode::KEY_GRAVE: // Tilde key (~)
-            _isDebugMode = !_isDebugMode;
-            GameScene::sDebugMode = _isDebugMode;
-            if (GameScene::sHud) { GameScene::sHud->updateInventoryUI(); }
-            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("DEBUG_MODE_CHANGED");
-            break;
         case EventKeyboard::KeyCode::KEY_1:
             CropSystem::getInstance()->setSelectedCrop(CropType::Parsnip);
             break;
@@ -1969,44 +2038,60 @@ void BackgroundLayer::onKeyReleased(EventKeyboard::KeyCode keyCode, Event* event
 
 cocos2d::Vec2 BackgroundLayer::getFacingTile() const
 {
-    if (!_map || !_player)
+    if (!_player)
     {
         return Vec2(-1, -1);
     }
 
-    Size mapSizeTiles = _map->getMapSize();
-    Size tileSize = _map->getTileSize();
+    // 1. If we have a TMX map, use tile coordinates
+    if (_map)
+    {
+        Size mapSizeTiles = _map->getMapSize();
+        Size tileSize = _map->getTileSize();
 
-    float mapWidth = mapSizeTiles.width * tileSize.width;
-    float mapHeight = mapSizeTiles.height * tileSize.height;
+        float mapWidth = mapSizeTiles.width * tileSize.width;
+        float mapHeight = mapSizeTiles.height * tileSize.height;
 
-    // Use the feet position (collision box center) for more accurate tile selection
-    // instead of the anchor point which might be higher up.
-    Rect spriteBox = _player->getBoundingBox();
-    float footH = spriteBox.size.height * 0.25f; // Match collision logic
-    Vec2 feetPos(spriteBox.getMidX(), spriteBox.getMinY() + footH * 0.5f);
+        Rect spriteBox = _player->getBoundingBox();
+        float footH = spriteBox.size.height * 0.25f;
+        Vec2 feetPos(spriteBox.getMidX(), spriteBox.getMinY() + footH * 0.5f);
 
-    float clampedX = std::max(0.0f, std::min(feetPos.x, mapWidth - 1.0f));
-    float clampedY = std::max(0.0f, std::min(feetPos.y, mapHeight - 1.0f));
+        float clampedX = std::max(0.0f, std::min(feetPos.x, mapWidth - 1.0f));
+        float clampedY = std::max(0.0f, std::min(feetPos.y, mapHeight - 1.0f));
 
-    // 世界坐标 → 以左上角为原点的瓷砖坐标
-    float tileXTop = clampedX / tileSize.width;
-    float tileYTop = (mapHeight - clampedY) / tileSize.height;
+        float tileXTop = clampedX / tileSize.width;
+        float tileYTop = (mapHeight - clampedY) / tileSize.height;
 
-    int ix = static_cast<int>(tileXTop);
-    int iy = static_cast<int>(tileYTop);
+        int ix = static_cast<int>(tileXTop);
+        int iy = static_cast<int>(tileYTop);
 
-    Vec2 offset = _player->getFacingOffset();
-    int tx = ix + static_cast<int>(offset.x);
-    int ty = iy + static_cast<int>(offset.y);
+        Vec2 offset = _player->getFacingOffset();
+        int tx = ix + static_cast<int>(offset.x);
+        int ty = iy + static_cast<int>(offset.y);
 
-    int maxX = static_cast<int>(mapSizeTiles.width) - 1;
-    int maxY = static_cast<int>(mapSizeTiles.height) - 1;
+        int maxX = static_cast<int>(mapSizeTiles.width) - 1;
+        int maxY = static_cast<int>(mapSizeTiles.height) - 1;
 
-    tx = std::max(0, std::min(tx, maxX));
-    ty = std::max(0, std::min(ty, maxY));
+        tx = std::max(0, std::min(tx, maxX));
+        ty = std::max(0, std::min(ty, maxY));
 
-    return Vec2(tx, ty);
+        return Vec2(tx, ty);
+    }
+    // 2. If no map (static background), calculate pseudo-grid
+    // Assuming static backgrounds (Path, Shop) cover the screen or have a main sprite
+    // For now, we return (-1, -1) or a "screen grid" if needed.
+    // However, the debug drawing relies on this. 
+    // Let's implement a virtual grid for static scenes if needed, or just return (-1, -1) and handle debug drawing separately.
+    // But wait, the user wants to see collision boxes.
+    // Collision boxes (rects) don't rely on tiles. They rely on world coordinates.
+    // The tile cursor (yellow dot) relies on tiles.
+    // If we want to show a cursor on static scenes, we need a virtual grid.
+    
+    // For static scenes, let's use a virtual 16x16 grid based on visible size or the background sprite size.
+    // Find the background sprite (usually child 0 or by tag)
+    // But for now, let's just return (-1, -1) and fix the debug drawing to not crash or skip rects.
+    
+    return Vec2(-1, -1);
 }
 
 Vec2 FarmMapUtils::gridToWorld(const Vec2& gridIndex, Sprite* mapSprite, int cols, int rows)
@@ -2844,9 +2929,13 @@ bool BackgroundLayer::checkCollisionWithObstacles(const Rect& box)
     {
         for (int y = tMinY; y <= tMaxY; ++y)
         {
-            if (hasObstacle(Vec2(x, y)))
+            // Check for Obstacles OR Forage Items
+            bool isObstacle = hasObstacle(Vec2(x, y));
+            bool isForage = ForageSystem::getInstance()->hasItem(Vec2(x, y));
+
+            if (isObstacle || isForage)
             {
-                // Refined collision: Use a smaller box for the obstacle
+                // Refined collision: Use a smaller box for the obstacle/item
                 // to prevent getting stuck on edges ("sticky corners")
                 float cx = (x + 0.5f) * tileSize.width;
                 float cy = mapHeight - (y + 0.5f) * tileSize.height;

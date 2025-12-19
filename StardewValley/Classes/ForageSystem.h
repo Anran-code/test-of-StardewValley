@@ -43,6 +43,8 @@ public:
     // Update loop to check for day changes
     void update(GameClock* clock);
 
+    const std::vector<ForageItem>& getItems() const { return _items; }
+
 private:
     ForageSystem();
     static ForageSystem* sInstance;
