@@ -45,6 +45,7 @@ struct CropData
     // For Inventory
     std::string itemName;
     std::string itemIcon;
+    int energyRestore; // Energy restored when consumed
 };
 
 struct CropInstance

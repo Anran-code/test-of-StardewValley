@@ -488,6 +488,7 @@ void CropSystem::loadCropData()
     parsnip.sproutThresholdDays = { 1, 2, 3 };
     parsnip.itemName = "Parsnip";
     parsnip.itemIcon = "Crop/Parsnip.png";
+    parsnip.energyRestore = 25;
     parsnip.allowedSeasons = { GameClock::Season::Spring };
 
     CropData cauliflower;
@@ -503,6 +504,7 @@ void CropSystem::loadCropData()
     cauliflower.sproutThresholdDays = { 3, 6, 9, 11 };
     cauliflower.itemName = "Cauliflower";
     cauliflower.itemIcon = "Crop/Cauliflower.png";
+    cauliflower.energyRestore = 75;
     cauliflower.allowedSeasons = { GameClock::Season::Spring };
 
     CropData potato;
@@ -518,6 +520,7 @@ void CropSystem::loadCropData()
     potato.sproutThresholdDays = { 1, 2, 3, 4, 5 };
     potato.itemName = "Potato";
     potato.itemIcon = "Crop/Potato.png";
+    potato.energyRestore = 25;
     potato.allowedSeasons = { GameClock::Season::Spring };
 
     // --- Summer ---
@@ -534,6 +537,7 @@ void CropSystem::loadCropData()
     blueberry.sproutThresholdDays = { 2, 5, 8, 11 };
     blueberry.itemName = "Blueberry";
     blueberry.itemIcon = "Crop/Blueberry.png";
+    blueberry.energyRestore = 25;
     blueberry.allowedSeasons = { GameClock::Season::Summer };
 
     CropData melon;
@@ -549,6 +553,7 @@ void CropSystem::loadCropData()
     melon.sproutThresholdDays = { 2, 4, 7, 10 };
     melon.itemName = "Melon";
     melon.itemIcon = "Crop/Melon.png";
+    melon.energyRestore = 113;
     melon.allowedSeasons = { GameClock::Season::Summer };
 
     CropData starfruit;
@@ -564,6 +569,7 @@ void CropSystem::loadCropData()
     starfruit.sproutThresholdDays = { 2, 5, 8, 11 };
     starfruit.itemName = "Starfruit";
     starfruit.itemIcon = "Crop/Starfruit.png";
+    starfruit.energyRestore = 125;
     starfruit.allowedSeasons = { GameClock::Season::Summer };
 
     // --- Fall ---
@@ -580,6 +586,7 @@ void CropSystem::loadCropData()
     pumpkin.sproutThresholdDays = { 2, 5, 8, 11 };
     pumpkin.itemName = "Pumpkin";
     pumpkin.itemIcon = "Crop/Pumpkin.png";
+    pumpkin.energyRestore = 0;
     pumpkin.allowedSeasons = { GameClock::Season::Fall };
 
     CropData eggplant;
@@ -595,6 +602,7 @@ void CropSystem::loadCropData()
     eggplant.sproutThresholdDays = { 1, 2, 3, 4 };
     eggplant.itemName = "Eggplant";
     eggplant.itemIcon = "Crop/Eggplant.png";
+    eggplant.energyRestore = 20;
     eggplant.allowedSeasons = { GameClock::Season::Fall };
 
     CropData yam;
@@ -610,6 +618,7 @@ void CropSystem::loadCropData()
     yam.sproutThresholdDays = { 2, 5, 8 };
     yam.itemName = "Yam";
     yam.itemIcon = "Crop/Yam.png";
+    yam.energyRestore = 45;
     yam.allowedSeasons = { GameClock::Season::Fall };
 
     // --- Winter ---
@@ -626,6 +635,7 @@ void CropSystem::loadCropData()
     powdermelon.sproutThresholdDays = { 1, 3, 5, 6 };
     powdermelon.itemName = "Powdermelon";
     powdermelon.itemIcon = "Crop/Powdermelon.png";
+    powdermelon.energyRestore = 63;
     powdermelon.allowedSeasons = { GameClock::Season::Winter };
 
     // --- Fish ---
@@ -638,6 +648,7 @@ void CropSystem::loadCropData()
     fish.extraYieldChance = 0.0f;
     fish.itemName = "Fish";
     fish.itemIcon = "fish.png";
+    fish.energyRestore = 13;
     fish.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
 
     CropData anchovy;
@@ -649,6 +660,7 @@ void CropSystem::loadCropData()
     anchovy.extraYieldChance = 0.0f;
     anchovy.itemName = "Anchovy";
     anchovy.itemIcon = "Anchovy.png";
+    anchovy.energyRestore = 13;
     anchovy.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Fall };
 
     CropData bream;
@@ -660,6 +672,7 @@ void CropSystem::loadCropData()
     bream.extraYieldChance = 0.0f;
     bream.itemName = "Bream";
     bream.itemIcon = "Bream.png";
+    bream.energyRestore = 13;
     bream.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
 
     CropData largemouthBass;
@@ -671,6 +684,7 @@ void CropSystem::loadCropData()
     largemouthBass.extraYieldChance = 0.0f;
     largemouthBass.itemName = "Largemouth Bass";
     largemouthBass.itemIcon = "Largemouth_Bass.png";
+    largemouthBass.energyRestore = 38;
     largemouthBass.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
 
     // Register

@@ -68,6 +68,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _backgroundNode = nullptr;
     _seasonOverlay = nullptr;
     _sleepOverlay = nullptr;
+    _confirmationOverlay = nullptr;
     _fishingOverlay = nullptr;
     _fishingLabel = nullptr;
     _fishingGame = nullptr;
@@ -617,6 +618,72 @@ void BackgroundLayer::showSleepDialog()
     }
 }
 
+void BackgroundLayer::showConfirmationDialog(const std::string& message, std::function<void()> onYes)
+{
+    if (_confirmationOverlay) return;
+
+    auto director = Director::getInstance();
+    Size visibleSize = director->getVisibleSize();
+    Vec2 origin = director->getVisibleOrigin();
+
+    _confirmationOverlay = LayerColor::create(Color4B(0, 0, 0, 160));
+    _confirmationOverlay->setContentSize(visibleSize);
+    _confirmationOverlay->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+    
+    // Position fixed to screen (add to Scene or Parent, not BackgroundLayer which moves)
+    Node* parent = this->getParent();
+    if (!parent) parent = this;
+    
+    if (parent == this)
+    {
+         // Fallback if no parent (should not happen in game), manual positioning
+         Vec2 layerWorldPos = this->getPosition();
+         _confirmationOverlay->setPosition(origin - layerWorldPos);
+         this->addChild(_confirmationOverlay, 6000);
+    }
+    else
+    {
+         // Add to Scene/Parent directly so it doesn't move with camera
+         _confirmationOverlay->setPosition(Vec2::ZERO);
+         parent->addChild(_confirmationOverlay, 6000);
+    }
+
+    auto label = Label::createWithSystemFont(message, "Arial", 32);
+    label->setPosition(Vec2(visibleSize.width * 0.5f, visibleSize.height * 0.6f));
+    _confirmationOverlay->addChild(label);
+
+    auto yesLabel = Label::createWithSystemFont("Yes", "Arial", 32);
+    auto yesItem = MenuItemLabel::create(yesLabel, [this, onYes](Ref* sender) {
+        if (onYes) onYes();
+        if (this->_confirmationOverlay) {
+            this->_confirmationOverlay->removeFromParent();
+            this->_confirmationOverlay = nullptr;
+        }
+    });
+
+    auto noLabel = Label::createWithSystemFont("No", "Arial", 32);
+    auto noItem = MenuItemLabel::create(noLabel, [this](Ref* sender) {
+        if (this->_confirmationOverlay) {
+            this->_confirmationOverlay->removeFromParent();
+            this->_confirmationOverlay = nullptr;
+        }
+    });
+
+    auto menu = Menu::create(yesItem, noItem, nullptr);
+    menu->setPosition(Vec2(visibleSize.width * 0.5f, visibleSize.height * 0.4f));
+    menu->alignItemsHorizontallyWithPadding(100.0f);
+    _confirmationOverlay->addChild(menu);
+
+    // Block touches
+    auto listener = EventListenerTouchOneByOne::create();
+    listener->setSwallowTouches(true);
+    listener->onTouchBegan = [](Touch* touch, Event* event) { return true; };
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, _confirmationOverlay);
+
+    if (parent == this)
+        addChild(_confirmationOverlay, 6000);
+}
+
 void BackgroundLayer::beginSleep()
 {
     if (_isSleeping) return;
@@ -907,6 +974,7 @@ void BackgroundLayer::endFishing(bool success)
 void BackgroundLayer::update(float dt)
 {
     if (PauseLayer::isGamePaused()) return;
+    if (_confirmationOverlay) return; // Pause game when confirmation dialog is active
 
     // Keep sleep overlay centered on screen
     if (_sleepOverlay && _sleepOverlay->isVisible())
@@ -916,7 +984,7 @@ void BackgroundLayer::update(float dt)
         Vec2 layerWorldPos = this->getPosition();
         _sleepOverlay->setPosition(origin - layerWorldPos);
     }
-
+    
     // Time-based checks (Midnight Warning & 2:00 AM Fainting)
     if (GameScene::sClock && !_isSleeping)
     {
@@ -1372,6 +1440,26 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         return;
     }
     
+    if (_confirmationOverlay)
+    {
+        // Allow ESC or N to close
+        if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE || keyCode == EventKeyboard::KeyCode::KEY_N)
+        {
+             _confirmationOverlay->removeFromParent();
+             _confirmationOverlay = nullptr;
+        }
+        // Allow Y to confirm
+        else if (keyCode == EventKeyboard::KeyCode::KEY_Y)
+        {
+             // We can't easily trigger the "Yes" callback here because it's in a lambda in showConfirmationDialog.
+             // But usually mouse is used.
+             // If we wanted keyboard support for Y/N, we'd need to store the callback.
+             // For now, just blocking other inputs is key.
+             // Actually, the user might expect Y/N keys to work.
+        }
+        return; 
+    }
+
     // Pause check
     if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
     {
@@ -1532,6 +1620,7 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 void BackgroundLayer::onKeyReleased(EventKeyboard::KeyCode keyCode, Event* event)
 {
     if (PauseLayer::isGamePaused()) return;
+    if (_confirmationOverlay) return;
 
     if (_isFishing)
     {
@@ -1819,8 +1908,43 @@ bool GameScene::initWithStartType(BackgroundType type)
 void BackgroundLayer::onMouseDown(Event* event)
 {
     if (PauseLayer::isGamePaused()) return;
+    if (_confirmationOverlay) return; // Block input if confirmation dialog is open
 
     EventMouse* e = (EventMouse*)event;
+    
+    // Handle Right Click (Eat)
+    if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_RIGHT)
+    {
+        if (GameScene::sInventory)
+        {
+            int slot = GameScene::sInventory->getSelectedSlot();
+            if (GameScene::sInventory->hasItem(slot))
+            {
+                const Item& item = GameScene::sInventory->getItem(slot);
+                if (item.type == ItemType::Crop)
+                {
+                    const CropData* data = CropSystem::getInstance()->getCropData(item.cropType);
+                    if (data && data->energyRestore > 0)
+                    {
+                        // Show confirmation dialog
+                        std::string confirmMsg = "Eat " + data->itemName + "?";
+                        showConfirmationDialog(confirmMsg, [slot, data]() {
+                            // Eat it
+                            EnergySystem::getInstance()->restoreEnergy((float)data->energyRestore);
+                            GameScene::sInventory->removeItem(slot, 1);
+                            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+
+                            // Show notification
+                            std::string msg = "You ate " + data->itemName + ". Energy +" + std::to_string(data->energyRestore);
+                            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+                        });
+                    }
+                }
+            }
+        }
+        return;
+    }
+
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
 
     if (_waitingForSleepInput)

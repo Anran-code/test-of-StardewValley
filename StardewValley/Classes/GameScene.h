@@ -62,6 +62,7 @@ public:
     void startFishing();
     void endFishing(bool success);
     void updateSeasonFilter();
+    void showConfirmationDialog(const std::string& message, std::function<void()> onYes);
 
     static bool sMidnightWarned;
 
@@ -104,6 +105,7 @@ private:
     cocos2d::Node* _backgroundNode;
     cocos2d::LayerColor* _seasonOverlay;
     cocos2d::LayerColor* _sleepOverlay;
+    cocos2d::LayerColor* _confirmationOverlay;
     cocos2d::LayerColor* _fishingOverlay;
     cocos2d::Label* _fishingLabel;
     FishingMiniGame* _fishingGame;
