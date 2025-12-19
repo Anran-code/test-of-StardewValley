@@ -334,6 +334,8 @@ void HudLayer::updateInventoryUI()
     _itemSprites.clear();
     for (auto lbl : _quantityLabels) lbl->removeFromParent();
     _quantityLabels.clear();
+    for (auto bar : _waterBars) bar->removeFromParent();
+    _waterBars.clear();
 
     Size toolbarSize = _toolbar->getContentSize();
     float scale = _toolbar->getScale();
@@ -405,6 +407,34 @@ void HudLayer::updateInventoryUI()
                 sprite->setPosition(Vec2(cx, cy));
                 addChild(sprite, 12); // Above toolbar and selector 
                 _itemSprites.push_back(sprite);
+
+                // Water Bar for Watering Can
+                if (item.type == ItemType::Tool && item.toolType == ToolType::WateringCan)
+                {
+                    float barWidth = scaledCellWidth * 0.8f;
+                    float barHeight = 6.0f * scale; 
+                    float x = startCenterX + (i * stepX);
+                    float y = startCenterY - (scaledCellHeight * 0.4f);
+
+                    auto bar = DrawNode::create();
+                    
+                    Vec2 bgOrigin(x - barWidth/2, y);
+                    Vec2 bgDest(x + barWidth/2, y + barHeight);
+                    bar->drawSolidRect(bgOrigin, bgDest, Color4F(0.2f, 0.2f, 0.2f, 1.0f));
+                    
+                    float pct = item.currentWater / item.maxWater;
+                    if (pct < 0) pct = 0;
+                    if (pct > 1) pct = 1;
+                    
+                    if (pct > 0)
+                    {
+                        Vec2 fillDest(x - barWidth/2 + (barWidth * pct), y + barHeight);
+                        bar->drawSolidRect(bgOrigin, fillDest, Color4F(0.0f, 0.5f, 1.0f, 1.0f));
+                    }
+                    
+                    addChild(bar, 20);
+                    _waterBars.push_back(bar);
+                }
 
                 // Quantity
                 if (item.maxStack > 1 && item.quantity > 1)

@@ -64,6 +64,8 @@ public:
     void updateSeasonFilter();
     void showConfirmationDialog(const std::string& message, std::function<void()> onYes);
 
+    bool isWater(const cocos2d::Vec2& worldPos);
+
     static bool sMidnightWarned;
 
 private:

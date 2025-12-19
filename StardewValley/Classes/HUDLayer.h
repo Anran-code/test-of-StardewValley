@@ -127,6 +127,7 @@ private:
 
     std::vector<cocos2d::Sprite*> _itemSprites; // Sprites for items in slots
     std::vector<cocos2d::Label*> _quantityLabels; // Labels for quantities
+    std::vector<cocos2d::DrawNode*> _waterBars; // Water bars for watering cans
 };
 
 #endif

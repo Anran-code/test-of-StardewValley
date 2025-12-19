@@ -618,6 +618,20 @@ void BackgroundLayer::showSleepDialog()
     }
 }
 
+bool BackgroundLayer::isWater(const cocos2d::Vec2& worldPos)
+{
+    if (!_hasPoolRect || _poolRects.empty()) return false;
+    
+    for (const auto& r : _poolRects)
+    {
+        if (r.containsPoint(worldPos))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void BackgroundLayer::showConfirmationDialog(const std::string& message, std::function<void()> onYes)
 {
     if (_confirmationOverlay) return;
@@ -1293,7 +1307,7 @@ void BackgroundLayer::update(float dt)
                                     }
                                     break;
                                 case ToolType::WateringCan:
-                                    isValid = CropSystem::getInstance()->canWater(tileIndex);
+                                    isValid = CropSystem::getInstance()->canWater(tileIndex) || inPool;
                                     break;
                                 case ToolType::Scythe:
                                     isValid = CropSystem::getInstance()->canClearWithered(tileIndex);
@@ -1513,8 +1527,59 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_HOE);
             break;
         case EventKeyboard::KeyCode::KEY_G:
-            CropSystem::getInstance()->waterTile(tile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_WATERING_CAN);
+        {
+            if (GameScene::sInventory)
+            {
+                int slot = GameScene::sInventory->getSelectedSlot();
+                if (GameScene::sInventory->hasItem(slot))
+                {
+                    Item& item = GameScene::sInventory->getItem(slot);
+                    if (item.type == ItemType::Tool && item.toolType == ToolType::WateringCan)
+                    {
+                        Vec2 facingTile = getFacingTile();
+                        
+                        bool inPool = false;
+                        if (_map && _groundLayer)
+                        {
+                            Size tileSize = _map->getTileSize();
+                            Vec2 tilePos = _groundLayer->getPositionAt(facingTile);
+                            Vec2 centerPos(tilePos.x + tileSize.width * 0.5f, tilePos.y + tileSize.height * 0.5f);
+                            inPool = isWater(centerPos);
+                        }
+                        
+                        if (inPool)
+                        {
+                            item.currentWater = item.maxWater;
+                            EnergySystem::getInstance()->consumeEnergy(4.0f);
+                            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                            std::string msg = "Watering Can Refilled";
+                            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+                        }
+                        else
+                        {
+                            if (item.currentWater > 0)
+                            {
+                                // Only consume water if action was successful or valid?
+                                // Usually Stardew consumes energy/water even if you miss, but checking canWater is better.
+                                // canWater checks if tile is tilled.
+                                // Actually, you can water untilled ground in Stardew but it does nothing? No, it wets it.
+                                // Let's stick to canWater logic for now.
+                                
+                                CropSystem::getInstance()->waterTile(tile);
+                                EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_WATERING_CAN);
+                                item.currentWater -= 1.0f;
+                                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                            }
+                            else
+                            {
+                                std::string msg = "Watering Can is empty!";
+                                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+                            }
+                        }
+                    }
+                }
+            }
+        }
             break;
         case EventKeyboard::KeyCode::KEY_H:
             CropSystem::getInstance()->harvestTile(tile);
@@ -2174,8 +2239,49 @@ void BackgroundLayer::onMouseDown(Event* event)
             EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_HOE);
             break;
         case ToolType::WateringCan:
-            CropSystem::getInstance()->waterTile(targetTile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_WATERING_CAN);
+        {
+            // Refill check
+            Size tileSize2 = _map->getTileSize();
+            Vec2 tilePos = _groundLayer->getPositionAt(targetTile);
+            Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+            bool inPool = false;
+            for (const auto& r : _poolRects)
+            {
+                if (facingRect.intersectsRect(r))
+                {
+                    inPool = true;
+                    break;
+                }
+            }
+
+            Item& mutableItem = GameScene::sInventory->getItem(GameScene::sInventory->getSelectedSlot());
+            if (inPool)
+            {
+                mutableItem.currentWater = mutableItem.maxWater;
+                EnergySystem::getInstance()->consumeEnergy(4.0f);
+                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                std::string msg = "Watering Can Refilled";
+                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+            }
+            else
+            {
+                if (mutableItem.currentWater > 0)
+                {
+                     if (CropSystem::getInstance()->canWater(targetTile))
+                     {
+                         CropSystem::getInstance()->waterTile(targetTile);
+                         EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_WATERING_CAN);
+                         mutableItem.currentWater -= 1.0f;
+                         Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                     }
+                }
+                else
+                {
+                    std::string msg = "Watering Can is empty!";
+                    Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+                }
+            }
+        }
             break;
         case ToolType::Scythe:
             CropSystem::getInstance()->removeWithered(targetTile);

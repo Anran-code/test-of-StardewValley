@@ -33,6 +33,10 @@ struct Item
     // Specific data
     ToolType toolType = ToolType::None;
     CropType cropType = CropType::Parsnip; // Default
+    
+    // Tool Stats
+    float currentWater = 0.0f;
+    float maxWater = 0.0f;
 
     Item() : type(ItemType::Tool), quantity(0), maxStack(1) {}
     
@@ -44,6 +48,13 @@ struct Item
         i.iconPath = path;
         i.quantity = 1;
         i.maxStack = 1;
+        
+        if (t == ToolType::WateringCan)
+        {
+            i.maxWater = 20.0f; // Capacity 20
+            i.currentWater = 20.0f; // Start full
+        }
+        
         return i;
     }
 
