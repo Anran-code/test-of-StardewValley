@@ -1344,6 +1344,8 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             break;
         }
     }
+    // Key X handling removed (moved to Mouse Left Click)
+    /*
     if (keyCode == EventKeyboard::KeyCode::KEY_X)
     {
         if (_type == BackgroundType::Home && _hasBedRect && _map && _groundLayer && _player)
@@ -1385,6 +1387,7 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             }
         }
     }
+    */
     if (_player)
     {
         // In debug mode, if arrow keys are used, do not pass them to the player (prevent movement)
@@ -1694,8 +1697,6 @@ bool GameScene::initWithStartType(BackgroundType type)
 // BackgroundLayer implementation
 void BackgroundLayer::onMouseDown(Event* event)
 {
-    if (_type != BackgroundType::Farm) return;
-    
     EventMouse* e = (EventMouse*)event;
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
     Vec2 clickPos = e->getLocation();
@@ -1704,6 +1705,7 @@ void BackgroundLayer::onMouseDown(Event* event)
     // Use the tile the player is currently facing (interaction block)
     Vec2 targetTile = getFacingTile();
     
+    if (!_map) return;
     Size tileSize = _map->getTileSize();
     Size mapSize = _map->getMapSize();
     
@@ -1721,17 +1723,61 @@ void BackgroundLayer::onMouseDown(Event* event)
     float cxPos = (targetTile.x + 0.5f) * tileSize.width;
     float cyPos = mapHeight - (targetTile.y + 0.5f) * tileSize.height;
     _facingDebug->drawDot(Vec2(cxPos, cyPos), 5.0f, Color4F::GREEN);
+
+    // --- 1. Home Interactions (Sleep, Exit) ---
+    if (_type == BackgroundType::Home)
+    {
+        // Sleep Logic
+        if (_hasBedRect && _map && _groundLayer && _player)
+        {
+            Size tileSize2 = _map->getTileSize();
+            Vec2 tilePos = _groundLayer->getPositionAt(targetTile);
+            Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+            if (facingRect.intersectsRect(_bedRect))
+            {
+                showSleepDialog();
+                return;
+            }
+        }
+        
+        // Exit Home Logic
+        if (_canExitHomeDoor && !_exitedHomeDoor && _map && _groundLayer)
+        {
+            _exitedHomeDoor = true;
+            GameScene::sSpawnAtFarmStart = true;
+            auto next = GameScene::createScene(BackgroundType::Farm);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+                return;
+            }
+        }
+        
+        return; // No farming in Home
+    }
     
+    // --- 2. Farm Interactions (Enter Home) ---
+    if (_type == BackgroundType::Farm)
+    {
+        if (_canEnterHomeDoor && !_enteredHome && _map && _groundLayer && _player)
+        {
+            _enteredHome = true;
+            GameScene::sLastFarmPlayerPos = _player->getPosition();
+            GameScene::sHasLastFarmPlayerPos = true;
+            auto next = GameScene::createScene(BackgroundType::Home);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+                return;
+            }
+        }
+    }
+
     // Now handle tool use on this tile
-    // We can reuse logic from handleToolUse but pass the tile
-    
     if (!GameScene::sClock) return;
     const Item* item = GameScene::sInventory->getSelectedItem();
-    
-    // Harvest logic (no tool needed, or click with any tool?)
-    // Stardew usually harvest with click (empty hand or item).
-    // If we have a crop that is ready, harvest it.
-    // If we have a tool selected, use tool.
     
     // 0. Fishing Logic (added)
     if (_type == BackgroundType::Farm && _hasPoolRect && _map && _groundLayer && _player)
