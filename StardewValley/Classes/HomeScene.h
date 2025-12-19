@@ -115,8 +115,8 @@ private:
     class Wallet* _wallet;
 
     class HudLayer* _hud;
-    // static class Basket* sBasket; // Ignore basket
-
+    static class Basket* sBasket;
+    
     Inventory* _inventory; // Member inventory pointer
 
     virtual void update(float dt) override;

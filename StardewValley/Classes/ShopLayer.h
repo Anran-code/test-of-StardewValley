@@ -39,6 +39,7 @@ private:
     cocos2d::Label* _basketTotal;
     cocos2d::Label* _moneyLabel;
     std::vector<cocos2d::Label*> _itemLabels;
+    cocos2d::Sprite* _basketIcon;
 };
 
 #endif

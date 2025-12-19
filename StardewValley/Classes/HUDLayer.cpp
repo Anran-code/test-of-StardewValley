@@ -107,6 +107,58 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         addChild(_moneyLabel, 1000);
     }
 
+    // Help Toggle Button (Visual hint)
+    auto helpLabel = Label::createWithSystemFont("Press F1 for Help", "Arial", 18);
+    if (helpLabel)
+    {
+        helpLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
+        helpLabel->setPosition(Vec2(topRight.x, topRight.y - 120.0f));
+        helpLabel->setColor(Color3B::YELLOW);
+        addChild(helpLabel, 1000);
+    }
+
+    // Help Layer (Modal)
+    _helpLayer = LayerColor::create(Color4B(0, 0, 0, 200));
+    if (_helpLayer)
+    {
+        _helpLayer->setVisible(false);
+        addChild(_helpLayer, 2000); // Top most
+
+        auto helpTitle = Label::createWithSystemFont("HELP & CONTROLS", "Arial", 32);
+        helpTitle->setPosition(Vec2(visibleSize.width / 2, visibleSize.height * 0.8f));
+        helpTitle->setColor(Color3B::YELLOW);
+        _helpLayer->addChild(helpTitle);
+
+        std::string helpText = 
+            "WASD / Arrows : Move\n"
+            "E : Open/Close Inventory\n"
+            "Number Keys (1-9, 0, -, +) : Select Tool\n"
+            "Mouse Click : Use Tool / Interact\n"
+            "X : Sell Basket Items (At Farm Top-Right)\n"
+            "ESC : Exit Game\n"
+            "F1 : Toggle this Help Page";
+        
+        auto helpContent = Label::createWithSystemFont(helpText, "Arial", 24);
+        helpContent->setPosition(Vec2(visibleSize.width / 2, visibleSize.height * 0.5f));
+        _helpLayer->addChild(helpContent);
+        
+        auto closeHelp = Label::createWithSystemFont("[ Click to Close ]", "Arial", 20);
+        closeHelp->setPosition(Vec2(visibleSize.width / 2, visibleSize.height * 0.2f));
+        _helpLayer->addChild(closeHelp);
+        
+        // Add a touch listener to close help when clicked
+        auto helpListener = EventListenerTouchOneByOne::create();
+        helpListener->setSwallowTouches(true);
+        helpListener->onTouchBegan = [this](Touch* t, Event* e) {
+            if (_helpLayer->isVisible()) {
+                toggleHelp();
+                return true;
+            }
+            return false;
+        };
+        _eventDispatcher->addEventListenerWithSceneGraphPriority(helpListener, _helpLayer);
+    }
+
     auto listener = EventListenerKeyboard::create();
     listener->onKeyPressed = CC_CALLBACK_2(HudLayer::onKeyPressed, this);
     _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
@@ -177,6 +229,19 @@ void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
     {
         _inventory->setSelectedSlot(slot);
         updateInventoryUI();
+    }
+}
+
+void HudLayer::toggleHelp()
+{
+    if (_helpLayer)
+    {
+        _isHelpVisible = !_isHelpVisible;
+        _helpLayer->setVisible(_isHelpVisible);
+        
+        if (_isHelpVisible) {
+            // Pause game potentially? For now just overlay.
+        }
     }
 }
 

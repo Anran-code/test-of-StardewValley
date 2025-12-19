@@ -1,7 +1,7 @@
 #include "CropSystem.h"
 #include "cocos2d.h"
 #include "Inventory.h"
-// #include "Basket.h"
+#include "Basket.h"
 
 using namespace cocos2d;
 
@@ -19,7 +19,7 @@ CropSystem::CropSystem()
     , _clock(nullptr)
     , _wallet(nullptr)
     , _inventory(nullptr)
-
+    , _basket(nullptr)
     , _selected(CropType::Parsnip)
     , _lastProcessedDay(-1)
     , _lastProcessedSeason(-1)
@@ -49,7 +49,22 @@ void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet, Invent
     }
 }
 
+void CropSystem::setBasket(Basket* basket)
+{
+    _basket = basket;
+}
 
+int CropSystem::sellBasket()
+{
+    if (!_basket || !_wallet) return 0;
+    int total = _basket->calculateTotalSellValue(this);
+    if (total > 0)
+    {
+        _wallet->addMoney(total);
+        _basket->clear();
+    }
+    return total;
+}
 
 void CropSystem::setSelectedCrop(CropType type)
 {
@@ -158,8 +173,22 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         float r = RandomHelper::random_real<float>(0.0f, 1.0f);
         if (r < 0.25f) yieldCount += 1;
     }
-    
-    if (_inventory)
+
+    // PRIORITIZE BASKET
+    if (_basket)
+    {
+        if (!_basket->addCrop(inst->type, yieldCount))
+        {
+            // Basket full
+            return false;
+        }
+    }
+    else if (_wallet)
+    {
+        // Fallback to wallet if no basket
+        _wallet->addMoney(d.sellPrice * yieldCount);
+    }
+    else if (_inventory)
     {
         Item item = Item::createCrop(inst->type, d.itemName, d.itemIcon, yieldCount);
         _inventory->addItem(item);

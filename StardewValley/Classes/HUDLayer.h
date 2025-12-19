@@ -97,6 +97,10 @@ private:
 
     std::vector<cocos2d::Sprite*> _itemSprites; // Sprites for items in slots
     std::vector<cocos2d::Label*> _quantityLabels; // Labels for quantities
+
+    // Help Page
+    cocos2d::LayerColor* _helpLayer = nullptr;
+    bool _isHelpVisible = false;
 };
 
 #endif
