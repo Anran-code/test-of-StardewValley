@@ -2,9 +2,43 @@
 #include "GameClock.h"
 #include "Wallet.h"
 #include "Inventory.h"
-#include "HomeScene.h"
+#include "GameScene.h"
+#include "EnergySystem.h"
 
 USING_NS_CC;
+
+HudLayer::HudLayer()
+    : _mouseListener(nullptr)
+    , _touchListener(nullptr)
+    , _debugBounds(nullptr)
+    , _clock(nullptr)
+    , _wallet(nullptr)
+    , _inventory(nullptr)
+    , _toolbar(nullptr)
+    , _backpack(nullptr)
+    , _selector(nullptr)
+    , _energyBarBackground(nullptr)
+    , _energyBarFill(nullptr)
+    , _energyLabel(nullptr)
+    , _cachedToolbarLeft(0.0f)
+    , _cachedToolbarBottom(0.0f)
+    , _cachedScale(1.0f)
+    , _timeLabel(nullptr)
+    , _dateLabel(nullptr)
+    , _weekLabel(nullptr)
+    , _moneyLabel(nullptr)
+    , _lowEnergyWarned(false)
+{
+}
+
+HudLayer::~HudLayer()
+{
+    if (_selector)
+    {
+        _selector->release();
+        _selector = nullptr;
+    }
+}
 
 HudLayer* HudLayer::create(GameClock* clock, Wallet* wallet, Inventory* inventory)
 {
@@ -41,13 +75,21 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         _toolbar->setScale(scale);
         _toolbar->setAnchorPoint(Vec2(0.5f, 0.0f));
         _toolbar->setPosition(Vec2(visibleSize.width * 0.5f + origin.x, origin.y));
-        addChild(_toolbar, 1);
+        addChild(_toolbar, 10);
     }
     _debugBounds = DrawNode::create();
     addChild(_debugBounds, 10000);
 
+    // Dark Overlay (Dim background)
+    _darkOverlay = LayerColor::create(Color4B(0, 0, 0, 150)); 
+    if (_darkOverlay)
+    {
+        _darkOverlay->setVisible(false);
+        addChild(_darkOverlay, 5);
+    }
+
     // Backpack
-    _backpack = Sprite::create("backpack_test.png");
+    _backpack = Sprite::create("backpack.png");
     if (_backpack)
     {
         float targetWidth = visibleSize.width * 0.5f;
@@ -55,7 +97,7 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         _backpack->setScale(scale);
         _backpack->setPosition(Vec2(visibleSize.width * 0.5f + origin.x, visibleSize.height * 0.5f + origin.y));
         _backpack->setVisible(false);
-        addChild(_backpack, 2);
+        addChild(_backpack, 10); 
     }
 
     // Selector
@@ -71,7 +113,7 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     if (_toolbar && _selector) {
         _selector->setAnchorPoint(Vec2(0.5f, 0.5f));
         _selector->retain(); // Keep it to add/remove or just toggle visibility/position
-        addChild(_selector, 3);
+        addChild(_selector, 11);
     }
 
     float margin = 10.0f;
@@ -81,6 +123,10 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     _dateLabel = Label::createWithSystemFont("", "Arial", 24);
     _weekLabel = Label::createWithSystemFont("", "Arial", 24);
     _moneyLabel = Label::createWithSystemFont("", "Arial", 24);
+
+    _bpCurrentGoldLabel = Label::createWithSystemFont("", "Arial", 24); 
+    _bpTotalEarningsLabel = Label::createWithSystemFont("", "Arial", 24);
+    _bpDateLabel = Label::createWithSystemFont("", "Arial", 24);
 
     if (_timeLabel)
     {
@@ -107,56 +153,21 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         addChild(_moneyLabel, 1000);
     }
 
-    // Help Toggle Button (Visual hint)
-    auto helpLabel = Label::createWithSystemFont("Press F1 for Help", "Arial", 18);
-    if (helpLabel)
-    {
-        helpLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
-        helpLabel->setPosition(Vec2(topRight.x, topRight.y - 120.0f));
-        helpLabel->setColor(Color3B::YELLOW);
-        addChild(helpLabel, 1000);
+    // Initialize Backpack Labels
+    if (_bpCurrentGoldLabel) {
+        _bpCurrentGoldLabel->setColor(Color3B::BLACK); 
+        _bpCurrentGoldLabel->setVisible(false);
+        addChild(_bpCurrentGoldLabel, 1001); // Higher Z than backpack items
     }
-
-    // Help Layer (Modal)
-    _helpLayer = LayerColor::create(Color4B(0, 0, 0, 200));
-    if (_helpLayer)
-    {
-        _helpLayer->setVisible(false);
-        addChild(_helpLayer, 2000); // Top most
-
-        auto helpTitle = Label::createWithSystemFont("HELP & CONTROLS", "Arial", 32);
-        helpTitle->setPosition(Vec2(visibleSize.width / 2, visibleSize.height * 0.8f));
-        helpTitle->setColor(Color3B::YELLOW);
-        _helpLayer->addChild(helpTitle);
-
-        std::string helpText = 
-            "WASD / Arrows : Move\n"
-            "E : Open/Close Inventory\n"
-            "Number Keys (1-9, 0, -, +) : Select Tool\n"
-            "Mouse Click : Use Tool / Interact\n"
-            "X : Sell Basket Items (At Farm Top-Right)\n"
-            "ESC : Exit Game\n"
-            "F1 : Toggle this Help Page";
-        
-        auto helpContent = Label::createWithSystemFont(helpText, "Arial", 24);
-        helpContent->setPosition(Vec2(visibleSize.width / 2, visibleSize.height * 0.5f));
-        _helpLayer->addChild(helpContent);
-        
-        auto closeHelp = Label::createWithSystemFont("[ Click to Close ]", "Arial", 20);
-        closeHelp->setPosition(Vec2(visibleSize.width / 2, visibleSize.height * 0.2f));
-        _helpLayer->addChild(closeHelp);
-        
-        // Add a touch listener to close help when clicked
-        auto helpListener = EventListenerTouchOneByOne::create();
-        helpListener->setSwallowTouches(true);
-        helpListener->onTouchBegan = [this](Touch* t, Event* e) {
-            if (_helpLayer->isVisible()) {
-                toggleHelp();
-                return true;
-            }
-            return false;
-        };
-        _eventDispatcher->addEventListenerWithSceneGraphPriority(helpListener, _helpLayer);
+    if (_bpTotalEarningsLabel) {
+        _bpTotalEarningsLabel->setColor(Color3B::BLACK);
+        _bpTotalEarningsLabel->setVisible(false);
+        addChild(_bpTotalEarningsLabel, 1001);
+    }
+    if (_bpDateLabel) {
+        _bpDateLabel->setColor(Color3B::BLACK);
+        _bpDateLabel->setVisible(false);
+        addChild(_bpDateLabel, 1001);
     }
 
     auto listener = EventListenerKeyboard::create();
@@ -189,10 +200,60 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     });
     _eventDispatcher->addEventListenerWithSceneGraphPriority(debugModeListener, this);
 
+    auto notifListener = EventListenerCustom::create("SHOW_NOTIFICATION", [this](EventCustom* event) {
+        std::string* msg = static_cast<std::string*>(event->getUserData());
+        if (msg)
+        {
+            this->showNotification(*msg);
+        }
+    });
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(notifListener, this);
+
+    // Energy Bar UI
+    float barWidth = 20.0f;
+    float barHeight = 150.0f;
+    float barX = visibleSize.width - 40.0f;
+    float barY = 150.0f; // Above money area
+
+    _energyBarBackground = DrawNode::create();
+    _energyBarBackground->drawSolidRect(Vec2(0, 0), Vec2(barWidth, barHeight), Color4F(0.2f, 0.2f, 0.2f, 0.8f));
+    _energyBarBackground->setPosition(Vec2(barX, barY));
+    addChild(_energyBarBackground);
+
+    _energyBarFill = DrawNode::create();
+    _energyBarFill->setPosition(Vec2(barX, barY));
+    addChild(_energyBarFill);
+
+    _energyLabel = Label::createWithSystemFont("270", "Arial", 12);
+    _energyLabel->setPosition(Vec2(barX + barWidth * 0.5f, barY - 10.0f));
+    addChild(_energyLabel);
+
+    auto energyListener = EventListenerCustom::create("ENERGY_UPDATED", [this](EventCustom* event) {
+        this->updateEnergyUI();
+    });
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(energyListener, this);
+
+    updateEnergyUI();
+
     refresh();
     updateInventoryUI();
     
     return true;
+}
+
+void HudLayer::onExit()
+{
+    if (_mouseListener)
+    {
+        _eventDispatcher->removeEventListener(_mouseListener);
+        _mouseListener = nullptr;
+    }
+    if (_touchListener)
+    {
+        _eventDispatcher->removeEventListener(_touchListener);
+        _touchListener = nullptr;
+    }
+    Layer::onExit();
 }
 
 void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
@@ -203,6 +264,16 @@ void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         {
             _backpack->setVisible(!_backpack->isVisible());
             updateInventoryUI(); // Force UI refresh immediately
+        }
+    }
+    else if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
+    {
+        if (_backpack && _backpack->isVisible())
+        {
+            _backpack->setVisible(false);
+            updateInventoryUI();
+            event->stopPropagation();
+            return;
         }
     }
     
@@ -228,20 +299,7 @@ void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
     if (slot != -1 && _inventory)
     {
         _inventory->setSelectedSlot(slot);
-        updateInventoryUI();
-    }
-}
-
-void HudLayer::toggleHelp()
-{
-    if (_helpLayer)
-    {
-        _isHelpVisible = !_isHelpVisible;
-        _helpLayer->setVisible(_isHelpVisible);
-        
-        if (_isHelpVisible) {
-            // Pause game potentially? For now just overlay.
-        }
+        updateSelectorPosition();
     }
 }
 
@@ -263,7 +321,7 @@ void HudLayer::onScroll(Event* event)
             if (current < 0) current = Inventory::TOOLBAR_SIZE - 1;
         }
         _inventory->setSelectedSlot(current);
-        updateInventoryUI();
+        updateSelectorPosition();
     }
 }
 
@@ -276,6 +334,8 @@ void HudLayer::updateInventoryUI()
     _itemSprites.clear();
     for (auto lbl : _quantityLabels) lbl->removeFromParent();
     _quantityLabels.clear();
+    for (auto bar : _waterBars) bar->removeFromParent();
+    _waterBars.clear();
 
     Size toolbarSize = _toolbar->getContentSize();
     float scale = _toolbar->getScale();
@@ -283,9 +343,6 @@ void HudLayer::updateInventoryUI()
     
     // 获取 toolbar 原始尺寸
     Size originalSize = _toolbar->getContentSize();
-    
-    // Pixel constants
-    // These constants are defined in the header file, no need to redefine
     
     // 计算缩放后的值
     float scaledLeftMargin = RAW_LEFT_MARGIN * scale;
@@ -295,9 +352,6 @@ void HudLayer::updateInventoryUI()
     float scaledGap = RAW_GAP * scale;
     
     // Toolbar 在屏幕上的左下角坐标
-    // Anchor(0.5, 0.0), Pos(cx, y)
-    // Left = Pos.x - (ContentW * Scale * 0.5)
-    // Bottom = Pos.y
     float toolbarScreenLeft = toolbarPos.x - (originalSize.width * scale * 0.5f);
     float toolbarScreenBottom = toolbarPos.y;
     
@@ -308,7 +362,7 @@ void HudLayer::updateInventoryUI()
     if (_debugBounds)
     {
         _debugBounds->clear();
-        if (HomeScene::sDebugMode)
+        if (GameScene::sDebugMode)
         {
             float w = originalSize.width * scale;
             float h = originalSize.height * scale;
@@ -321,8 +375,6 @@ void HudLayer::updateInventoryUI()
 
 
     // 第一个格子的中心点
-    // CenterX = Left + Margin + CellW/2
-    // CenterY = Bottom + Margin + CellH/2
     float startCenterX = toolbarScreenLeft + scaledLeftMargin + (scaledCellWidth * 0.5f);
     float startCenterY = toolbarScreenBottom + scaledBottomMargin + (scaledCellHeight * 0.5f);
     
@@ -353,8 +405,36 @@ void HudLayer::updateInventoryUI()
                 float cy = startCenterY;
                 
                 sprite->setPosition(Vec2(cx, cy));
-                addChild(sprite, 10); // Above toolbar
+                addChild(sprite, 12); // Above toolbar and selector 
                 _itemSprites.push_back(sprite);
+
+                // Water Bar for Watering Can
+                if (item.type == ItemType::Tool && item.toolType == ToolType::WateringCan)
+                {
+                    float barWidth = scaledCellWidth * 0.8f;
+                    float barHeight = 6.0f * scale; 
+                    float x = startCenterX + (i * stepX);
+                    float y = startCenterY - (scaledCellHeight * 0.4f);
+
+                    auto bar = DrawNode::create();
+                    
+                    Vec2 bgOrigin(x - barWidth/2, y);
+                    Vec2 bgDest(x + barWidth/2, y + barHeight);
+                    bar->drawSolidRect(bgOrigin, bgDest, Color4F(0.2f, 0.2f, 0.2f, 1.0f));
+                    
+                    float pct = item.currentWater / item.maxWater;
+                    if (pct < 0) pct = 0;
+                    if (pct > 1) pct = 1;
+                    
+                    if (pct > 0)
+                    {
+                        Vec2 fillDest(x - barWidth/2 + (barWidth * pct), y + barHeight);
+                        bar->drawSolidRect(bgOrigin, fillDest, Color4F(0.0f, 0.5f, 1.0f, 1.0f));
+                    }
+                    
+                    addChild(bar, 20);
+                    _waterBars.push_back(bar);
+                }
 
                 // Quantity
                 if (item.maxStack > 1 && item.quantity > 1)
@@ -366,7 +446,7 @@ void HudLayer::updateInventoryUI()
                         label->enableBold(); // Make text bold
                         label->setAnchorPoint(Vec2(1.0f, 0.0f));
                         label->setPosition(Vec2(cx + scaledCellWidth * 0.48f, cy - scaledCellHeight * 0.55f));
-                        addChild(label, 11);
+                        addChild(label, 13);
                         _quantityLabels.push_back(label);
                     }
                 }
@@ -382,32 +462,99 @@ void HudLayer::updateInventoryUI()
         float cy = startCenterY;
         _selector->setPosition(Vec2(cx, cy));
         
-        // Scale selector to fit slot size
         Size selSize = _selector->getContentSize();
         if (selSize.width > 0) {
-            // Make selector slightly larger than cell
             float targetSelW = scaledCellWidth * 1.1f;
             _selector->setScale(targetSelW / selSize.width);
         }
     }
 
-    // ---------------------------------------------------------
-    // RENDER BACKPACK ITEMS (if visible)
-    // ---------------------------------------------------------
+    // RENDER BACKPACK ITEMS
     if (_backpack && _backpack->isVisible())
     {       
+        // Pause Game Clock
+        if (_clock) _clock->pause();
+
+        // Show Dark Overlay
+        if (_darkOverlay)
+        {
+            _darkOverlay->setVisible(true);
+            _darkOverlay->setContentSize(Director::getInstance()->getVisibleSize());
+            _darkOverlay->setPosition(Director::getInstance()->getVisibleOrigin());
+        }
+
+        // Blinking Time Label to indicate Pause
+        if (_timeLabel)
+        {
+            _timeLabel->stopAllActions();
+            auto tintGray = TintTo::create(1.0f, 150, 150, 150); // Slower blink (0.5s -> 1.0s)
+            auto tintNormal = TintTo::create(1.0f, 255, 255, 255);
+            auto seq = Sequence::create(tintGray, tintNormal, nullptr);
+            _timeLabel->runAction(RepeatForever::create(seq));
+        }
+
         Size bpSize = _backpack->getContentSize();
         float bpScale = _backpack->getScale();
         Vec2 bpPos = _backpack->getPosition();
-        // bpPos is Center (0.5, 0.5) usually? 
-        // In init: _backpack->setPosition(Vec2(visibleSize.width * 0.5f + origin.x, visibleSize.height * 0.5f + origin.y));
-        // Yes, center.
         
         float bpLeft = bpPos.x - (bpSize.width * bpScale * 0.5f);
         float bpBottom = bpPos.y - (bpSize.height * bpScale * 0.5f);
+
+        // Update Info Area 
+        float infoLeft = bpLeft + (INFO_AREA_LEFT * bpScale);
+        float infoBottom = bpBottom + (INFO_AREA_BOTTOM * bpScale);
+        float infoW = INFO_AREA_W * bpScale;
+        float infoH = INFO_AREA_H * bpScale;
+        float infoCenterX = infoLeft + infoW * 0.5f;
+        float infoCenterY = infoBottom + infoH * 0.5f; // Center Y of the info box
+        
+        // Distribute vertically
+        float lineSpacing = 50.0f * bpScale; 
+        
+        float line1Y = infoCenterY + lineSpacing;
+        float line2Y = infoCenterY;
+        float line3Y = infoCenterY - lineSpacing;
+
+        if (_bpCurrentGoldLabel && _wallet)
+        {
+            _bpCurrentGoldLabel->setVisible(true);
+            _bpCurrentGoldLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+            _bpCurrentGoldLabel->setPosition(Vec2(infoCenterX, line1Y));
+            
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "Current Funds: %d g", _wallet->getMoney());
+            _bpCurrentGoldLabel->setString(buf);
+        }
+
+        if (_bpTotalEarningsLabel && _wallet)
+        {
+            _bpTotalEarningsLabel->setVisible(true);
+            _bpTotalEarningsLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+            _bpTotalEarningsLabel->setPosition(Vec2(infoCenterX, line2Y));
+            
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "Total Earnings: %d g", _wallet->getMoney()); 
+            _bpTotalEarningsLabel->setString(buf);
+        }
+
+        if (_bpDateLabel && _clock)
+        {
+            _bpDateLabel->setVisible(true);
+            _bpDateLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+            _bpDateLabel->setPosition(Vec2(infoCenterX, line3Y));
+            
+            const char* s =
+                (_clock->getSeason() == GameClock::Season::Spring) ? "Spring" :
+                (_clock->getSeason() == GameClock::Season::Summer) ? "Summer" :
+                (_clock->getSeason() == GameClock::Season::Fall)   ? "Fall" : "Winter";
+            
+            char buf[128];
+            std::snprintf(buf, sizeof(buf), "Year %d, %s, Day %d", _clock->getYear(), s, _clock->getDay());
+            _bpDateLabel->setString(buf);
+        }
         
         // Debug Drawing for Backpack Hit Areas
-        if (_debugBounds && HomeScene::sDebugMode)
+        if (_debugBounds && GameScene::sDebugMode)
         {
             // Draw Close Button
             float cbLeft = bpLeft + (CLOSE_BTN_LEFT * bpScale);
@@ -505,6 +652,95 @@ void HudLayer::updateInventoryUI()
                 }
             }
         }
+    }
+    else
+    {
+        // Backpack is CLOSED
+        
+        // Resume Game Clock
+        if (_clock) _clock->resume();
+
+        // Hide Dark Overlay
+        if (_darkOverlay)
+        {
+            _darkOverlay->setVisible(false);
+        }
+
+        // Stop blinking time
+        if (_timeLabel)
+        {
+             _timeLabel->stopAllActions();
+             _timeLabel->setColor(Color3B::WHITE); // Reset to white
+        }
+
+        // Hide Backpack specific labels
+        if (_bpCurrentGoldLabel) _bpCurrentGoldLabel->setVisible(false);
+        if (_bpTotalEarningsLabel) _bpTotalEarningsLabel->setVisible(false);
+        if (_bpDateLabel) _bpDateLabel->setVisible(false);
+        
+        // Ensure standard HUD labels are visible and in place
+        auto visibleSize = Director::getInstance()->getVisibleSize();
+        Vec2 origin = Director::getInstance()->getVisibleOrigin();
+        float margin = 10.0f;
+        Vec2 topRight(origin.x + visibleSize.width - margin, origin.y + visibleSize.height - margin);
+
+        if (_timeLabel)
+        {
+            _timeLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
+            _timeLabel->setPosition(topRight);
+            _timeLabel->setVisible(true);
+        }
+        if (_dateLabel)
+        {
+            _dateLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
+            _dateLabel->setPosition(Vec2(topRight.x, topRight.y - 28.0f));
+            _dateLabel->setVisible(true);
+        }
+        if (_weekLabel)
+        {
+            _weekLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
+            _weekLabel->setPosition(Vec2(topRight.x, topRight.y - 56.0f));
+            _weekLabel->setVisible(true);
+        }
+        if (_moneyLabel)
+        {
+            _moneyLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
+            _moneyLabel->setPosition(Vec2(topRight.x, topRight.y - 84.0f));
+            _moneyLabel->setColor(Color3B::WHITE);
+            _moneyLabel->setVisible(true);
+        }
+    }
+}
+
+void HudLayer::updateSelectorPosition()
+{
+    if (!_inventory || !_toolbar || !_selector) return;
+
+    float scale = _toolbar->getScale();
+    Size originalSize = _toolbar->getContentSize();
+    Vec2 toolbarPos = _toolbar->getPosition();
+
+    float toolbarScreenLeft = toolbarPos.x - (originalSize.width * scale * 0.5f);
+    float toolbarScreenBottom = toolbarPos.y;
+
+    float scaledLeftMargin = RAW_LEFT_MARGIN * scale;
+    float scaledBottomMargin = RAW_BOTTOM_MARGIN * scale;
+    float scaledCellWidth = RAW_CELL_WIDTH * scale;
+    float scaledGap = RAW_GAP * scale;
+
+    float startCenterX = toolbarScreenLeft + scaledLeftMargin + (scaledCellWidth * 0.5f);
+    float startCenterY = toolbarScreenBottom + scaledBottomMargin + (RAW_CELL_HEIGHT * scale * 0.5f);
+    float stepX = scaledCellWidth + scaledGap;
+
+    int sel = _inventory->getSelectedSlot();
+    float cx = startCenterX + (sel * stepX);
+    float cy = startCenterY;
+    _selector->setPosition(Vec2(cx, cy));
+
+    Size selSize = _selector->getContentSize();
+    if (selSize.width > 0) {
+        float targetSelW = scaledCellWidth * 1.1f;
+        _selector->setScale(targetSelW / selSize.width);
     }
 }
 
@@ -732,8 +968,12 @@ void HudLayer::onMouseUp(Event* event)
         // Check Trash Can
         if (isPointInTrashCan(pos))
         {
-            _inventory->removeItem(_dragSourceIndex, 9999); // Remove all
-            actionTaken = true;
+            const auto& item = _inventory->getItem(_dragSourceIndex);
+            if (item.type != ItemType::Tool)
+            {
+                _inventory->removeItem(_dragSourceIndex, 9999); // Remove all
+                actionTaken = true;
+            }
         }
         else
         {
@@ -892,8 +1132,12 @@ void HudLayer::onTouchEnded(Touch* touch, Event* event)
         // 检测是否扔进垃圾桶
         if (isPointInTrashCan(pos))
         {
-            _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
-            actionTaken = true;
+            const auto& item = _inventory->getItem(_dragSourceIndex);
+            if (item.type != ItemType::Tool)
+            {
+                _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
+                actionTaken = true;
+            }
         }
         else
         {
@@ -960,4 +1204,89 @@ void HudLayer::refresh()
         std::snprintf(buf, sizeof(buf), "Gold: %d", _wallet->getMoney());
         _moneyLabel->setString(buf);
     }
+}
+
+void HudLayer::removeNotification(Label* label)
+{
+    auto it = std::find(_activeNotifications.begin(), _activeNotifications.end(), label);
+    if (it != _activeNotifications.end())
+    {
+        _activeNotifications.erase(it);
+    }
+}
+
+void HudLayer::showNotification(const std::string& message)
+{
+    auto visibleSize = Director::getInstance()->getVisibleSize();
+    Vec2 origin = Director::getInstance()->getVisibleOrigin();
+
+    // Shift existing notifications up to prevent overlap
+    // Move up by 30 pixels (approx height of text)
+    for (auto node : _activeNotifications)
+    {
+        node->runAction(MoveBy::create(0.2f, Vec2(0, 30)));
+    }
+
+    auto label = Label::createWithSystemFont(message, "Arial", 24);
+    if (!label) return;
+
+    label->setPosition(Vec2(origin.x + 20, origin.y + 100)); // Bottom left, slightly up
+    label->setAnchorPoint(Vec2(0, 0.5f));
+    label->setColor(Color3B::YELLOW);
+    label->enableOutline(Color4B::BLACK, 2);
+    this->addChild(label, 3000); // High Z-order
+
+    _activeNotifications.push_back(label);
+
+    // Animation: FadeIn -> Delay -> MoveUp & FadeOut -> Remove
+    label->setOpacity(0);
+    auto fadeIn = FadeIn::create(0.5f);
+    auto delay = DelayTime::create(2.0f);
+    auto moveUp = MoveBy::create(1.0f, Vec2(0, 50));
+    auto fadeOut = FadeOut::create(1.0f);
+    auto spawn = Spawn::create(moveUp, fadeOut, nullptr);
+    
+    auto cleanup = CallFunc::create([this, label]() {
+        this->removeNotification(label);
+    });
+    auto remove = RemoveSelf::create();
+    
+    label->runAction(Sequence::create(fadeIn, delay, spawn, cleanup, remove, nullptr));
+}
+
+void HudLayer::updateEnergyUI()
+{
+    if (!_energyBarFill || !_energyLabel) return;
+
+    auto es = EnergySystem::getInstance();
+    float current = es->getCurrentEnergy();
+    float max = es->getMaxEnergy();
+    float pct = current / max;
+    if (pct < 0.0f) pct = 0.0f;
+    if (pct > 1.0f) pct = 1.0f;
+
+    _energyBarFill->clear();
+    
+    // Background size is 20x150. Fill height = 150 * pct.
+    float barWidth = 20.0f;
+    float barHeight = 150.0f;
+    
+    Color4F color = Color4F::GREEN;
+    if (pct < 0.2f) {
+        color = Color4F::RED;
+        if (!_lowEnergyWarned) {
+            showNotification("You're starting to feel exhausted...");
+            _lowEnergyWarned = true;
+        }
+    }
+    else {
+        if (pct < 0.5f) color = Color4F::YELLOW;
+        _lowEnergyWarned = false;
+    }
+    
+    _energyBarFill->drawSolidRect(Vec2(0, 0), Vec2(barWidth, barHeight * pct), color);
+
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%d", (int)current);
+    _energyLabel->setString(buf);
 }

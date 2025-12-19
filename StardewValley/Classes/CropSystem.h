@@ -7,19 +7,51 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 
 enum class CropType
 {
     Parsnip,
     Cauliflower,
-    Potato
+    Potato,
+    Blueberry,
+    Melon,
+    Starfruit,
+    Pumpkin,
+    Eggplant,
+    Yam,
+    Powdermelon,
+    Fish,
+    Anchovy,
+    Bream,
+    LargemouthBass,
+    // Spring Forage
+    Daffodil,
+    Leek,
+    WildHorseradish,
+    // Summer Forage
+    Grape,
+    SpiceBerry,
+    SweetPea,
+    // Fall Forage
+    Blackberry,
+    CommonMushroom,
+    WildPlum,
+    // Winter Forage
+    CrystalFruit,
+    SnowYam,
+    WinterRoot
 };
 
 struct CropData
 {
     int growthDays;
     int sellPrice;
+    int xp; // Added XP field
+    int regrowDays; // 0 if no regrowth
+    int baseYield; // default 1
+    float extraYieldChance; // chance for +1 yield
     std::string seedlingSprite;
     std::vector<std::string> sproutSprites;
     std::string matureSprite;
@@ -29,6 +61,7 @@ struct CropData
     // For Inventory
     std::string itemName;
     std::string itemIcon;
+    int energyRestore; // Energy restored when consumed
 };
 
 struct CropInstance
@@ -50,7 +83,7 @@ struct TileSlot
 class GameClock;
 class Wallet;
 class Inventory;
-class Basket;
+// class Basket;
 
 class CropSystem
 {
@@ -58,8 +91,8 @@ public:
     static CropSystem* getInstance();
 
     void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory);
-    void setBasket(Basket* basket);
-    int sellBasket(); // Returns amount sold
+    void setMap(cocos2d::TMXTiledMap* map); // New method to handle map switching
+    // void setBasket(Basket* basket);
     void setSelectedCrop(CropType type);
     void tillTile(const cocos2d::Vec2& tileIndex);
     bool plantSelected(const cocos2d::Vec2& tileIndex);
@@ -70,6 +103,7 @@ public:
     
     // Check methods for UI feedback
     bool canTill(const cocos2d::Vec2& tileIndex) const;
+    bool isOccupied(const cocos2d::Vec2& tileIndex) const;
     bool canPlant(const cocos2d::Vec2& tileIndex, CropType type) const;
     bool canWater(const cocos2d::Vec2& tileIndex) const;
     bool canHarvest(const cocos2d::Vec2& tileIndex) const;
@@ -78,6 +112,8 @@ public:
 
     void updateDailyGrowth();
     int getSellPrice(CropType type) const;
+    const CropData* getCropData(CropType type) const;
+    const CropInstance* getCropAt(const cocos2d::Vec2& tileIndex) const;
 
 private:
     static CropSystem* sInstance;
@@ -88,15 +124,18 @@ private:
     GameClock* _clock;
     Wallet* _wallet;
     Inventory* _inventory;
-    Basket* _basket;
+    // Basket* _basket;
     CropType _selected;
     int _lastProcessedDay;
     int _lastProcessedSeason;
     std::vector<std::vector<TileSlot>> _tiles;
     std::unordered_map<CropType, CropData> _data;
+    std::unordered_set<int> _activeTileIndices;
 
     void loadCropData();
     void ensureGridSize();
+    void markActive(const cocos2d::Vec2& tileIndex);
+    void unmarkActive(const cocos2d::Vec2& tileIndex);
     void placeOrUpdateSprite(const cocos2d::Vec2& tileIndex, CropInstance* inst);
     void fitSpriteToTile(cocos2d::Sprite* sprite);
     cocos2d::Vec2 tileBottomCenterWorld(const cocos2d::Vec2& tileIndex) const;

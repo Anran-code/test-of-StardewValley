@@ -48,48 +48,50 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
         if (_wallet && _wallet->spendMoney(50)) { this->refreshBasketView(); return true; }
         return false;
     }});
-    _items.push_back({ "Hoe", 250, 2, "Toolbar.png", [this]() -> bool {
+    _items.push_back({ "Hoe", 250, 2, "tools/hoe.png", [this]() -> bool {
         if (_wallet && _wallet->spendMoney(250)) { this->refreshBasketView(); return true; }
         return false;
     }});
-    _items.push_back({ "Axe", 250, 2, "Toolbar.png", [this]() -> bool {
+    _items.push_back({ "Axe", 250, 2, "tools/axe.png", [this]() -> bool {
         if (_wallet && _wallet->spendMoney(250)) { this->refreshBasketView(); return true; }
         return false;
     }});
-    _items.push_back({ "Pickaxe", 250, 2, "Toolbar.png", [this]() -> bool {
+    _items.push_back({ "Pickaxe", 250, 2, "tools/pickaxe.png", [this]() -> bool {
         if (_wallet && _wallet->spendMoney(250)) { this->refreshBasketView(); return true; }
         return false;
     }});
-    _items.push_back({ "Watering Can", 200, 2, "Toolbar.png", [this]() -> bool {
+    _items.push_back({ "Watering Can", 200, 2, "tools/watering_Can.png", [this]() -> bool {
         if (_wallet && _wallet->spendMoney(200)) { this->refreshBasketView(); return true; }
+        return false;
+    }});
+    _items.push_back({ "Fishing Rod", 500, 1, "tools/Pole.png", [this]() -> bool {
+        if (_wallet && _wallet->spendMoney(500)) { this->refreshBasketView(); return true; }
         return false;
     }});
 
     float rowY = topY;
-    float rowGap = 90.0f;
+    float rowGap = 55.0f;
     Vector<MenuItem*> menuItems;
 
     for (size_t i = 0; i < _items.size(); ++i)
     {
         const auto& it = _items[i];
-        auto& currentItem = _items[i];
-        auto icon = MenuItemImage::create(it.image, it.image, [this, i, &currentItem](Ref*) {
-            if (currentItem.stock <= 0) return;
-            bool ok = currentItem.onBuy ? currentItem.onBuy() : false;
+        auto icon = MenuItemImage::create(it.image, it.image, [this, i](Ref* sender) {
+            auto& item = _items[i];
+            if (item.stock <= 0) return;
+            bool ok = item.onBuy ? item.onBuy() : false;
             if (!ok) return;
-            if (currentItem.stock > 0) currentItem.stock -= 1;
+            if (item.stock > 0) item.stock -= 1;
             if (i < _itemLabels.size() && _itemLabels[i])
             {
                 char buf2[128];
-                std::snprintf(buf2, sizeof(buf2), "%s  Price: %d  Stock: %d",
-                    currentItem.name.c_str(), currentItem.price, currentItem.stock);
+                std::snprintf(buf2, sizeof(buf2), "%s  Price: %d  Stock: %d", item.name.c_str(), item.price, item.stock);
                 _itemLabels[i]->setString(buf2);
             }
-            
-            if (currentItem.stock <= 0 && currentItem.icon)
+            if (item.stock <= 0 && item.icon)
             {
-                currentItem.icon->setEnabled(false);
-                currentItem.icon->setColor(Color3B(150, 150, 150));
+                item.icon->setEnabled(false);
+                item.icon->setColor(Color3B(150, 150, 150));
             }
         });
         if (icon)
@@ -97,7 +99,7 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
             icon->setPosition(Vec2(leftPanelX - 100.0f, rowY));
             float scale = 0.8f;
             icon->setScale(scale);
-            currentItem.icon = icon;
+            _items[i].icon = icon;
             menuItems.pushBack(icon);
         }
         char buf[128];
@@ -130,13 +132,6 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
         _basketTitle->setPosition(Vec2(rightPanelX, topY + 20.0f));
         addChild(_basketTitle, 1);
     }
-    _basketIcon = Sprite::create("CloseSelected.png");
-    if (_basketIcon)
-    {
-        _basketIcon->setPosition(Vec2(rightPanelX - 140.0f, topY));
-        _basketIcon->setScale(0.8f);
-        addChild(_basketIcon, 1);
-    }
 
     _moneyLabel = Label::createWithSystemFont("Money: 0", "Arial", 28);
     if (_moneyLabel)
@@ -166,7 +161,7 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
     MenuItemLabel* sellItem = nullptr;
     if (sellAllLabel)
     {
-        sellItem = MenuItemLabel::create(sellAllLabel, [this](Ref*) {
+        sellItem = MenuItemLabel::create(sellAllLabel, [this](Ref* sender) {
             if (!_basket || !_crops || !_wallet) return;
             int total = _basket->calculateTotalSellValue(_crops);
             if (total > 0)
@@ -202,6 +197,14 @@ void ShopLayer::refreshBasketView()
         case CropType::Parsnip: name = "Parsnip"; break;
         case CropType::Cauliflower: name = "Cauliflower"; break;
         case CropType::Potato: name = "Potato"; break;
+        case CropType::Blueberry: name = "Blueberry"; break;
+        case CropType::Melon: name = "Melon"; break;
+        case CropType::Starfruit: name = "Starfruit"; break;
+        case CropType::Pumpkin: name = "Pumpkin"; break;
+        case CropType::Eggplant: name = "Eggplant"; break;
+        case CropType::Yam: name = "Yam"; break;
+        case CropType::Powdermelon: name = "Powdermelon"; break;
+        case CropType::Fish: name = "Fish"; break;
         }
         char buf[128];
         std::snprintf(buf, sizeof(buf), "%s x%d", name.c_str(), kv.second);

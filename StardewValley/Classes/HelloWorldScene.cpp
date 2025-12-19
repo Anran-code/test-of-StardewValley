@@ -24,6 +24,7 @@
 
 #include "HelloWorldScene.h"
 #include "SimpleAudioEngine.h"
+#include "GlobalGameData.h"
 
 USING_NS_CC;
 
@@ -79,6 +80,21 @@ bool HelloWorld::init()
     auto menu = Menu::create(closeItem, NULL);
     menu->setPosition(Vec2::ZERO);
     this->addChild(menu, 1);
+
+    // Play Menu BGM
+    std::string menuBgm = "bgm/Menu.mp3";
+    if (g_CurrentBgmPath != menuBgm)
+    {
+        CocosDenshion::SimpleAudioEngine::getInstance()->playBackgroundMusic(menuBgm.c_str(), true);
+        g_CurrentBgmPath = menuBgm;
+    }
+    else
+    {
+        if (!CocosDenshion::SimpleAudioEngine::getInstance()->isBackgroundMusicPlaying())
+        {
+            CocosDenshion::SimpleAudioEngine::getInstance()->playBackgroundMusic(menuBgm.c_str(), true);
+        }
+    }
 
     /////////////////////////////
     // 3. add your codes below...

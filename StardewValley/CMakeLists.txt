@@ -51,25 +51,38 @@ list(APPEND GAME_SOURCE
      Classes/AppDelegate.cpp
      Classes/HelloWorldScene.cpp
      Classes/Menu.cpp
-     Classes/HomeScene.cpp
+     Classes/GameScene.cpp
      Classes/Player.cpp
      Classes/GameClock.cpp
      Classes/Wallet.cpp
      Classes/HudLayer.cpp
      Classes/Basket.cpp
      Classes/ShopLayer.cpp
+     Classes/CropSystem.cpp
+     Classes/EnergySystem.cpp
+     Classes/ExperienceSystem.cpp
+     Classes/ForageSystem.cpp
+     Classes/Inventory.cpp
+     Classes/PauseLayer.cpp
      )
 list(APPEND GAME_HEADER
      Classes/AppDelegate.h
      Classes/HelloWorldScene.h
      Classes/Menu.h
-     Classes/HomeScene.h
+     Classes/GameScene.h
      Classes/Player.h
      Classes/GameClock.h
      Classes/Wallet.h
      Classes/HudLayer.h
      Classes/Basket.h
      Classes/ShopLayer.h
+     Classes/CropSystem.h
+     Classes/EnergySystem.h
+     Classes/ExperienceSystem.h
+     Classes/ForageSystem.h
+     Classes/Inventory.h
+     Classes/Item.h
+     Classes/PauseLayer.h
      )
 
 if(ANDROID)

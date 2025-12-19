@@ -1,5 +1,8 @@
 #include "Menu.h"
-#include"HomeScene.h"
+#include "GameScene.h"
+#include "SimpleAudioEngine.h"
+#include "GlobalGameData.h"
+
 USING_NS_CC;
 
 Scene* MenuScene::createScene()
@@ -20,6 +23,21 @@ bool MenuScene::init()
     if (!Scene::init())
     {
         return false;
+    }
+
+    // Play Menu BGM
+    std::string menuBgm = "bgm/Menu.mp3";
+    if (g_CurrentBgmPath != menuBgm)
+    {
+        CocosDenshion::SimpleAudioEngine::getInstance()->playBackgroundMusic(menuBgm.c_str(), true);
+        g_CurrentBgmPath = menuBgm;
+    }
+    else
+    {
+        if (!CocosDenshion::SimpleAudioEngine::getInstance()->isBackgroundMusicPlaying())
+        {
+            CocosDenshion::SimpleAudioEngine::getInstance()->playBackgroundMusic(menuBgm.c_str(), true);
+        }
     }
 
     auto visibleSize = Director::getInstance()->getVisibleSize();
@@ -61,7 +79,7 @@ bool MenuScene::init()
         float x1 = origin.x + 0.7 * visibleSize.width - closeItem->getContentSize().width / 2;
         float y1 = origin.y + 0.15 * visibleSize.height + closeItem->getContentSize().height / 2;
         closeItem->setPosition(Vec2(x1, y1));
-        closeItem->setScale(2.0);
+        closeItem->setScale(1.5);
     }
     auto newItem = MenuItemImage::create(
         "ui/btn_new.png",
@@ -78,7 +96,7 @@ bool MenuScene::init()
         float x2 = origin.x + 0.4 * visibleSize.width - newItem->getContentSize().width / 2;
         float y2 = origin.y + 0.15 * visibleSize.height + newItem->getContentSize().height / 2;
         newItem->setPosition(Vec2(x2, y2));
-        newItem->setScale(2.0);
+        newItem->setScale(1.5);
     }
     auto menu1 = Menu::create(closeItem, NULL);
     menu1->setPosition(Vec2::ZERO);
@@ -99,7 +117,7 @@ void MenuScene::menuNewCallback(Ref* pSender)
 {
     // 1. ���� HomeScene ����
     // HomeScene::createScene() ���� HomeScene.h �ж���ľ�̬����
-    auto scene = HomeScene::createScene();
+    auto scene = GameScene::createScene();
 
     // 2. ʹ�� Director �л�����
     // ʹ�� replaceScene �滻��ǰ���еĳ���

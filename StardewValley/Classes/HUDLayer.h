@@ -12,12 +12,17 @@ class Inventory; // Forward decl
 class HudLayer : public cocos2d::Layer
 {
 public:
+    HudLayer();
+    virtual ~HudLayer();
+
     static HudLayer* create(GameClock* clock, Wallet* wallet, Inventory* inventory);
 
     bool initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inventory);
+    virtual void onExit() override;
 
     void refresh();
     void updateInventoryUI();
+    void updateSelectorPosition();
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onScroll(cocos2d::Event* event); // Mouse scroll for toolbar selection
@@ -29,6 +34,9 @@ public:
     void onTouchCancelled(cocos2d::Touch* touch, cocos2d::Event* event);
     void onMouseMove(cocos2d::Event* event); // Added for drag
 
+    // Energy System UI
+    void updateEnergyUI();
+
     CREATE_FUNC(HudLayer);
 
 public:
@@ -38,7 +46,15 @@ public:
     bool isPointInTrashCan(const cocos2d::Vec2& p);
     bool isConsumingClick() const { return _consumingClick; }
 
+    // Notification System
+    void showNotification(const std::string& message);
+
 private:
+    void removeNotification(cocos2d::Label* label);
+    std::vector<cocos2d::Label*> _activeNotifications;
+
+    bool _lowEnergyWarned;
+
     cocos2d::EventListenerMouse* _mouseListener;
     cocos2d::EventListenerTouchOneByOne* _touchListener;
     cocos2d::DrawNode* _debugBounds;
@@ -48,6 +64,7 @@ private:
 
     cocos2d::Sprite* _toolbar;
     cocos2d::Sprite* _backpack;
+    cocos2d::LayerColor* _darkOverlay; // Dim background for backpack
     cocos2d::Sprite* _selector; // Highlight for selected tool
 
     // Stored layout data for mouse hit testing
@@ -84,6 +101,12 @@ private:
     const float TRASH_LEFT = 990.0f;
     const float TRASH_BOTTOM = 229.0f;
 
+    // Info Area (Money & Time)
+    const float INFO_AREA_W = 810.0f;
+    const float INFO_AREA_H = 277.0f;
+    const float INFO_AREA_LEFT = 127.0f;
+    const float INFO_AREA_BOTTOM = 80.0f;
+
     // Backpack Drag State
     bool _isDragging = false;
     int _dragSourceIndex = -1;
@@ -94,13 +117,20 @@ private:
     cocos2d::Label* _dateLabel;
     cocos2d::Label* _weekLabel;
     cocos2d::Label* _moneyLabel;
+    
+    // Backpack Info Labels
+    cocos2d::Label* _bpCurrentGoldLabel;
+    cocos2d::Label* _bpTotalEarningsLabel;
+    cocos2d::Label* _bpDateLabel;
+
+    // Energy UI
+    cocos2d::DrawNode* _energyBarBackground;
+    cocos2d::DrawNode* _energyBarFill;
+    cocos2d::Label* _energyLabel;
 
     std::vector<cocos2d::Sprite*> _itemSprites; // Sprites for items in slots
     std::vector<cocos2d::Label*> _quantityLabels; // Labels for quantities
-
-    // Help Page
-    cocos2d::LayerColor* _helpLayer = nullptr;
-    bool _isHelpVisible = false;
+    std::vector<cocos2d::DrawNode*> _waterBars; // Water bars for watering cans
 };
 
 #endif
