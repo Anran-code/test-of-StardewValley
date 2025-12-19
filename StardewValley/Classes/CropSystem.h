@@ -15,6 +15,13 @@ enum class CropType
     Parsnip,
     Cauliflower,
     Potato,
+    Blueberry,
+    Melon,
+    Starfruit,
+    Pumpkin,
+    Eggplant,
+    Yam,
+    Powdermelon,
     Fish,
     Anchovy,
     Bream,
@@ -26,6 +33,9 @@ struct CropData
     int growthDays;
     int sellPrice;
     int xp; // Added XP field
+    int regrowDays; // 0 if no regrowth
+    int baseYield; // default 1
+    float extraYieldChance; // chance for +1 yield
     std::string seedlingSprite;
     std::vector<std::string> sproutSprites;
     std::string matureSprite;

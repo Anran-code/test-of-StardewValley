@@ -198,11 +198,11 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
     auto* inst = slot.crop.get();
     const auto& d = _data[inst->type]; // Safe because canHarvest checked it
 
-    int yieldCount = 1;
-    if (inst->type == CropType::Potato)
+    int yieldCount = d.baseYield;
+    if (d.extraYieldChance > 0.0f)
     {
         float r = RandomHelper::random_real<float>(0.0f, 1.0f);
-        if (r < 0.25f) yieldCount += 1;
+        if (r < d.extraYieldChance) yieldCount += 1;
     }
     
     if (_inventory)
@@ -215,12 +215,53 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         ExperienceSystem::getInstance()->addExperience(SkillType::Farming, d.xp);
     }
     
-    if (inst->sprite)
+    // Regrowth logic
+    if (d.regrowDays > 0)
     {
-        inst->sprite->removeFromParent();
+        inst->daysWatered = d.growthDays - d.regrowDays;
+        inst->stageIndex = -1; // Force sprite update
+        inst->withered = false;
+        
+        // Update sprite immediately to reflect harvested state
+        // We can call updateDailyGrowth logic partially or just leave it for next update?
+        // Better to update sprite now so it doesn't look like mature crop until next day
+        // We reuse the logic from updateDailyGrowth or just simplified version
+        
+        int newStage = 0;
+        for (int i = 0; i < (int)d.sproutThresholdDays.size(); ++i)
+        {
+            if (inst->daysWatered >= d.sproutThresholdDays[i]) newStage = i + 1;
+        }
+        // It won't be mature (>= growthDays)
+        
+        inst->stageIndex = newStage;
+        if (inst->sprite)
+        {
+            std::string path;
+            if (newStage == 0) path = d.seedlingSprite;
+            else if (newStage <= (int)d.sproutSprites.size()) path = d.sproutSprites[newStage - 1];
+            else path = d.matureSprite; // Should not happen if regrowDays > 0 properly
+            
+            inst->sprite->setTexture(path);
+            fitSpriteToTile(inst->sprite);
+            placeOrUpdateSprite(tileIndex, inst);
+        }
+        
+        // Crop stays in slot
+        slot.watered = false; // Reset watered state? usually yes.
+        unmarkActive(tileIndex); // Unmark? No, it needs to continue growing.
+        markActive(tileIndex); // Ensure it's active
     }
-    slot.crop.reset();
-    unmarkActive(tileIndex);
+    else
+    {
+        if (inst->sprite)
+        {
+            inst->sprite->removeFromParent();
+        }
+        slot.crop.reset();
+        unmarkActive(tileIndex);
+    }
+    
     return true;
 }
 
@@ -432,47 +473,169 @@ void CropSystem::updateDailyGrowth()
 void CropSystem::loadCropData()
 {
     _data.clear();
+    
+    // --- Spring ---
     CropData parsnip;
     parsnip.growthDays = 4;
     parsnip.sellPrice = 35;
     parsnip.xp = 8;
+    parsnip.regrowDays = 0;
+    parsnip.baseYield = 1;
+    parsnip.extraYieldChance = 0.0f;
     parsnip.seedlingSprite = "Crop/Parsnip_seedling.png";
     parsnip.sproutSprites = { "Crop/Parsnip_sprout_1.png", "Crop/Parsnip_sprout_2.png", "Crop/Parsnip_sprout_3.png" };
     parsnip.matureSprite = "Crop/Parsnip.png";
     parsnip.sproutThresholdDays = { 1, 2, 3 };
     parsnip.itemName = "Parsnip";
     parsnip.itemIcon = "Crop/Parsnip.png";
+    parsnip.allowedSeasons = { GameClock::Season::Spring };
 
     CropData cauliflower;
     cauliflower.growthDays = 12;
     cauliflower.sellPrice = 175;
     cauliflower.xp = 23;
+    cauliflower.regrowDays = 0;
+    cauliflower.baseYield = 1;
+    cauliflower.extraYieldChance = 0.0f;
     cauliflower.seedlingSprite = "Crop/Cauliflower_seedling.png";
     cauliflower.sproutSprites = { "Crop/Cauliflower_sprout_1.png", "Crop/Cauliflower_sprout_2.png", "Crop/Cauliflower_sprout_3.png", "Crop/Cauliflower_sprout_4.png" };
     cauliflower.matureSprite = "Crop/Cauliflower.png";
     cauliflower.sproutThresholdDays = { 3, 6, 9, 11 };
     cauliflower.itemName = "Cauliflower";
     cauliflower.itemIcon = "Crop/Cauliflower.png";
+    cauliflower.allowedSeasons = { GameClock::Season::Spring };
 
     CropData potato;
     potato.growthDays = 6;
     potato.sellPrice = 80;
     potato.xp = 14;
+    potato.regrowDays = 0;
+    potato.baseYield = 1;
+    potato.extraYieldChance = 0.25f;
     potato.seedlingSprite = "Crop/Potato_seedling.png";
     potato.sproutSprites = { "Crop/Potato_sprout_1.png", "Crop/Potato_sprout_2.png", "Crop/Potato_sprout_3.png", "Crop/Potato_sprout_4.png", "Crop/Potato_sprout_5.png" };
     potato.matureSprite = "Crop/Potato.png";
     potato.sproutThresholdDays = { 1, 2, 3, 4, 5 };
     potato.itemName = "Potato";
     potato.itemIcon = "Crop/Potato.png";
-    
-    parsnip.allowedSeasons = { GameClock::Season::Spring };
-    cauliflower.allowedSeasons = { GameClock::Season::Spring };
     potato.allowedSeasons = { GameClock::Season::Spring };
 
+    // --- Summer ---
+    CropData blueberry;
+    blueberry.growthDays = 13;
+    blueberry.sellPrice = 50;
+    blueberry.xp = 14;
+    blueberry.regrowDays = 4;
+    blueberry.baseYield = 3;
+    blueberry.extraYieldChance = 0.0f;
+    blueberry.seedlingSprite = "Crop/Blueberry_seedling.png";
+    blueberry.sproutSprites = { "Crop/Blueberry_sprout_1.png", "Crop/Blueberry_sprout_2.png", "Crop/Blueberry_sprout_3.png", "Crop/Blueberry_sprout_4.png" };
+    blueberry.matureSprite = "Crop/Blueberry.png";
+    blueberry.sproutThresholdDays = { 2, 5, 8, 11 };
+    blueberry.itemName = "Blueberry";
+    blueberry.itemIcon = "Crop/Blueberry.png";
+    blueberry.allowedSeasons = { GameClock::Season::Summer };
+
+    CropData melon;
+    melon.growthDays = 12;
+    melon.sellPrice = 250;
+    melon.xp = 27;
+    melon.regrowDays = 0;
+    melon.baseYield = 1;
+    melon.extraYieldChance = 0.0f;
+    melon.seedlingSprite = "Crop/Melon_seedling.png";
+    melon.sproutSprites = { "Crop/Melon_sprout_1.png", "Crop/Melon_sprout_2.png", "Crop/Melon_sprout_3.png", "Crop/Melon_sprout_4.png" };
+    melon.matureSprite = "Crop/Melon.png";
+    melon.sproutThresholdDays = { 2, 4, 7, 10 };
+    melon.itemName = "Melon";
+    melon.itemIcon = "Crop/Melon.png";
+    melon.allowedSeasons = { GameClock::Season::Summer };
+
+    CropData starfruit;
+    starfruit.growthDays = 13;
+    starfruit.sellPrice = 750;
+    starfruit.xp = 43;
+    starfruit.regrowDays = 0;
+    starfruit.baseYield = 1;
+    starfruit.extraYieldChance = 0.0f;
+    starfruit.seedlingSprite = "Crop/Starfruit_seedling.png";
+    starfruit.sproutSprites = { "Crop/Starfruit_sprout_1.png", "Crop/Starfruit_sprout_2.png", "Crop/Starfruit_sprout_3.png", "Crop/Starfruit_sprout_4.png" };
+    starfruit.matureSprite = "Crop/Starfruit.png";
+    starfruit.sproutThresholdDays = { 2, 5, 8, 11 };
+    starfruit.itemName = "Starfruit";
+    starfruit.itemIcon = "Crop/Starfruit.png";
+    starfruit.allowedSeasons = { GameClock::Season::Summer };
+
+    // --- Fall ---
+    CropData pumpkin;
+    pumpkin.growthDays = 13;
+    pumpkin.sellPrice = 320;
+    pumpkin.xp = 31;
+    pumpkin.regrowDays = 0;
+    pumpkin.baseYield = 1;
+    pumpkin.extraYieldChance = 0.0f;
+    pumpkin.seedlingSprite = "Crop/Pumpkin_seedling.png";
+    pumpkin.sproutSprites = { "Crop/Pumpkin_sprout_1.png", "Crop/Pumpkin_sprout_2.png", "Crop/Pumpkin_sprout_3.png", "Crop/Pumpkin_sprout_4.png" };
+    pumpkin.matureSprite = "Crop/Pumpkin.png";
+    pumpkin.sproutThresholdDays = { 2, 5, 8, 11 };
+    pumpkin.itemName = "Pumpkin";
+    pumpkin.itemIcon = "Crop/Pumpkin.png";
+    pumpkin.allowedSeasons = { GameClock::Season::Fall };
+
+    CropData eggplant;
+    eggplant.growthDays = 5;
+    eggplant.sellPrice = 60;
+    eggplant.xp = 10;
+    eggplant.regrowDays = 5;
+    eggplant.baseYield = 1;
+    eggplant.extraYieldChance = 0.2f;
+    eggplant.seedlingSprite = "Crop/Eggplant_seedling.png";
+    eggplant.sproutSprites = { "Crop/Eggplant_sprout_1.png", "Crop/Eggplant_sprout_2.png", "Crop/Eggplant_sprout_3.png", "Crop/Eggplant_sprout_4.png" };
+    eggplant.matureSprite = "Crop/Eggplant.png";
+    eggplant.sproutThresholdDays = { 1, 2, 3, 4 };
+    eggplant.itemName = "Eggplant";
+    eggplant.itemIcon = "Crop/Eggplant.png";
+    eggplant.allowedSeasons = { GameClock::Season::Fall };
+
+    CropData yam;
+    yam.growthDays = 10;
+    yam.sellPrice = 160;
+    yam.xp = 16;
+    yam.regrowDays = 0;
+    yam.baseYield = 1;
+    yam.extraYieldChance = 0.0f;
+    yam.seedlingSprite = "Crop/Yam_seedling.png";
+    yam.sproutSprites = { "Crop/Yam_sprout_1.png", "Crop/Yam_sprout_2.png", "Crop/Yam_sprout_3.png" };
+    yam.matureSprite = "Crop/Yam.png";
+    yam.sproutThresholdDays = { 2, 5, 8 };
+    yam.itemName = "Yam";
+    yam.itemIcon = "Crop/Yam.png";
+    yam.allowedSeasons = { GameClock::Season::Fall };
+
+    // --- Winter ---
+    CropData powdermelon;
+    powdermelon.growthDays = 7;
+    powdermelon.sellPrice = 60;
+    powdermelon.xp = 15;
+    powdermelon.regrowDays = 0;
+    powdermelon.baseYield = 1;
+    powdermelon.extraYieldChance = 0.0f;
+    powdermelon.seedlingSprite = "Crop/Powdermelon_seedling.png";
+    powdermelon.sproutSprites = { "Crop/Powdermelon_sprout_1.png", "Crop/Powdermelon_sprout_2.png", "Crop/Powdermelon_sprout_3.png", "Crop/Powdermelon_sprout_4.png" };
+    powdermelon.matureSprite = "Crop/Powdermelon.png";
+    powdermelon.sproutThresholdDays = { 1, 3, 5, 6 };
+    powdermelon.itemName = "Powdermelon";
+    powdermelon.itemIcon = "Crop/Powdermelon.png";
+    powdermelon.allowedSeasons = { GameClock::Season::Winter };
+
+    // --- Fish ---
     CropData fish;
     fish.growthDays = 0;
     fish.sellPrice = 50;
     fish.xp = 10;
+    fish.regrowDays = 0;
+    fish.baseYield = 1;
+    fish.extraYieldChance = 0.0f;
     fish.itemName = "Fish";
     fish.itemIcon = "fish.png";
     fish.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
@@ -481,6 +644,9 @@ void CropSystem::loadCropData()
     anchovy.growthDays = 0;
     anchovy.sellPrice = 30;
     anchovy.xp = 13;
+    anchovy.regrowDays = 0;
+    anchovy.baseYield = 1;
+    anchovy.extraYieldChance = 0.0f;
     anchovy.itemName = "Anchovy";
     anchovy.itemIcon = "Anchovy.png";
     anchovy.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Fall };
@@ -489,6 +655,9 @@ void CropSystem::loadCropData()
     bream.growthDays = 0;
     bream.sellPrice = 45;
     bream.xp = 14;
+    bream.regrowDays = 0;
+    bream.baseYield = 1;
+    bream.extraYieldChance = 0.0f;
     bream.itemName = "Bream";
     bream.itemIcon = "Bream.png";
     bream.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
@@ -497,13 +666,24 @@ void CropSystem::loadCropData()
     largemouthBass.growthDays = 0;
     largemouthBass.sellPrice = 100;
     largemouthBass.xp = 19;
+    largemouthBass.regrowDays = 0;
+    largemouthBass.baseYield = 1;
+    largemouthBass.extraYieldChance = 0.0f;
     largemouthBass.itemName = "Largemouth Bass";
     largemouthBass.itemIcon = "Largemouth_Bass.png";
     largemouthBass.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
 
+    // Register
     _data[CropType::Parsnip] = parsnip;
     _data[CropType::Cauliflower] = cauliflower;
     _data[CropType::Potato] = potato;
+    _data[CropType::Blueberry] = blueberry;
+    _data[CropType::Melon] = melon;
+    _data[CropType::Starfruit] = starfruit;
+    _data[CropType::Pumpkin] = pumpkin;
+    _data[CropType::Eggplant] = eggplant;
+    _data[CropType::Yam] = yam;
+    _data[CropType::Powdermelon] = powdermelon;
     _data[CropType::Fish] = fish;
     _data[CropType::Anchovy] = anchovy;
     _data[CropType::Bream] = bream;

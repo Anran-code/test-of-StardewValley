@@ -70,7 +70,7 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
     }});
 
     float rowY = topY;
-    float rowGap = 90.0f;
+    float rowGap = 55.0f;
     Vector<MenuItem*> menuItems;
 
     for (size_t i = 0; i < _items.size(); ++i)
@@ -197,6 +197,13 @@ void ShopLayer::refreshBasketView()
         case CropType::Parsnip: name = "Parsnip"; break;
         case CropType::Cauliflower: name = "Cauliflower"; break;
         case CropType::Potato: name = "Potato"; break;
+        case CropType::Blueberry: name = "Blueberry"; break;
+        case CropType::Melon: name = "Melon"; break;
+        case CropType::Starfruit: name = "Starfruit"; break;
+        case CropType::Pumpkin: name = "Pumpkin"; break;
+        case CropType::Eggplant: name = "Eggplant"; break;
+        case CropType::Yam: name = "Yam"; break;
+        case CropType::Powdermelon: name = "Powdermelon"; break;
         case CropType::Fish: name = "Fish"; break;
         }
         char buf[128];

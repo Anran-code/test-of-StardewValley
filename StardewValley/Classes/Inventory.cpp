@@ -14,6 +14,13 @@ Inventory::Inventory()
     _items[6] = Item::createSeed(CropType::Parsnip, "Parsnip Seeds", "Crop/Parsnip_Seeds.png", 15);
     _items[7] = Item::createSeed(CropType::Cauliflower, "Cauliflower Seeds", "Crop/Cauliflower_Seeds.png", 15);
     _items[8] = Item::createSeed(CropType::Potato, "Potato Seeds", "Crop/Potato_Seeds.png", 15);
+    _items[9] = Item::createSeed(CropType::Blueberry, "Blueberry Seeds", "Crop/Blueberry_Seeds.png", 15);
+    _items[10] = Item::createSeed(CropType::Melon, "Melon Seeds", "Crop/Melon_Seeds.png", 15);
+    _items[11] = Item::createSeed(CropType::Starfruit, "Starfruit Seeds", "Crop/Starfruit_Seeds.png", 15);
+    _items[12] = Item::createSeed(CropType::Pumpkin, "Pumpkin Seeds", "Crop/Pumpkin_Seeds.png", 15);
+    _items[13] = Item::createSeed(CropType::Eggplant, "Eggplant Seeds", "Crop/Eggplant_Seeds.png", 15);
+    _items[14] = Item::createSeed(CropType::Yam, "Yam Seeds", "Crop/Yam_Seeds.png", 15);
+    _items[15] = Item::createSeed(CropType::Powdermelon, "Powdermelon Seeds", "Crop/Powdermelon_Seeds.png", 15);
 }
 
 void Inventory::addItem(Item item)
