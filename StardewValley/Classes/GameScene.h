@@ -82,6 +82,7 @@ private:
     cocos2d::Rect _bedRect;
     std::vector<cocos2d::Rect> _poolRects;
     std::vector<cocos2d::Rect> _houseRects;
+    cocos2d::Rect _townHomewayRect;
     cocos2d::Rect _rightExitRect;
     cocos2d::Rect _boundaryLeftRect;
     cocos2d::Rect _boundaryRightRect;
@@ -91,6 +92,7 @@ private:
     bool _hasHomeExitDoor;
     bool _hasBedRect;
     bool _hasPoolRect;
+    bool _hasTownHomewayRect;
     bool _hasHouseRect;
     bool _exitedHomeDoor;
     bool _hasRightExit;
@@ -100,6 +102,8 @@ private:
     bool _isDebugMode;
     bool _canEnterHomeDoor;
     bool _canExitHomeDoor;
+    bool _canEnterTownFromRight;
+    bool _canReturnFarmFromTown;
 
     bool _sleepDialogActive;
     bool _isSleeping;
@@ -156,6 +160,8 @@ public:
     static bool sHasLastFarmPlayerPos;
     static cocos2d::Vec2 sFarmStartPos;
     static bool sHasFarmStartPos;
+    static cocos2d::Vec2 sFarmTownwayPos;
+    static bool sHasFarmTownwayPos;
     static bool sSpawnAtFarmStart;
     static bool sStartAtHomeBed;
 
