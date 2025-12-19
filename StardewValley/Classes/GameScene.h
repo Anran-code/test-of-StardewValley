@@ -6,6 +6,7 @@
 #include "Inventory.h"
 #include "GameClock.h"
 #include "FishingMiniGame.h"
+#include "PauseLayer.h"
 #include <vector>
 
 enum class BackgroundType
@@ -116,6 +117,9 @@ private:
     // Sleep/Faint input handling
     bool _waitingForSleepInput;
     cocos2d::Label* _sleepLabel;
+    
+    // Pause Menu
+    PauseLayer* _pauseMenu;
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);

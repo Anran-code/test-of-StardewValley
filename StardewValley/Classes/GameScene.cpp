@@ -79,7 +79,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     
     _waitingForSleepInput = false;
     _sleepLabel = nullptr;
-
+    _pauseMenu = nullptr;
+    
     // Force update on first frame
     _lastSeason = (GameClock::Season)-1;
 
@@ -905,6 +906,8 @@ void BackgroundLayer::endFishing(bool success)
 
 void BackgroundLayer::update(float dt)
 {
+    if (PauseLayer::isGamePaused()) return;
+
     // Keep sleep overlay centered on screen
     if (_sleepOverlay && _sleepOverlay->isVisible())
     {
@@ -1356,6 +1359,30 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         return;
     }
 
+    if (PauseLayer::isGamePaused())
+    {
+        if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
+        {
+            if (_pauseMenu)
+            {
+                _pauseMenu->hide();
+                _pauseMenu = nullptr;
+            }
+        }
+        return;
+    }
+    
+    // Pause check
+    if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
+    {
+        if (!_sleepDialogActive && !_isSleeping)
+        {
+            _pauseMenu = PauseLayer::create();
+            _pauseMenu->show(this->getParent() ? this->getParent() : this);
+            return;
+        }
+    }
+
     if (_sleepDialogActive)
     {
         if (keyCode == EventKeyboard::KeyCode::KEY_Y)
@@ -1504,6 +1531,8 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 
 void BackgroundLayer::onKeyReleased(EventKeyboard::KeyCode keyCode, Event* event)
 {
+    if (PauseLayer::isGamePaused()) return;
+
     if (_isFishing)
     {
         if (_fishingGame)
@@ -1789,6 +1818,8 @@ bool GameScene::initWithStartType(BackgroundType type)
 // BackgroundLayer implementation
 void BackgroundLayer::onMouseDown(Event* event)
 {
+    if (PauseLayer::isGamePaused()) return;
+
     EventMouse* e = (EventMouse*)event;
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
 
@@ -2335,6 +2366,8 @@ void GameScene::onExitClicked(Ref* sender)
 
 void GameScene::update(float dt)
 {
+    if (PauseLayer::isGamePaused()) return;
+
     if (_clock)
     {
         _clock->update(dt);
