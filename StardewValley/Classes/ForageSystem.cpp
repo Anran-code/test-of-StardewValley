@@ -99,6 +99,8 @@ void ForageSystem::init(BackgroundLayer* layer)
     }
 }
 
+
+
 void ForageSystem::clearVisuals()
 {
     for (auto& item : _items)
@@ -260,6 +262,21 @@ bool ForageSystem::hasItem(const cocos2d::Vec2& tilePos) const
         }
     }
     return false;
+}
+
+const ForageItem* ForageSystem::getItemAt(const cocos2d::Vec2& tilePos) const
+{
+    if (!_layer) return nullptr;
+    BackgroundType currentMapType = _layer->getType();
+
+    for (const auto& item : _items)
+    {
+        if (item.mapType == currentMapType && item.tilePosition == tilePos)
+        {
+            return &item;
+        }
+    }
+    return nullptr;
 }
 
 std::vector<CropType> ForageSystem::getForageTypesForSeason(GameClock::Season season)

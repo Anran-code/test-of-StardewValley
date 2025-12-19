@@ -33,6 +33,9 @@ public:
 
     // Check if there is an item at the given position
     bool hasItem(const cocos2d::Vec2& tilePos) const;
+    
+    // Get item at position (for feedback)
+    const ForageItem* getItemAt(const cocos2d::Vec2& tilePos) const;
 
     // Clear items (e.g. when leaving scene)
     void clearVisuals();

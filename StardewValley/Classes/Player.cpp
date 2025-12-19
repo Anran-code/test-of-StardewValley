@@ -58,6 +58,14 @@ Player* Player::create(const std::string& filename, float tileHeight)
         ret->_walkRightAction = RepeatForever::create(Animate::create(animRight));
         ret->_walkRightAction->retain();
 
+        // Create feedback sprite (hidden by default)
+        ret->_feedbackSprite = Sprite::create();
+        if (ret->_feedbackSprite)
+        {
+            ret->_feedbackSprite->setVisible(false);
+            ret->addChild(ret->_feedbackSprite, 10);
+        }
+
         Size size = ret->getContentSize();
         if (size.height > 0.0f && tileHeight > 0.0f)
         {
@@ -101,84 +109,99 @@ void Player::updateAnimationState()
 
     if (isMoving)
     {
-        // Update facing based on velocity
         if (std::abs(velocity.x) > std::abs(velocity.y))
         {
-            if (velocity.x > 0) _facing = FacingDirection::Right;
-            else _facing = FacingDirection::Left;
+            if (velocity.x > 0)
+            {
+                targetAction = _walkRightAction;
+                _facing = FacingDirection::Right;
+            }
+            else
+            {
+                targetAction = _walkLeftAction;
+                _facing = FacingDirection::Left;
+            }
         }
         else
         {
-            if (velocity.y > 0) _facing = FacingDirection::Up;
-            else _facing = FacingDirection::Down;
-        }
-
-        switch (_facing)
-        {
-        case FacingDirection::Up: targetAction = _walkUpAction; break;
-        case FacingDirection::Down: targetAction = _walkDownAction; break;
-        case FacingDirection::Left: targetAction = _walkLeftAction; break;
-        case FacingDirection::Right: targetAction = _walkRightAction; break;
-        }
-
-        if (_currentAction != targetAction)
-        {
-            stopAllActions();
-            if (targetAction)
+            if (velocity.y > 0)
             {
-                runAction(targetAction);
+                targetAction = _walkUpAction;
+                _facing = FacingDirection::Up;
             }
-            _currentAction = targetAction;
+            else
+            {
+                targetAction = _walkDownAction;
+                _facing = FacingDirection::Down;
+            }
         }
     }
-    else
-    {
-        if (_currentAction != nullptr)
-        {
-            stopAllActions();
-            _currentAction = nullptr;
 
-            // Set idle frame
-            std::string idleFrameName;
+    if (targetAction != _currentAction)
+    {
+        stopAllActions();
+        _currentAction = targetAction;
+
+        if (_currentAction)
+        {
+            runAction(_currentAction);
+        }
+        else
+        {
+            // Idle frame based on facing
+            std::string frameName;
             switch (_facing)
             {
-            case FacingDirection::Up: idleFrameName = "player/Player_back_1.png"; break;
-            case FacingDirection::Down: idleFrameName = "player/Player_front_1.png"; break;
-            case FacingDirection::Left: idleFrameName = "player/Player_left_1.png"; break;
-            case FacingDirection::Right: idleFrameName = "player/Player_right_1.png"; break;
+            case FacingDirection::Down: frameName = "player/Player_front_1.png"; break;
+            case FacingDirection::Up:   frameName = "player/Player_back_1.png"; break;
+            case FacingDirection::Left: frameName = "player/Player_left_1.png"; break;
+            case FacingDirection::Right:frameName = "player/Player_right_1.png"; break;
             }
-            
-            auto texture = Director::getInstance()->getTextureCache()->addImage(idleFrameName);
-            if (texture)
-            {
-                setTexture(texture);
-                setTextureRect(Rect(0, 0, texture->getContentSize().width, texture->getContentSize().height));
-            }
+            setTexture(frameName);
         }
+    }
+    else if (!isMoving && _currentAction != nullptr)
+    {
+        stopAllActions();
+        _currentAction = nullptr;
+        // Idle frame based on facing
+        std::string frameName;
+        switch (_facing)
+        {
+        case FacingDirection::Down: frameName = "player/Player_front_1.png"; break;
+        case FacingDirection::Up:   frameName = "player/Player_back_1.png"; break;
+        case FacingDirection::Left: frameName = "player/Player_left_1.png"; break;
+        case FacingDirection::Right:frameName = "player/Player_right_1.png"; break;
+        }
+        setTexture(frameName);
     }
 }
 
 void Player::onKeyPressed(EventKeyboard::KeyCode keyCode)
 {
-    if (GameScene::sWasFainted) return;
+    if (GameScene::sWasFainted) return; // Block input if fainted
 
     switch (keyCode)
     {
     case EventKeyboard::KeyCode::KEY_W:
     case EventKeyboard::KeyCode::KEY_UP_ARROW:
         _movingUp = true;
+        _moveDir.y += 1.0f;
         break;
     case EventKeyboard::KeyCode::KEY_S:
     case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
         _movingDown = true;
+        _moveDir.y -= 1.0f;
         break;
     case EventKeyboard::KeyCode::KEY_A:
     case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
         _movingLeft = true;
+        _moveDir.x -= 1.0f;
         break;
     case EventKeyboard::KeyCode::KEY_D:
     case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
         _movingRight = true;
+        _moveDir.x += 1.0f;
         break;
     default:
         break;
@@ -188,70 +211,97 @@ void Player::onKeyPressed(EventKeyboard::KeyCode keyCode)
 
 void Player::onKeyReleased(EventKeyboard::KeyCode keyCode)
 {
-    if (GameScene::sWasFainted)
-    {
-        // Force stop movement
-        _movingUp = false;
-        _movingDown = false;
-        _movingLeft = false;
-        _movingRight = false;
-        updateAnimationState();
-        return;
-    }
-
+    if (GameScene::sWasFainted) return; // Block input if fainted
+    
     switch (keyCode)
     {
     case EventKeyboard::KeyCode::KEY_W:
     case EventKeyboard::KeyCode::KEY_UP_ARROW:
-        _movingUp = false;
+        if (_movingUp) { _movingUp = false; _moveDir.y -= 1.0f; }
         break;
     case EventKeyboard::KeyCode::KEY_S:
     case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
-        _movingDown = false;
+        if (_movingDown) { _movingDown = false; _moveDir.y += 1.0f; }
         break;
     case EventKeyboard::KeyCode::KEY_A:
     case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
-        _movingLeft = false;
+        if (_movingLeft) { _movingLeft = false; _moveDir.x += 1.0f; }
         break;
     case EventKeyboard::KeyCode::KEY_D:
     case EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
-        _movingRight = false;
+        if (_movingRight) { _movingRight = false; _moveDir.x -= 1.0f; }
         break;
     default:
         break;
     }
+    
+    // Clamp small floating point errors
+    if (std::abs(_moveDir.x) < 0.1f) _moveDir.x = 0.0f;
+    if (std::abs(_moveDir.y) < 0.1f) _moveDir.y = 0.0f;
+
     updateAnimationState();
 }
 
 Vec2 Player::getMoveVelocity() const
 {
-    if (GameScene::sWasFainted)
-    {
-        return Vec2::ZERO;
-    }
+    if (GameScene::sWasFainted) return Vec2::ZERO; // Force zero velocity if fainted
 
-    Vec2 dir(
-        (_movingRight ? 1.0f : 0.0f) - (_movingLeft ? 1.0f : 0.0f),
-        (_movingUp ? 1.0f : 0.0f) - (_movingDown ? 1.0f : 0.0f));
-    if (dir.lengthSquared() == 0.0f)
+    Vec2 v = _moveDir;
+    if (v.lengthSquared() > 0)
     {
-        return Vec2::ZERO;
+        v.normalize();
+        return v * _speed;
     }
-    return dir.getNormalized() * _speed;
+    return Vec2::ZERO;
 }
 
 Vec2 Player::getFacingOffset() const
 {
     switch (_facing)
     {
-    case FacingDirection::Up:
-        return Vec2(0.0f, -1.0f);
-    case FacingDirection::Down:
-        return Vec2(0.0f, 1.0f);
-    case FacingDirection::Left:
-        return Vec2(-1.0f, 0.0f);
-    case FacingDirection::Right:
-        return Vec2(1.0f, 0.0f);
+    case FacingDirection::Up: return Vec2(0, -1); // Up in TMX (y decreases going down, but wait. TMX y increases going down. 0,0 is top-left.)
+        // Actually, our logic:
+        // world Y increases going up.
+        // TMX tile Y increases going down.
+        // If we face UP (world +Y), we are decreasing tile Y. So (0, -1). Correct.
+        
+    case FacingDirection::Down: return Vec2(0, 1);
+    case FacingDirection::Left: return Vec2(-1, 0);
+    case FacingDirection::Right: return Vec2(1, 0);
     }
-    return Vec2::ZERO;
+    return Vec2(0, 1);
+}
+
+void Player::showToolFeedback(const std::string& texturePath)
+{
+    if (!_feedbackSprite) return;
+
+    // Check if texture exists
+    auto texture = Director::getInstance()->getTextureCache()->addImage(texturePath);
+    if (texture)
+    {
+        _feedbackSprite->setTexture(texture);
+        _feedbackSprite->setTextureRect(Rect(0, 0, texture->getContentSize().width, texture->getContentSize().height));
+        
+        _feedbackSprite->setVisible(true);
+        _feedbackSprite->setOpacity(255);
+        _feedbackSprite->stopAllActions();
+
+        // Position relative to player head
+        // Player content size might be the size of the frame
+        float headY = getContentSize().height;
+        // Position slightly above the head
+        _feedbackSprite->setPosition(Vec2(getContentSize().width * 0.5f, headY + 10));
+
+        _feedbackSprite->setScale(0.0f);
+        auto scaleUp = ScaleTo::create(0.15f, 1.2f);
+        auto delay = DelayTime::create(0.1f);
+        auto fadeOut = FadeOut::create(0.2f);
+        auto scaleDown = ScaleTo::create(0.2f, 0.5f);
+        auto hide = Hide::create();
+
+        auto disappear = Spawn::create(fadeOut, scaleDown, nullptr);
+
+        _feedbackSprite->runAction(Sequence::create(scaleUp, delay, disappear, hide, nullptr));
+    }
 }

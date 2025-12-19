@@ -1083,3 +1083,10 @@ const CropData* CropSystem::getCropData(CropType type) const
     }
     return nullptr;
 }
+
+const CropInstance* CropSystem::getCropAt(const cocos2d::Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return nullptr;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    return slot.crop.get();
+}

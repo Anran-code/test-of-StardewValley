@@ -113,6 +113,7 @@ public:
     void updateDailyGrowth();
     int getSellPrice(CropType type) const;
     const CropData* getCropData(CropType type) const;
+    const CropInstance* getCropAt(const cocos2d::Vec2& tileIndex) const;
 
 private:
     static CropSystem* sInstance;

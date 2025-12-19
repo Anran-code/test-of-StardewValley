@@ -1182,6 +1182,11 @@ void BackgroundLayer::endFishing(bool success)
                 {
                     _fishingLabel->setString("You caught a " + data->itemName + "!");
                 }
+                
+                if (_player)
+                {
+                    _player->showToolFeedback(data->itemIcon);
+                }
             }
         }
     }
@@ -2527,8 +2532,17 @@ void BackgroundLayer::onMouseDown(Event* event)
     // --- 3. Foraging (Harvest) ---
     if (_type == BackgroundType::Farm)
     {
+        // Get feedback data before harvest
+        std::string forageIcon = "";
+        const ForageItem* fItem = ForageSystem::getInstance()->getItemAt(targetTile);
+        if (fItem) {
+            auto data = CropSystem::getInstance()->getCropData(fItem->type);
+            if (data) forageIcon = data->itemIcon;
+        }
+
         if (ForageSystem::getInstance()->tryHarvest(targetTile))
         {
+            if (!forageIcon.empty() && _player) _player->showToolFeedback(forageIcon);
             return;
         }
     }
@@ -2572,12 +2586,27 @@ void BackgroundLayer::onMouseDown(Event* event)
     // Priority: Harvest -> Obstacle -> Tool/Plant
     
     // 1. Harvest
+    // Get feedback data before harvest
+    std::string cropIcon = "";
+    const CropInstance* cInst = CropSystem::getInstance()->getCropAt(targetTile);
+    if (cInst) {
+        auto data = CropSystem::getInstance()->getCropData(cInst->type);
+        if (data) cropIcon = data->itemIcon;
+    }
+
     if (CropSystem::getInstance()->harvestTile(targetTile))
     {
+        if (!cropIcon.empty() && _player) _player->showToolFeedback(cropIcon);
         return; // Harvested
     }
     
     if (!item) return;
+
+    // Show tool feedback for any tool usage attempt
+    if (item->type == ItemType::Tool && _player)
+    {
+         _player->showToolFeedback(item->iconPath);
+    }
 
     // 2. Obstacles
     if (hasObstacle(targetTile))
@@ -2686,6 +2715,11 @@ void BackgroundLayer::onMouseDown(Event* event)
         
         if (CropSystem::getInstance()->plantSelected(targetTile))
         {
+            if (_player)
+            {
+                _player->showToolFeedback(item->iconPath);
+            }
+
             int slot = GameScene::sInventory->getSelectedSlot();
             GameScene::sInventory->removeItem(slot, 1);
             Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");

@@ -14,11 +14,13 @@ public:
 
     cocos2d::Vec2 getMoveVelocity() const;
     cocos2d::Vec2 getFacingOffset() const;
+    void showToolFeedback(const std::string& texturePath);
 
 private:
     void updateAnimationState();
     cocos2d::Animation* createAnimation(std::string prefix, int start, int end, float delay);
 
+    cocos2d::Sprite* _feedbackSprite;
     float _speed;
     cocos2d::Vec2 _moveDir;
     bool _movingUp;
