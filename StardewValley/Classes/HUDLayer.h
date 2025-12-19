@@ -43,6 +43,9 @@ public:
     bool isPointInTrashCan(const cocos2d::Vec2& p);
     bool isConsumingClick() const { return _consumingClick; }
 
+    // Notification System
+    void showNotification(const std::string& message);
+
 private:
     cocos2d::EventListenerMouse* _mouseListener;
     cocos2d::EventListenerTouchOneByOne* _touchListener;

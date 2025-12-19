@@ -1,6 +1,7 @@
 #include "CropSystem.h"
 #include "cocos2d.h"
 #include "Inventory.h"
+#include "ExperienceSystem.h"
 // #include "Basket.h"
 
 using namespace cocos2d;
@@ -209,6 +210,9 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         Item item = Item::createCrop(inst->type, d.itemName, d.itemIcon, yieldCount);
         _inventory->addItem(item);
         Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+
+        // Add Farming XP
+        ExperienceSystem::getInstance()->addExperience(SkillType::Farming, 8);
     }
     
     if (inst->sprite)

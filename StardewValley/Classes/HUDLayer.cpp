@@ -195,6 +195,15 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     });
     _eventDispatcher->addEventListenerWithSceneGraphPriority(debugModeListener, this);
 
+    auto notifListener = EventListenerCustom::create("SHOW_NOTIFICATION", [this](EventCustom* event) {
+        std::string* msg = static_cast<std::string*>(event->getUserData());
+        if (msg)
+        {
+            this->showNotification(*msg);
+        }
+    });
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(notifListener, this);
+
     refresh();
     updateInventoryUI();
     
@@ -1134,4 +1143,30 @@ void HudLayer::refresh()
         std::snprintf(buf, sizeof(buf), "Gold: %d", _wallet->getMoney());
         _moneyLabel->setString(buf);
     }
+}
+
+void HudLayer::showNotification(const std::string& message)
+{
+    auto visibleSize = Director::getInstance()->getVisibleSize();
+    Vec2 origin = Director::getInstance()->getVisibleOrigin();
+
+    auto label = Label::createWithSystemFont(message, "Arial", 24);
+    if (!label) return;
+
+    label->setPosition(Vec2(origin.x + 20, origin.y + 100)); // Bottom left, slightly up
+    label->setAnchorPoint(Vec2(0, 0.5f));
+    label->setColor(Color3B::YELLOW);
+    label->enableOutline(Color4B::BLACK, 2);
+    this->addChild(label, 3000); // High Z-order
+
+    // Animation: FadeIn -> Delay -> MoveUp & FadeOut -> Remove
+    label->setOpacity(0);
+    auto fadeIn = FadeIn::create(0.5f);
+    auto delay = DelayTime::create(2.0f);
+    auto moveUp = MoveBy::create(1.0f, Vec2(0, 50));
+    auto fadeOut = FadeOut::create(1.0f);
+    auto spawn = Spawn::create(moveUp, fadeOut, nullptr);
+    auto remove = RemoveSelf::create();
+    
+    label->runAction(Sequence::create(fadeIn, delay, spawn, remove, nullptr));
 }

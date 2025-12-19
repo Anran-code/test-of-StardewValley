@@ -3,6 +3,7 @@
 #include "Wallet.h"
 #include "HudLayer.h"
 #include "CropSystem.h"
+#include "ExperienceSystem.h"
 #include "SimpleAudioEngine.h"
 // #include "Basket.h" // Ignore Shop related includes
 // #include "ShopLayer.h" // Ignore Shop related includes
@@ -269,10 +270,10 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         initObstacles(); // Init obstacles for Farm type
         
         // Initial update for Farm
-        updateSeasonFilter();
+    updateSeasonFilter();
 
-        return true;
-    }
+    return true;
+}
             else
             {
                  cocos2d::log("Player creation failed completely.");
@@ -814,6 +815,9 @@ void BackgroundLayer::endFishing(bool success)
                 fish.maxStack = 999;
                 GameScene::sInventory->addItem(fish);
                 Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                
+                // Add Fishing XP
+                ExperienceSystem::getInstance()->addExperience(SkillType::Fishing, 25);
                 
                 if (_fishingLabel)
                 {
@@ -1357,36 +1361,6 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
                 }
             }
         }
-        if (_type == BackgroundType::Farm && _hasPoolRect && _map && _groundLayer && _player)
-        {
-            const Item* item = GameScene::sInventory ? GameScene::sInventory->getSelectedItem() : nullptr;
-            if (item && item->type == ItemType::Tool && item->toolType == ToolType::FishingRod)
-            {
-                Vec2 tileIndex = getFacingTile();
-                if (tileIndex.x >= 0 && tileIndex.y >= 0)
-                {
-                    Size tileSize2 = _map->getTileSize();
-                    Vec2 tilePos = _groundLayer->getPositionAt(tileIndex);
-                    Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
-
-                    bool inPool = false;
-                    for (const auto& r : _poolRects)
-                    {
-                        if (facingRect.intersectsRect(r))
-                        {
-                            inPool = true;
-                            break;
-                        }
-                    }
-
-                    if (inPool)
-                    {
-                        startFishing();
-                        return;
-                    }
-                }
-            }
-        }
         if (_type == BackgroundType::Farm && _canEnterHomeDoor && !_enteredHome && _map && _groundLayer && _player)
         {
             _enteredHome = true;
@@ -1759,6 +1733,38 @@ void BackgroundLayer::onMouseDown(Event* event)
     // If we have a crop that is ready, harvest it.
     // If we have a tool selected, use tool.
     
+    // 0. Fishing Logic (added)
+    if (_type == BackgroundType::Farm && _hasPoolRect && _map && _groundLayer && _player)
+    {
+        if (item && item->type == ItemType::Tool && item->toolType == ToolType::FishingRod)
+        {
+            // Fishing rod works on water
+            // targetTile is the tile we clicked or facing?
+            // The existing code calculates targetTile from getFacingTile() at line 1746.
+            // So we use targetTile.
+            
+            Size tileSize2 = _map->getTileSize();
+            Vec2 tilePos = _groundLayer->getPositionAt(targetTile);
+            Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+
+            bool inPool = false;
+            for (const auto& r : _poolRects)
+            {
+                if (facingRect.intersectsRect(r))
+                {
+                    inPool = true;
+                    break;
+                }
+            }
+
+            if (inPool)
+            {
+                startFishing();
+                return;
+            }
+        }
+    }
+
     // Priority: Harvest -> Obstacle -> Tool/Plant
     
     // 1. Harvest

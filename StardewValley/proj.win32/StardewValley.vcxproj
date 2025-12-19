@@ -160,6 +160,7 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClCompile Include="..\Classes\HudLayer.cpp" />
     <ClCompile Include="..\Classes\CropSystem.cpp" />
     <ClCompile Include="..\Classes\Inventory.cpp" />
+    <ClCompile Include="..\Classes\ExperienceSystem.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -173,6 +174,7 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClInclude Include="..\Classes\HudLayer.h" />
     <ClInclude Include="..\Classes\CropSystem.h" />
     <ClInclude Include="..\Classes\Inventory.h" />
+    <ClInclude Include="..\Classes\ExperienceSystem.h" />
     <ClInclude Include="..\Classes\Item.h" />
     <ClInclude Include="main.h" />
   </ItemGroup>
