@@ -21,11 +21,17 @@ enum class BackgroundType
 class BackgroundLayer : public cocos2d::Layer
 {
 public:
+    ~BackgroundLayer(); // Destructor
     static BackgroundLayer* create(BackgroundType type);
-
-    bool initWithType(BackgroundType type);
+    virtual bool initWithType(BackgroundType type);
 
     cocos2d::Vec2 getFacingTile() const;
+
+    // Helper for ForageSystem
+    cocos2d::TMXTiledMap* getMap() const { return _map; }
+    cocos2d::TMXLayer* getGroundLayer() const { return _groundLayer; }
+
+    bool isValidSpawnPosition(int x, int y);
 
 private:
     void onMouseDown(cocos2d::Event* event); // New mouse handling
@@ -49,8 +55,12 @@ private:
     void initObstacles();
     void spawnObstacles(int count); // Spawn a specific number of obstacles
     void removeObstacle(const cocos2d::Vec2& tileIndex);
+    
+public:
     bool hasObstacle(const cocos2d::Vec2& tileIndex);
     int getObstacleType(const cocos2d::Vec2& tileIndex);
+
+private:
     bool checkCollisionWithObstacles(const cocos2d::Rect& box);
 
     BackgroundType _type;

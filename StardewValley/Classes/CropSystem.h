@@ -25,7 +25,23 @@ enum class CropType
     Fish,
     Anchovy,
     Bream,
-    LargemouthBass
+    LargemouthBass,
+    // Spring Forage
+    Daffodil,
+    Leek,
+    WildHorseradish,
+    // Summer Forage
+    Grape,
+    SpiceBerry,
+    SweetPea,
+    // Fall Forage
+    Blackberry,
+    CommonMushroom,
+    WildPlum,
+    // Winter Forage
+    CrystalFruit,
+    SnowYam,
+    WinterRoot
 };
 
 struct CropData
@@ -87,6 +103,7 @@ public:
     
     // Check methods for UI feedback
     bool canTill(const cocos2d::Vec2& tileIndex) const;
+    bool isOccupied(const cocos2d::Vec2& tileIndex) const;
     bool canPlant(const cocos2d::Vec2& tileIndex, CropType type) const;
     bool canWater(const cocos2d::Vec2& tileIndex) const;
     bool canHarvest(const cocos2d::Vec2& tileIndex) const;

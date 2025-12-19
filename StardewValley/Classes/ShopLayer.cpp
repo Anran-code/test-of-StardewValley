@@ -76,7 +76,7 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
     for (size_t i = 0; i < _items.size(); ++i)
     {
         const auto& it = _items[i];
-        auto icon = MenuItemImage::create(it.image, it.image, [this, i]() {
+        auto icon = MenuItemImage::create(it.image, it.image, [this, i](Ref* sender) {
             auto& item = _items[i];
             if (item.stock <= 0) return;
             bool ok = item.onBuy ? item.onBuy() : false;
@@ -118,7 +118,7 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
         }
         rowY -= rowGap;
     }
-    auto menu = Menu::create(menuItems);
+    auto menu = Menu::createWithArray(menuItems);
     if (menu)
     {
         menu->setPosition(Vec2::ZERO);
@@ -161,7 +161,7 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
     MenuItemLabel* sellItem = nullptr;
     if (sellAllLabel)
     {
-        sellItem = MenuItemLabel::create(sellAllLabel, [this]() {
+        sellItem = MenuItemLabel::create(sellAllLabel, [this](Ref* sender) {
             if (!_basket || !_crops || !_wallet) return;
             int total = _basket->calculateTotalSellValue(_crops);
             if (total > 0)

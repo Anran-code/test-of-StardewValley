@@ -84,6 +84,13 @@ void CropSystem::setSelectedCrop(CropType type)
     _selected = type;
 }
 
+bool CropSystem::isOccupied(const Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return true; // Out of bounds is "occupied"
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    return slot.tilled || slot.crop;
+}
+
 bool CropSystem::canTill(const Vec2& tileIndex) const
 {
     if (!inBounds(tileIndex)) return false;
@@ -687,6 +694,143 @@ void CropSystem::loadCropData()
     largemouthBass.energyRestore = 38;
     largemouthBass.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
 
+    // --- Forage ---
+    // Spring
+    CropData daffodil;
+    daffodil.itemName = "Daffodil";
+    daffodil.itemIcon = "foraging/spring_foraging/Daffodil.png";
+    daffodil.energyRestore = 0;
+    daffodil.sellPrice = 30;
+    daffodil.xp = 7;
+    daffodil.growthDays = 0;
+    daffodil.regrowDays = 0;
+    daffodil.baseYield = 1;
+    daffodil.allowedSeasons = { GameClock::Season::Spring };
+
+    CropData leek;
+    leek.itemName = "Leek";
+    leek.itemIcon = "foraging/spring_foraging/Leek.png";
+    leek.energyRestore = 40;
+    leek.sellPrice = 60;
+    leek.xp = 7;
+    leek.growthDays = 0;
+    leek.regrowDays = 0;
+    leek.baseYield = 1;
+    leek.allowedSeasons = { GameClock::Season::Spring };
+
+    CropData wildHorseradish;
+    wildHorseradish.itemName = "Wild Horseradish";
+    wildHorseradish.itemIcon = "foraging/spring_foraging/Wild_Horseradish.png";
+    wildHorseradish.energyRestore = 13;
+    wildHorseradish.sellPrice = 50;
+    wildHorseradish.xp = 7;
+    wildHorseradish.growthDays = 0;
+    wildHorseradish.regrowDays = 0;
+    wildHorseradish.baseYield = 1;
+    wildHorseradish.allowedSeasons = { GameClock::Season::Spring };
+
+    // Summer
+    CropData grape;
+    grape.itemName = "Grape";
+    grape.itemIcon = "foraging/summer_foraging/Grape.png";
+    grape.energyRestore = 38;
+    grape.sellPrice = 80;
+    grape.xp = 7;
+    grape.growthDays = 0;
+    grape.regrowDays = 0;
+    grape.baseYield = 1;
+    grape.allowedSeasons = { GameClock::Season::Summer };
+
+    CropData spiceBerry;
+    spiceBerry.itemName = "Spice Berry";
+    spiceBerry.itemIcon = "foraging/summer_foraging/Spice_Berry.png";
+    spiceBerry.energyRestore = 25;
+    spiceBerry.sellPrice = 80;
+    spiceBerry.xp = 7;
+    spiceBerry.growthDays = 0;
+    spiceBerry.regrowDays = 0;
+    spiceBerry.baseYield = 1;
+    spiceBerry.allowedSeasons = { GameClock::Season::Summer };
+
+    CropData sweetPea;
+    sweetPea.itemName = "Sweet Pea";
+    sweetPea.itemIcon = "foraging/summer_foraging/Sweet_Pea.png";
+    sweetPea.energyRestore = 0;
+    sweetPea.sellPrice = 50;
+    sweetPea.xp = 7;
+    sweetPea.growthDays = 0;
+    sweetPea.regrowDays = 0;
+    sweetPea.baseYield = 1;
+    sweetPea.allowedSeasons = { GameClock::Season::Summer };
+
+    // Fall
+    CropData blackberry;
+    blackberry.itemName = "Blackberry";
+    blackberry.itemIcon = "foraging/fall_foraging/Blackberry.png";
+    blackberry.energyRestore = 25;
+    blackberry.sellPrice = 20;
+    blackberry.xp = 7;
+    blackberry.growthDays = 0;
+    blackberry.regrowDays = 0;
+    blackberry.baseYield = 1;
+    blackberry.allowedSeasons = { GameClock::Season::Fall };
+
+    CropData commonMushroom;
+    commonMushroom.itemName = "Common Mushroom";
+    commonMushroom.itemIcon = "foraging/fall_foraging/Common_Mushroom.png";
+    commonMushroom.energyRestore = 38;
+    commonMushroom.sellPrice = 40;
+    commonMushroom.xp = 7;
+    commonMushroom.growthDays = 0;
+    commonMushroom.regrowDays = 0;
+    commonMushroom.baseYield = 1;
+    commonMushroom.allowedSeasons = { GameClock::Season::Fall };
+
+    CropData wildPlum;
+    wildPlum.itemName = "Wild Plum";
+    wildPlum.itemIcon = "foraging/fall_foraging/Wild_Plum.png";
+    wildPlum.energyRestore = 25;
+    wildPlum.sellPrice = 80;
+    wildPlum.xp = 7;
+    wildPlum.growthDays = 0;
+    wildPlum.regrowDays = 0;
+    wildPlum.baseYield = 1;
+    wildPlum.allowedSeasons = { GameClock::Season::Fall };
+
+    // Winter
+    CropData crystalFruit;
+    crystalFruit.itemName = "Crystal Fruit";
+    crystalFruit.itemIcon = "foraging/winter_foraging/Crystal_Fruit.png";
+    crystalFruit.energyRestore = 63;
+    crystalFruit.sellPrice = 150;
+    crystalFruit.xp = 7;
+    crystalFruit.growthDays = 0;
+    crystalFruit.regrowDays = 0;
+    crystalFruit.baseYield = 1;
+    crystalFruit.allowedSeasons = { GameClock::Season::Winter };
+
+    CropData snowYam;
+    snowYam.itemName = "Snow Yam";
+    snowYam.itemIcon = "foraging/winter_foraging/Snow_Yam.png";
+    snowYam.energyRestore = 30;
+    snowYam.sellPrice = 60;
+    snowYam.xp = 7;
+    snowYam.growthDays = 0;
+    snowYam.regrowDays = 0;
+    snowYam.baseYield = 1;
+    snowYam.allowedSeasons = { GameClock::Season::Winter };
+
+    CropData winterRoot;
+    winterRoot.itemName = "Winter Root";
+    winterRoot.itemIcon = "foraging/winter_foraging/Winter_Root.png";
+    winterRoot.energyRestore = 25;
+    winterRoot.sellPrice = 70;
+    winterRoot.xp = 7;
+    winterRoot.growthDays = 0;
+    winterRoot.regrowDays = 0;
+    winterRoot.baseYield = 1;
+    winterRoot.allowedSeasons = { GameClock::Season::Winter };
+
     // Register
     _data[CropType::Parsnip] = parsnip;
     _data[CropType::Cauliflower] = cauliflower;
@@ -702,6 +846,20 @@ void CropSystem::loadCropData()
     _data[CropType::Anchovy] = anchovy;
     _data[CropType::Bream] = bream;
     _data[CropType::LargemouthBass] = largemouthBass;
+    
+    // Forage Register
+    _data[CropType::Daffodil] = daffodil;
+    _data[CropType::Leek] = leek;
+    _data[CropType::WildHorseradish] = wildHorseradish;
+    _data[CropType::Grape] = grape;
+    _data[CropType::SpiceBerry] = spiceBerry;
+    _data[CropType::SweetPea] = sweetPea;
+    _data[CropType::Blackberry] = blackberry;
+    _data[CropType::CommonMushroom] = commonMushroom;
+    _data[CropType::WildPlum] = wildPlum;
+    _data[CropType::CrystalFruit] = crystalFruit;
+    _data[CropType::SnowYam] = snowYam;
+    _data[CropType::WinterRoot] = winterRoot;
 }
 
 void CropSystem::ensureGridSize()
