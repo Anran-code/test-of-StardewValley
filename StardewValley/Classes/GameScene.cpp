@@ -64,6 +64,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasBedRect = false;
     _hasPoolRect = false;
     _hasHouseRect = false;
+    _hasTownHomewayRect = false;
     _exitedHomeDoor = false;
     _enteredHome = false;
     _hasRightExit = false;
@@ -72,6 +73,10 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _isDebugMode = false;
     _canEnterHomeDoor = false;
     _canExitHomeDoor = false;
+    _canEnterTownFromRight = false;
+    _canReturnFarmFromTown = false;
+    _canEnterTownFromRight = false;
+    _canReturnFarmFromTown = false;
 
     _sleepDialogActive = false;
     _isSleeping = false;
@@ -206,13 +211,24 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         float hh = dict.at("height").asFloat();
                         _homeRect = Rect(hx, hy, hw, hh);
                         _hasHomeRect = true;
+                    }
+                }
 
-                        float exitW = tileSize.width * 2.0f;
-                        float exitH = tileSize.height * 6.0f;
-                        float exitX = _boundaryRightRect.getMinX() - exitW;
-                        float exitY = (mapHeight - exitH) * 0.5f - tileSize.height * 7.0f;
-                        _rightExitRect = Rect(exitX, exitY, exitW, exitH);
+                auto townwayGroup = _map->getObjectGroup("townway");
+                if (townwayGroup)
+                {
+                    const auto& objs = townwayGroup->getObjects();
+                    if (!objs.empty())
+                    {
+                        const auto& dict = objs.front().asValueMap();
+                        float tx = dict.at("x").asFloat();
+                        float ty = dict.at("y").asFloat();
+                        float tw = dict.at("width").asFloat();
+                        float th = dict.at("height").asFloat();
+                        _rightExitRect = Rect(tx, ty, tw, th);
                         _hasRightExit = true;
+                        GameScene::sFarmTownwayPos = Vec2(tx + tw * 0.5f - tileSize.width, ty + th * 0.5f);
+                        GameScene::sHasFarmTownwayPos = true;
                     }
                 }
 
@@ -459,6 +475,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     float hw = dict.at("width").asFloat();
                     float hh = dict.at("height").asFloat();
                     spawnPos = Vec2(hx + hw * 0.5f, hy + hh * 0.5f);
+                    _townHomewayRect = Rect(hx, hy, hw, hh);
+                    _hasTownHomewayRect = true;
                 }
             }
 
@@ -1410,6 +1428,9 @@ void BackgroundLayer::update(float dt)
         _player->setLocalZOrder(static_cast<int>(mapHeight - _player->getPositionY()));
     }
 
+    _canEnterTownFromRight = false;
+    _canReturnFarmFromTown = false;
+
     if (_type == BackgroundType::Farm && _hasHomeRect && !_enteredHome && _map && _groundLayer)
     {
         Vec2 tileIndex = getFacingTile();
@@ -1424,22 +1445,21 @@ void BackgroundLayer::update(float dt)
             }
         }
     }
-    if (_hasRightExit && !_exitedRight)
+    if (_type == BackgroundType::Farm && _hasRightExit && !_exitedRight && _player)
     {
         Rect box = _player->getBoundingBox();
-        float stripW = std::min(tileSize.width * 0.3f, _rightExitRect.size.width);
-        Rect rightStrip(_rightExitRect.getMaxX() - stripW, _rightExitRect.getMinY(), stripW, _rightExitRect.size.height);
-        if (box.intersectsRect(rightStrip))
+        if (box.intersectsRect(_rightExitRect))
         {
-            float cy = (box.origin.y + box.getMaxY()) * 0.5f;
-            bool inVert = cy >= _rightExitRect.getMinY() && cy <= _rightExitRect.getMaxY();
-            if (inVert)
-                {
-                    _exitedRight = true;
-                    GameScene::sLastFarmPlayerPos = _player->getPosition();
-                    GameScene::sHasLastFarmPlayerPos = true;
-                    GameScene::switchViaRightExit(0.5f);
-            }
+            _canEnterTownFromRight = true;
+        }
+    }
+
+    if (_type == BackgroundType::Town && _hasTownHomewayRect)
+    {
+        Rect box = _player->getBoundingBox();
+        if (box.intersectsRect(_townHomewayRect))
+        {
+            _canReturnFarmFromTown = true;
         }
     }
 
@@ -1560,14 +1580,6 @@ void BackgroundLayer::update(float dt)
             }
         }
 
-        if (_hasRightExit)
-        {
-            Vec2 e1(_rightExitRect.getMinX(), _rightExitRect.getMinY());
-            Vec2 e2(_rightExitRect.getMaxX(), _rightExitRect.getMaxY());
-            _facingDebug->drawSolidRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 0.2f));
-            _facingDebug->drawRect(e1, e2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
-        }
-
         if (_isDebugMode)
         {
             if (_hasHomeRect)
@@ -1599,7 +1611,14 @@ void BackgroundLayer::update(float dt)
                 }
             }
 
-            // --- DEBUG: Visualize Player Collision Box (Footprint) ---
+            if (_type == BackgroundType::Farm && _hasRightExit)
+            {
+                Vec2 r1(_rightExitRect.getMinX(), _rightExitRect.getMinY());
+                Vec2 r2(_rightExitRect.getMaxX(), _rightExitRect.getMaxY());
+                _facingDebug->drawSolidRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 0.2f));
+                _facingDebug->drawRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 1.0f));
+            }
+
             if (_player)
             {
                 Rect spriteBox = _player->getBoundingBox();
@@ -1610,11 +1629,10 @@ void BackgroundLayer::update(float dt)
                 _facingDebug->drawRect(
                     Vec2(box.getMinX(), box.getMinY()), 
                     Vec2(box.getMaxX(), box.getMaxY()), 
-                    Color4F(0.0f, 0.0f, 1.0f, 1.0f) // Blue for player footprint
+                    Color4F(0.0f, 0.0f, 1.0f, 1.0f)
                 );
             }
 
-            // --- DEBUG: Visualize Obstacle Collision Boxes ---
             if (_map)
             {
                 Size tileSize = _map->getTileSize();
@@ -2074,6 +2092,8 @@ Vec2 GameScene::sLastFarmPlayerPos = Vec2::ZERO;
 bool GameScene::sHasLastFarmPlayerPos = false;
 Vec2 GameScene::sFarmStartPos = Vec2::ZERO;
 bool GameScene::sHasFarmStartPos = false;
+Vec2 GameScene::sFarmTownwayPos = Vec2::ZERO;
+bool GameScene::sHasFarmTownwayPos = false;
 bool GameScene::sSpawnAtFarmStart = false;
 bool GameScene::sStartAtHomeBed = false;
 
@@ -2371,7 +2391,7 @@ void BackgroundLayer::onMouseDown(Event* event)
         return; // No farming in Home
     }
     
-    // --- 2. Farm Interactions (Enter Home) ---
+    // --- 2. Farm Interactions (Enter Home / Town) ---
     if (_type == BackgroundType::Farm)
     {
         if (_canEnterHomeDoor && !_enteredHome && _map && _groundLayer && _player)
@@ -2380,6 +2400,36 @@ void BackgroundLayer::onMouseDown(Event* event)
             GameScene::sLastFarmPlayerPos = _player->getPosition();
             GameScene::sHasLastFarmPlayerPos = true;
             auto next = GameScene::createScene(BackgroundType::Home);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+                return;
+            }
+        }
+
+        if (_canEnterTownFromRight && !_exitedRight && _map && _groundLayer && _player)
+        {
+            _exitedRight = true;
+            GameScene::sLastFarmPlayerPos = _player->getPosition();
+            GameScene::sHasLastFarmPlayerPos = true;
+            GameScene::switchViaRightExit(0.5f);
+            return;
+        }
+    }
+
+    // --- 3. Town Interactions (Return to Farm) ---
+    if (_type == BackgroundType::Town)
+    {
+        if (_canReturnFarmFromTown && _hasTownHomewayRect && _map && _groundLayer && _player)
+        {
+            if (GameScene::sHasFarmTownwayPos)
+            {
+                GameScene::sLastFarmPlayerPos = GameScene::sFarmTownwayPos;
+                GameScene::sHasLastFarmPlayerPos = true;
+                GameScene::sSpawnAtFarmStart = false;
+            }
+            auto next = GameScene::createScene(BackgroundType::Farm);
             if (next)
             {
                 auto trans = TransitionFade::create(0.5f, next);
