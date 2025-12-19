@@ -14,6 +14,7 @@ USING_NS_CC;
 HudLayer* GameScene::sHud = nullptr;
 bool GameScene::sDebugMode = false;
 bool GameScene::sMidnightWarned = false;
+bool GameScene::sWasFainted = false;
 std::string g_CurrentBgmPath = "";
 
 // Static member initialization for BackgroundLayer persistence
@@ -685,7 +686,15 @@ void BackgroundLayer::beginSleep()
         }
         CropSystem::getInstance()->updateDailyGrowth();
         // Restore Energy
-        EnergySystem::getInstance()->resetEnergy();
+        if (GameScene::sWasFainted)
+        {
+            EnergySystem::getInstance()->resetEnergy(0.75f);
+        }
+        else
+        {
+            EnergySystem::getInstance()->resetEnergy();
+        }
+        GameScene::sWasFainted = false;
         GameScene::sMidnightWarned = false;
         
         if (_type != BackgroundType::Home)
@@ -721,7 +730,7 @@ void BackgroundLayer::startFishing()
     if (!_map || !_player) return;
 
     // Consume Energy
-    EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
+    EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_FISHING);
 
     _isFishing = true;
     _fishBite = false;
@@ -925,6 +934,7 @@ void BackgroundLayer::update(float dt)
         {
              std::string msg = "You passed out...";
              Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+             GameScene::sWasFainted = true;
              beginSleep();
         }
     }
@@ -1385,11 +1395,11 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             break;
         case EventKeyboard::KeyCode::KEY_T:
             CropSystem::getInstance()->tillTile(tile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_HOE);
             break;
         case EventKeyboard::KeyCode::KEY_G:
             CropSystem::getInstance()->waterTile(tile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_WATERING_CAN);
             break;
         case EventKeyboard::KeyCode::KEY_H:
             CropSystem::getInstance()->harvestTile(tile);
@@ -1795,7 +1805,16 @@ void BackgroundLayer::onMouseDown(Event* event)
             GameScene::sClock->addDay(1);
         }
         CropSystem::getInstance()->updateDailyGrowth();
-        EnergySystem::getInstance()->resetEnergy();
+        
+        if (GameScene::sWasFainted)
+        {
+            EnergySystem::getInstance()->resetEnergy(0.75f);
+        }
+        else
+        {
+            EnergySystem::getInstance()->resetEnergy();
+        }
+        GameScene::sWasFainted = false;
         GameScene::sMidnightWarned = false;
         
         if (_type != BackgroundType::Home)
@@ -1971,9 +1990,13 @@ void BackgroundLayer::onMouseDown(Event* event)
         {
             removeObstacle(targetTile);
             // Scythe does not consume energy in Stardew Valley
-            if (item->toolType != ToolType::Scythe)
+            if (item->toolType == ToolType::Axe)
             {
-                EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
+                EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_AXE);
+            }
+            else if (item->toolType == ToolType::Pickaxe)
+            {
+                EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_PICKAXE);
             }
             // Optional: Drop item?
             return;
@@ -1993,18 +2016,18 @@ void BackgroundLayer::onMouseDown(Event* event)
         {
         case ToolType::Hoe:
             CropSystem::getInstance()->tillTile(targetTile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_HOE);
             break;
         case ToolType::WateringCan:
             CropSystem::getInstance()->waterTile(targetTile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_WATERING_CAN);
             break;
         case ToolType::Scythe:
             CropSystem::getInstance()->removeWithered(targetTile);
             break;
         case ToolType::Pickaxe:
             CropSystem::getInstance()->destroyTile(targetTile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::TOOL_USAGE_COST);
+            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_PICKAXE);
             break;
         default:
             break;
@@ -2341,6 +2364,8 @@ void GameScene::update(float dt)
         // Show notification
         std::string msg = "You fainted! Medical fee: " + std::to_string(actualFee) + "g";
         Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+
+        GameScene::sWasFainted = true;
 
         // Trigger sleep via BackgroundLayer
         for (auto child : getChildren())

@@ -4,6 +4,11 @@ EnergySystem* EnergySystem::sInstance = nullptr;
 
 const float EnergySystem::DEFAULT_MAX_ENERGY = 270.0f;
 const float EnergySystem::TOOL_USAGE_COST = 2.0f;
+const float EnergySystem::COST_HOE = 2.0f;
+const float EnergySystem::COST_WATERING_CAN = 2.0f;
+const float EnergySystem::COST_AXE = 2.0f;
+const float EnergySystem::COST_PICKAXE = 2.0f;
+const float EnergySystem::COST_FISHING = 8.0f;
 
 EnergySystem* EnergySystem::getInstance()
 {
@@ -55,9 +60,10 @@ void EnergySystem::setEnergy(float amount)
     cocos2d::Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("ENERGY_UPDATED");
 }
 
-void EnergySystem::resetEnergy()
+void EnergySystem::resetEnergy(float multiplier)
 {
-    _currentEnergy = _maxEnergy;
+    _currentEnergy = _maxEnergy * multiplier;
+    if (_currentEnergy > _maxEnergy) _currentEnergy = _maxEnergy;
     // Notify UI updates
     cocos2d::Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("ENERGY_UPDATED");
 }

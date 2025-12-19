@@ -14,7 +14,7 @@ public:
     void consumeEnergy(float amount);
     void restoreEnergy(float amount);
     void setEnergy(float amount);
-    void resetEnergy();
+    void resetEnergy(float multiplier = 1.0f);
     
     float getCurrentEnergy() const { return _currentEnergy; }
     float getMaxEnergy() const { return _maxEnergy; }
@@ -23,7 +23,12 @@ public:
 
     // Constants
     static const float DEFAULT_MAX_ENERGY;
-    static const float TOOL_USAGE_COST;
+    static const float TOOL_USAGE_COST; // Legacy, kept for compatibility if needed
+    static const float COST_HOE;
+    static const float COST_WATERING_CAN;
+    static const float COST_AXE;
+    static const float COST_PICKAXE;
+    static const float COST_FISHING;
 
 private:
     EnergySystem();

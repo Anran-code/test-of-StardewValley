@@ -155,6 +155,7 @@ public:
     static class HudLayer* sHud;
     static bool sDebugMode;
     static bool sMidnightWarned;
+    static bool sWasFainted; // Track if player fainted (exhaustion or late night)
 
     virtual bool init();
     bool initWithStartType(BackgroundType type);
