@@ -81,6 +81,7 @@ private:
     cocos2d::Rect _homeExitDoorRect;
     cocos2d::Rect _bedRect;
     std::vector<cocos2d::Rect> _poolRects;
+    std::vector<cocos2d::Rect> _houseRects;
     cocos2d::Rect _rightExitRect;
     cocos2d::Rect _boundaryLeftRect;
     cocos2d::Rect _boundaryRightRect;
@@ -90,6 +91,7 @@ private:
     bool _hasHomeExitDoor;
     bool _hasBedRect;
     bool _hasPoolRect;
+    bool _hasHouseRect;
     bool _exitedHomeDoor;
     bool _hasRightExit;
     bool _hasBoundary;
