@@ -25,6 +25,7 @@ struct CropData
 {
     int growthDays;
     int sellPrice;
+    int xp; // Added XP field
     std::string seedlingSprite;
     std::vector<std::string> sproutSprites;
     std::string matureSprite;

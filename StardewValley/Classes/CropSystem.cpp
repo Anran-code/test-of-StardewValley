@@ -212,7 +212,7 @@ bool CropSystem::harvestTile(const Vec2& tileIndex)
         Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
 
         // Add Farming XP
-        ExperienceSystem::getInstance()->addExperience(SkillType::Farming, 8);
+        ExperienceSystem::getInstance()->addExperience(SkillType::Farming, d.xp);
     }
     
     if (inst->sprite)
@@ -435,6 +435,7 @@ void CropSystem::loadCropData()
     CropData parsnip;
     parsnip.growthDays = 4;
     parsnip.sellPrice = 35;
+    parsnip.xp = 8;
     parsnip.seedlingSprite = "Crop/Parsnip_seedling.png";
     parsnip.sproutSprites = { "Crop/Parsnip_sprout_1.png", "Crop/Parsnip_sprout_2.png", "Crop/Parsnip_sprout_3.png" };
     parsnip.matureSprite = "Crop/Parsnip.png";
@@ -445,6 +446,7 @@ void CropSystem::loadCropData()
     CropData cauliflower;
     cauliflower.growthDays = 12;
     cauliflower.sellPrice = 175;
+    cauliflower.xp = 23;
     cauliflower.seedlingSprite = "Crop/Cauliflower_seedling.png";
     cauliflower.sproutSprites = { "Crop/Cauliflower_sprout_1.png", "Crop/Cauliflower_sprout_2.png", "Crop/Cauliflower_sprout_3.png", "Crop/Cauliflower_sprout_4.png" };
     cauliflower.matureSprite = "Crop/Cauliflower.png";
@@ -455,6 +457,7 @@ void CropSystem::loadCropData()
     CropData potato;
     potato.growthDays = 6;
     potato.sellPrice = 80;
+    potato.xp = 14;
     potato.seedlingSprite = "Crop/Potato_seedling.png";
     potato.sproutSprites = { "Crop/Potato_sprout_1.png", "Crop/Potato_sprout_2.png", "Crop/Potato_sprout_3.png", "Crop/Potato_sprout_4.png", "Crop/Potato_sprout_5.png" };
     potato.matureSprite = "Crop/Potato.png";
@@ -469,6 +472,7 @@ void CropSystem::loadCropData()
     CropData fish;
     fish.growthDays = 0;
     fish.sellPrice = 50;
+    fish.xp = 10;
     fish.itemName = "Fish";
     fish.itemIcon = "fish.png";
     fish.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
@@ -476,6 +480,7 @@ void CropSystem::loadCropData()
     CropData anchovy;
     anchovy.growthDays = 0;
     anchovy.sellPrice = 30;
+    anchovy.xp = 13;
     anchovy.itemName = "Anchovy";
     anchovy.itemIcon = "Anchovy.png";
     anchovy.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Fall };
@@ -483,6 +488,7 @@ void CropSystem::loadCropData()
     CropData bream;
     bream.growthDays = 0;
     bream.sellPrice = 45;
+    bream.xp = 14;
     bream.itemName = "Bream";
     bream.itemIcon = "Bream.png";
     bream.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
@@ -490,6 +496,7 @@ void CropSystem::loadCropData()
     CropData largemouthBass;
     largemouthBass.growthDays = 0;
     largemouthBass.sellPrice = 100;
+    largemouthBass.xp = 19;
     largemouthBass.itemName = "Largemouth Bass";
     largemouthBass.itemIcon = "Largemouth_Bass.png";
     largemouthBass.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
@@ -691,7 +698,21 @@ int CropSystem::getSellPrice(CropType type) const
 {
     auto it = _data.find(type);
     if (it == _data.end()) return 0;
-    return it->second.sellPrice;
+    
+    int basePrice = it->second.sellPrice;
+    
+    // Determine which skill affects this price
+    SkillType skill = SkillType::Farming;
+    if (type == CropType::Fish || type == CropType::Anchovy || type == CropType::Bream || type == CropType::LargemouthBass)
+    {
+        skill = SkillType::Fishing;
+    }
+    
+    int level = ExperienceSystem::getInstance()->getLevel(skill);
+    // Apply 5% increase per level
+    float multiplier = 1.0f + (level * 0.05f);
+    
+    return (int)(basePrice * multiplier);
 }
 
 const CropData* CropSystem::getCropData(CropType type) const

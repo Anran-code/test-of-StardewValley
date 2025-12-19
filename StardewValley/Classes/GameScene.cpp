@@ -817,7 +817,7 @@ void BackgroundLayer::endFishing(bool success)
                 Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
                 
                 // Add Fishing XP
-                ExperienceSystem::getInstance()->addExperience(SkillType::Fishing, 25);
+                ExperienceSystem::getInstance()->addExperience(SkillType::Fishing, data->xp);
                 
                 if (_fishingLabel)
                 {
