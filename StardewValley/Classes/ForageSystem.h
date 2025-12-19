@@ -4,7 +4,9 @@
 #include "cocos2d.h"
 #include "CropSystem.h" // For CropType
 #include "GameClock.h"
+#include "GameScene.h" // For BackgroundType
 #include <vector>
+#include <map>
 
 // Forward declaration
 class BackgroundLayer;
@@ -13,6 +15,7 @@ struct ForageItem {
     CropType type;
     cocos2d::Vec2 tilePosition;
     cocos2d::Sprite* sprite;
+    BackgroundType mapType; // Map this item belongs to
 };
 
 class ForageSystem {
@@ -46,12 +49,20 @@ private:
 
     BackgroundLayer* _layer;
     std::vector<ForageItem> _items;
-    bool _pendingSpawn;
-    GameClock::Season _pendingSeason;
+    
+    // Track last spawn day per map type
+    std::map<BackgroundType, int> _spawnedDays;
+    
     int _lastDay;
 
     std::vector<CropType> getForageTypesForSeason(GameClock::Season season);
     bool isValidTile(const cocos2d::Vec2& tilePos);
+    
+    // Helper to check if map is outdoors
+    bool isOutdoors(BackgroundType type);
+    
+    // Internal spawn logic
+    void spawnForMap(BackgroundLayer* layer);
 };
 
 #endif

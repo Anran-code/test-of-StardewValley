@@ -9,7 +9,8 @@
 enum class SkillType
 {
     Farming,
-    Fishing
+    Fishing,
+    Foraging
 };
 
 class ExperienceSystem

@@ -1206,10 +1206,26 @@ void HudLayer::refresh()
     }
 }
 
+void HudLayer::removeNotification(Label* label)
+{
+    auto it = std::find(_activeNotifications.begin(), _activeNotifications.end(), label);
+    if (it != _activeNotifications.end())
+    {
+        _activeNotifications.erase(it);
+    }
+}
+
 void HudLayer::showNotification(const std::string& message)
 {
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
+
+    // Shift existing notifications up to prevent overlap
+    // Move up by 30 pixels (approx height of text)
+    for (auto node : _activeNotifications)
+    {
+        node->runAction(MoveBy::create(0.2f, Vec2(0, 30)));
+    }
 
     auto label = Label::createWithSystemFont(message, "Arial", 24);
     if (!label) return;
@@ -1220,6 +1236,8 @@ void HudLayer::showNotification(const std::string& message)
     label->enableOutline(Color4B::BLACK, 2);
     this->addChild(label, 3000); // High Z-order
 
+    _activeNotifications.push_back(label);
+
     // Animation: FadeIn -> Delay -> MoveUp & FadeOut -> Remove
     label->setOpacity(0);
     auto fadeIn = FadeIn::create(0.5f);
@@ -1227,9 +1245,13 @@ void HudLayer::showNotification(const std::string& message)
     auto moveUp = MoveBy::create(1.0f, Vec2(0, 50));
     auto fadeOut = FadeOut::create(1.0f);
     auto spawn = Spawn::create(moveUp, fadeOut, nullptr);
+    
+    auto cleanup = CallFunc::create([this, label]() {
+        this->removeNotification(label);
+    });
     auto remove = RemoveSelf::create();
     
-    label->runAction(Sequence::create(fadeIn, delay, spawn, remove, nullptr));
+    label->runAction(Sequence::create(fadeIn, delay, spawn, cleanup, remove, nullptr));
 }
 
 void HudLayer::updateEnergyUI()

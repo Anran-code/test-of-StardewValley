@@ -1,4 +1,5 @@
 #include "Player.h"
+#include "GameScene.h"
 
 USING_NS_CC;
 
@@ -159,6 +160,8 @@ void Player::updateAnimationState()
 
 void Player::onKeyPressed(EventKeyboard::KeyCode keyCode)
 {
+    if (GameScene::sWasFainted) return;
+
     switch (keyCode)
     {
     case EventKeyboard::KeyCode::KEY_W:
@@ -185,6 +188,17 @@ void Player::onKeyPressed(EventKeyboard::KeyCode keyCode)
 
 void Player::onKeyReleased(EventKeyboard::KeyCode keyCode)
 {
+    if (GameScene::sWasFainted)
+    {
+        // Force stop movement
+        _movingUp = false;
+        _movingDown = false;
+        _movingLeft = false;
+        _movingRight = false;
+        updateAnimationState();
+        return;
+    }
+
     switch (keyCode)
     {
     case EventKeyboard::KeyCode::KEY_W:
@@ -211,6 +225,11 @@ void Player::onKeyReleased(EventKeyboard::KeyCode keyCode)
 
 Vec2 Player::getMoveVelocity() const
 {
+    if (GameScene::sWasFainted)
+    {
+        return Vec2::ZERO;
+    }
+
     Vec2 dir(
         (_movingRight ? 1.0f : 0.0f) - (_movingLeft ? 1.0f : 0.0f),
         (_movingUp ? 1.0f : 0.0f) - (_movingDown ? 1.0f : 0.0f));

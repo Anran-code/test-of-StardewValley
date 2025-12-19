@@ -30,6 +30,7 @@ public:
     // Helper for ForageSystem
     cocos2d::TMXTiledMap* getMap() const { return _map; }
     cocos2d::TMXLayer* getGroundLayer() const { return _groundLayer; }
+    BackgroundType getType() const { return _type; }
 
     bool isValidSpawnPosition(int x, int y);
 

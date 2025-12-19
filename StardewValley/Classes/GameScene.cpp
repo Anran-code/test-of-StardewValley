@@ -896,6 +896,12 @@ void BackgroundLayer::beginSleep()
     if (_isSleeping) return;
     _isSleeping = true;
 
+    // Close confirmation overlay if open
+    if (_confirmationOverlay) {
+        _confirmationOverlay->removeFromParent();
+        _confirmationOverlay = nullptr;
+    }
+
     // Ensure sleep overlay exists for fainting/sleeping animation
     if (!_sleepOverlay)
     {
@@ -1193,30 +1199,7 @@ void BackgroundLayer::update(float dt)
         _sleepOverlay->setPosition(origin - layerWorldPos);
     }
     
-    // Time-based checks (Midnight Warning & 2:00 AM Fainting)
-    if (GameScene::sClock && !_isSleeping)
-    {
-        int hour = GameScene::sClock->getHour();
-
-        // Midnight Warning (0:00 to 1:50)
-        if (hour >= 0 && hour < 2)
-        {
-            if (!GameScene::sMidnightWarned)
-            {
-                std::string msg = "It's getting late...";
-                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
-                GameScene::sMidnightWarned = true;
-            }
-        }
-        // 2:00 AM Fainting
-        else if (hour == 2)
-        {
-             std::string msg = "You passed out...";
-             Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
-             GameScene::sWasFainted = true;
-             beginSleep();
-        }
-    }
+    // Time-based checks moved to GameScene::update to ensure they run even if layer is blocked
 
     if (_isFishing)
     {
@@ -1667,6 +1650,12 @@ void BackgroundLayer::update(float dt)
 
 void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
+    // Block all inputs if sleeping or fainted
+    if (_isSleeping || GameScene::sWasFainted)
+    {
+        return;
+    }
+
     if (_isFishing)
     {
         if (_fishingGame)
@@ -2215,10 +2204,80 @@ bool GameScene::initWithStartType(BackgroundType type)
 // BackgroundLayer implementation
 void BackgroundLayer::onMouseDown(Event* event)
 {
+    EventMouse* e = (EventMouse*)event;
+
+    // Special case for sleep input (Click to continue)
+    if (_waitingForSleepInput)
+    {
+         if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
+         {
+             _waitingForSleepInput = false;
+             if (_sleepLabel) _sleepLabel->setVisible(false);
+
+             // Wake up logic
+             if (GameScene::sClock)
+             {
+                 GameScene::sClock->setHour(6);
+                 GameScene::sClock->setMinute(0);
+                 GameScene::sClock->addDay(1);
+             }
+             CropSystem::getInstance()->updateDailyGrowth();
+             ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
+             
+             if (GameScene::sWasFainted)
+             {
+                 EnergySystem::getInstance()->resetEnergy(0.75f);
+             }
+             else
+             {
+                 EnergySystem::getInstance()->resetEnergy();
+             }
+             GameScene::sWasFainted = false;
+             GameScene::sMidnightWarned = false;
+             
+             if (_type != BackgroundType::Home)
+             {
+                  GameScene::sStartAtHomeBed = true;
+                  auto next = GameScene::createScene(BackgroundType::Home);
+                  Director::getInstance()->replaceScene(next);
+                  return;
+             }
+
+             if (_player && _hasBedRect)
+             {
+                 Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
+                 _player->setPosition(pos);
+             }
+             
+             // Fade out overlay
+             if (_sleepOverlay)
+             {
+                 _sleepOverlay->stopAllActions();
+                 _sleepOverlay->runAction(Sequence::create(
+                     FadeTo::create(1.0f, 0),
+                     CallFunc::create([this](){ 
+                         _sleepOverlay->setVisible(false); 
+                         _isSleeping = false;
+                     }),
+                     nullptr
+                 ));
+             }
+             else
+             {
+                 _isSleeping = false;
+             }
+             return;
+         }
+    }
+
+    // Block all other inputs if sleeping or fainted
+    if (_isSleeping || GameScene::sWasFainted)
+    {
+        return;
+    }
+
     if (PauseLayer::isGamePaused()) return;
     if (_confirmationOverlay) return; // Block input if confirmation dialog is open
-
-    EventMouse* e = (EventMouse*)event;
     
     // Handle Right Click (Eat)
     if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_RIGHT)
@@ -2255,71 +2314,9 @@ void BackgroundLayer::onMouseDown(Event* event)
 
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
 
-    if (_waitingForSleepInput)
-    {
-        _waitingForSleepInput = false;
-        if (_sleepLabel) _sleepLabel->setVisible(false);
-
-        // Wake up logic
-        if (GameScene::sClock)
-        {
-            GameScene::sClock->setHour(6);
-            GameScene::sClock->setMinute(0);
-            GameScene::sClock->addDay(1);
-        }
-        CropSystem::getInstance()->updateDailyGrowth();
-        ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
-        
-        if (GameScene::sWasFainted)
-        {
-            EnergySystem::getInstance()->resetEnergy(0.75f);
-        }
-        else
-        {
-            EnergySystem::getInstance()->resetEnergy();
-        }
-        GameScene::sWasFainted = false;
-        GameScene::sMidnightWarned = false;
-        
-        if (_type != BackgroundType::Home)
-        {
-             GameScene::sStartAtHomeBed = true;
-             auto next = GameScene::createScene(BackgroundType::Home);
-             Director::getInstance()->replaceScene(next);
-             return;
-        }
-
-        if (_player && _hasBedRect)
-        {
-            Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
-            _player->setPosition(pos);
-        }
-        
-        // Fade out overlay
-        if (_sleepOverlay)
-        {
-            _sleepOverlay->stopAllActions();
-            _sleepOverlay->runAction(Sequence::create(
-                FadeTo::create(1.0f, 0),
-                CallFunc::create([this](){ 
-                    _sleepOverlay->setVisible(false); 
-                    _isSleeping = false;
-                }),
-                nullptr
-            ));
-        }
-        else
-        {
-            _isSleeping = false;
-        }
-
-        return;
-    }
-
+    // Use the tile the player is currently facing (interaction block)
     Vec2 clickPos = e->getLocation();
     if (GameScene::sHud && (GameScene::sHud->isPointInToolbarWorld(clickPos) || GameScene::sHud->isConsumingClick())) return;
-
-    // Use the tile the player is currently facing (interaction block)
     Vec2 targetTile = getFacingTile();
     
     if (!_map) return;
@@ -2858,7 +2855,43 @@ void GameScene::update(float dt)
     }
     CropSystem::getInstance()->updateDailyGrowth();
 
-    // Check for fainting
+    // Time-based checks (Midnight Warning & 2:00 AM Fainting)
+    // Moved here to ensure it runs even if BackgroundLayer is blocked (e.g. by confirmation dialog)
+    if (_clock && !GameScene::sWasFainted)
+    {
+        int hour = _clock->getHour();
+
+        // Midnight Warning (0:00 to 1:50)
+        if (hour >= 0 && hour < 2)
+        {
+            if (!GameScene::sMidnightWarned)
+            {
+                std::string msg = "It's getting late...";
+                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+                GameScene::sMidnightWarned = true;
+            }
+        }
+        // 2:00 AM Fainting
+        else if (hour == 2)
+        {
+             std::string msg = "You passed out...";
+             Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+             GameScene::sWasFainted = true;
+             
+             // Trigger sleep via BackgroundLayer
+             for (auto child : getChildren())
+             {
+                 auto bg = dynamic_cast<BackgroundLayer*>(child);
+                 if (bg)
+                 {
+                     bg->beginSleep();
+                     break;
+                 }
+             }
+        }
+    }
+
+    // Check for fainting (Energy)
     if (EnergySystem::getInstance()->isExhausted())
     {
         // Set to minimal energy to prevent re-triggering loop, actual restore happens in sleep

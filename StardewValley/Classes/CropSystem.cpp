@@ -1059,6 +1059,13 @@ int CropSystem::getSellPrice(CropType type) const
     {
         skill = SkillType::Fishing;
     }
+    else if (type == CropType::Daffodil || type == CropType::Leek || type == CropType::WildHorseradish ||
+             type == CropType::Grape || type == CropType::SpiceBerry || type == CropType::SweetPea ||
+             type == CropType::Blackberry || type == CropType::CommonMushroom || type == CropType::WildPlum ||
+             type == CropType::CrystalFruit || type == CropType::SnowYam || type == CropType::WinterRoot)
+    {
+        skill = SkillType::Foraging;
+    }
     
     int level = ExperienceSystem::getInstance()->getLevel(skill);
     // Apply 5% increase per level
