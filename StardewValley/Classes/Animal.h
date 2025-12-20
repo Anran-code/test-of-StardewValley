@@ -28,22 +28,37 @@ public:
     int getDaysAlive() const { return _daysAlive; }
     Age getAge() const { return _age; }
     Type getType() const { return _type; }
+    
+    void pickNewState();
+
+    // Force start eating action
+    void startEating();
+
+    bool isFed() const { return _isFed; }
+    void setFed(bool val) { _isFed = val; }
+
+    // Location
+    enum class Location { Inside, Outside };
+    void setLocation(Location loc) { _location = loc; }
+    Location getLocation() const { return _location; }
+    State getCurrentState() const { return _currentState; }
 
 private:
     void initAnimations();
     void updateAnimation();
-    void pickNewState();
     cocos2d::Vec2 getDirectionVector() const;
 
 private:
     Type _type;
     Age _age;
+    Location _location;
     Direction _currentDirection;
     State _currentState;
     
     float _stateTimer; 
     float _moveSpeed;
     int _daysAlive;
+    bool _isFed;
     
     // Animation Cache
     cocos2d::Map<std::string, cocos2d::Animation*> _animations;

@@ -22,10 +22,13 @@ bool Animal::init(Type type, Age age)
 {
     _type = type;
     _age = age;
+    _location = Location::Inside; // Default to inside
     _currentDirection = Direction::Down;
     _currentState = State::Idle;
     _stateTimer = 0.0f;
     _moveSpeed = 30.0f; 
+    _daysAlive = 0;
+    _isFed = false;
     _cellSize = Size(16, 16); 
 
     // Determine texture file
@@ -222,6 +225,12 @@ void Animal::updateAnimation()
     }
 }
 
+void Animal::startEating()
+{
+    setState(State::Eat);
+    _stateTimer = 2.0f + (rand() % 20) / 10.0f; // 2-4 seconds
+}
+
 void Animal::pickNewState()
 {
     // Simple Random AI
@@ -237,19 +246,13 @@ void Animal::pickNewState()
         int d = rand() % 4;
         setDirection(static_cast<Direction>(d));
     }
-    // 30% Chance to Eat
+    // 30% Chance to Idle
     else if (r < 70)
-    {
-        setState(State::Eat);
-        _stateTimer = 2.0f + (rand() % 20) / 10.0f; // 2-4 seconds
-    }
-    // 20% Chance to Idle
-    else if (r < 90)
     {
         setState(State::Idle);
         _stateTimer = 1.0f + (rand() % 30) / 10.0f; // 1-4 seconds
     }
-    // 10% Chance to Sit/Sleep
+    // 30% Chance to Sit/Sleep
     else
     {
         setState(State::Sit);

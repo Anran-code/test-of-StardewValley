@@ -65,6 +65,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasBedRect = false;
     _hasPoolRect = false;
     _hasHouseRect = false;
+    _hasHenhouseRect = false; // Added
     _hasTownHomewayRect = false;
     _exitedHomeDoor = false;
     _enteredHome = false;
@@ -305,20 +306,74 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 }
 
                 auto henhouseDoorGroup = _map->getObjectGroup("henhouse door");
+                if (!henhouseDoorGroup) henhouseDoorGroup = _map->getObjectGroup("Henhouse Door"); // Try Title Case
+                if (!henhouseDoorGroup) henhouseDoorGroup = _map->getObjectGroup("Buildings"); // Try Buildings layer
+                
                 if (henhouseDoorGroup)
                 {
-                    const auto& objs = henhouseDoorGroup->getObjects();
-                    if (!objs.empty())
+                    bool found = false;
+                    ValueMap dict;
+                    
+                    // If strictly "henhouse door" group, take first object
+                    std::string groupName = henhouseDoorGroup->getGroupName();
+                    if (groupName == "henhouse door" || groupName == "Henhouse Door")
                     {
-                        const auto& dict = objs.front().asValueMap();
+                        const auto& objs = henhouseDoorGroup->getObjects();
+                        if (!objs.empty()) {
+                            dict = objs.front().asValueMap();
+                            found = true;
+                        }
+                    }
+                    else if (groupName == "Buildings")
+                    {
+                        // Look for "Hen House" or "Coop"
+                         for (const auto& obj : henhouseDoorGroup->getObjects()) {
+                            ValueMap d = obj.asValueMap();
+                            std::string name = d["name"].asString();
+                            if (name == "Hen House" || name == "Coop" || name == "HenHouse") {
+                                dict = d;
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (found)
+                    {
                         float hx = dict.at("x").asFloat();
                         float hy = dict.at("y").asFloat();
                         float hw = dict.at("width").asFloat();
                         float hh = dict.at("height").asFloat();
-                        _henhouseDoorRect = Rect(hx, hy, hw, hh);
-                        _hasHenhouseDoor = true;
-                        GameScene::sFarmHenhouseDoorPos = Vec2(hx + hw * 0.5f, hy + hh * 0.5f);
-                        GameScene::sHasFarmHenhouseDoorPos = true;
+                        
+                        // If we found it in "Buildings", use the rect directly as the building
+                        if (groupName == "Buildings")
+                        {
+                            _henhouseRect = Rect(hx, hy, hw, hh);
+                            _hasHenhouseRect = true;
+                            
+                            // Guess door pos (bottom center)
+                            _henhouseDoorRect = Rect(hx + hw/2 - 16, hy, 32, 48);
+                            _hasHenhouseDoor = true;
+                            GameScene::sFarmHenhouseDoorPos = Vec2(hx + hw * 0.5f, hy + 24);
+                            GameScene::sHasFarmHenhouseDoorPos = true;
+                        }
+                        else
+                        {
+                            // It's the door object
+                            _henhouseDoorRect = Rect(hx, hy, hw, hh);
+                            _hasHenhouseDoor = true;
+                            GameScene::sFarmHenhouseDoorPos = Vec2(hx + hw * 0.5f, hy + hh * 0.5f);
+                            GameScene::sHasFarmHenhouseDoorPos = true;
+                            
+                            // Infer Henhouse Building Rect
+                            float buildW = tileSize.width * 6.0f;
+                            float buildH = tileSize.height * 3.0f;
+                            float doorCenterX = hx + hw * 0.5f;
+                            float bodyX = doorCenterX - buildW * 0.5f;
+                            float bodyY = hy; 
+                            _henhouseRect = Rect(bodyX, bodyY, buildW, buildH);
+                            _hasHenhouseRect = true;
+                        }
                     }
                 }
         
@@ -328,6 +383,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
 
         initObstacles(); // Init obstacles for Farm type
         ForageSystem::getInstance()->init(this);
+        AnimalSystem::getInstance()->init(this, map);
         
         // Initial update for Farm
     updateSeasonFilter();
@@ -1395,6 +1451,13 @@ void BackgroundLayer::update(float dt)
             Rect boxX = box;
             boxX.origin.x += delta.x;
             bool blockX = boxX.intersectsRect(_homeRect) || (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
+            if (!blockX && _hasHenhouseRect && boxX.intersectsRect(_henhouseRect))
+            {
+                // Allow entering door zone
+                if (!boxX.intersectsRect(_henhouseDoorRect))
+                    blockX = true;
+            }
+            
             if (!blockX && _hasPoolRect && !_poolRects.empty())
             {
                 for (const auto& r : _poolRects)
@@ -1443,6 +1506,11 @@ void BackgroundLayer::update(float dt)
                     allowY = boxY.intersectsRect(_homeDoorTunnelRect);
                 }
                 blockY = !allowY;
+            }
+            if (!blockY && _hasHenhouseRect && boxY.intersectsRect(_henhouseRect))
+            {
+                if (!boxY.intersectsRect(_henhouseDoorRect))
+                    blockY = true;
             }
             if (_hasBoundary)
             {
@@ -2300,6 +2368,7 @@ void BackgroundLayer::onExit()
     {
         CropSystem::getInstance()->setMap(nullptr);
     }
+    AnimalSystem::getInstance()->cleanupVisuals();
     Layer::onExit();
 }
 
@@ -2740,6 +2809,35 @@ void BackgroundLayer::onMouseDown(Event* event)
                  }
             }
         }
+        
+        // Feeding Interaction
+        if (item && item->name == "Hay")
+        {
+            // Try Deposit to Hopper
+            if (AnimalSystem::getInstance()->tryDepositHay(targetTile))
+            {
+                 int slot = GameScene::sInventory->getSelectedSlot();
+                 GameScene::sInventory->removeItem(slot, 1);
+                 Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                 return;
+            }
+            // Try Place in Trough
+            if (AnimalSystem::getInstance()->tryPlaceHay(targetTile))
+            {
+                 int slot = GameScene::sInventory->getSelectedSlot();
+                 GameScene::sInventory->removeItem(slot, 1);
+                 Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                 return;
+            }
+        }
+        else
+        {
+            // Try Withdraw from Hopper (Empty hand or other item)
+            if (AnimalSystem::getInstance()->tryWithdrawHay(targetTile))
+            {
+                return;
+            }
+        }
     }
 
     // --- 3. Foraging (Harvest) ---
@@ -2830,7 +2928,26 @@ void BackgroundLayer::onMouseDown(Event* event)
         {
             if (obsType == 0 && item->toolType == ToolType::Axe) removed = true; // Wood
             else if (obsType == 1 && item->toolType == ToolType::Pickaxe) removed = true; // Stone
-            else if (obsType == 2 && item->toolType == ToolType::Scythe) removed = true; // Weed
+            else if (obsType == 2 && item->toolType == ToolType::Scythe) 
+            {
+                removed = true; // Weed
+                // Drop Hay
+                if (GameScene::sInventory) {
+                    Item hay;
+                    hay.type = ItemType::Resource;
+                    hay.name = "Hay";
+                    hay.iconPath = "block/Hay.png";
+                    hay.quantity = 1;
+                    hay.maxStack = 99;
+                    GameScene::sInventory->addItem(hay);
+                    Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                    
+                    // Show visual drop feedback
+                    if (_player) {
+                         _player->showToolFeedback("block/Hay.png");
+                    }
+                }
+            }
         }
         
         if (removed)
@@ -2964,8 +3081,11 @@ void BackgroundLayer::spawnObstacles(int count)
         Vec2 pos(cxPos, cyPos);
         Rect tileRect(x * tileSize.width, mapHeight - (y + 1) * tileSize.height, tileSize.width, tileSize.height);
 
-        // Check forbidden zones (Home, Exit, Pool, Boundaries)
-        if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) continue;
+        // Check forbidden zones (Home, Exit, Pool, Boundaries, Henhouse)
+    if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) continue;
+    
+    // Check Henhouse
+    if (_hasHenhouseRect && (_henhouseRect.intersectsRect(tileRect) || _henhouseDoorRect.intersectsRect(tileRect))) continue;
         
         // --- NEW: Prevent spawning near Home Door (Entrance Buffer Zone) ---
         if (_hasHomeRect)
@@ -3142,6 +3262,64 @@ int BackgroundLayer::getObstacleType(const Vec2& tileIndex)
     auto it = _obstacles.find(key);
     if (it != _obstacles.end()) return it->second.type;
     return -1;
+}
+
+bool BackgroundLayer::tryEatGrass(const cocos2d::Vec2& tileIndex)
+{
+    if (!_map) return false;
+    int key = (int)tileIndex.y * (int)_map->getMapSize().width + (int)tileIndex.x;
+    auto it = _obstacles.find(key);
+    if (it != _obstacles.end())
+    {
+        // Type 2 is Weed/Fiber/Grass
+        if (it->second.type == 2)
+        {
+            removeObstacle(tileIndex);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool BackgroundLayer::isColliding(const cocos2d::Rect& box)
+{
+    // Check Boundaries
+    if (_hasBoundary)
+    {
+        if (box.intersectsRect(_boundaryLeftRect) || box.intersectsRect(_boundaryRightRect) ||
+            box.intersectsRect(_boundaryTopRect) || box.intersectsRect(_boundaryBottomRect))
+            return true;
+    }
+
+    // Check Buildings
+    if (_hasHomeRect && box.intersectsRect(_homeRect))
+    {
+        // For simple collision (animals), just block. 
+        // Ignore door logic for animals for now (they shouldn't enter home anyway).
+        return true;
+    }
+    if (_hasHenhouseRect && box.intersectsRect(_henhouseRect)) return true;
+    
+    if (_hasPoolRect && !_poolRects.empty())
+    {
+        for (const auto& r : _poolRects)
+        {
+            if (box.intersectsRect(r)) return true;
+        }
+    }
+    
+    if (_hasHouseRect && !_houseRects.empty())
+    {
+        for (const auto& r : _houseRects)
+        {
+            if (box.intersectsRect(r)) return true;
+        }
+    }
+    
+    // Check Obstacles
+    if (checkCollisionWithObstacles(box)) return true;
+
+    return false;
 }
 
 bool BackgroundLayer::checkCollisionWithObstacles(const Rect& box)
@@ -3338,8 +3516,11 @@ bool BackgroundLayer::isValidSpawnPosition(int x, int y)
     // Calculate tile position for boundary checks
     Rect tileRect(x * tileSize.width, mapHeight - (y + 1) * tileSize.height, tileSize.width, tileSize.height);
 
-    // Check forbidden zones (Home, Exit, Pool, Boundaries)
+    // Check forbidden zones (Home, Exit, Pool, Boundaries, Henhouse)
     if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) return false;
+    
+    // Check Henhouse
+    if (_hasHenhouseRect && (_henhouseRect.intersectsRect(tileRect) || _henhouseDoorRect.intersectsRect(tileRect))) return false;
 
     // --- Prevent spawning near Home Door (Entrance Buffer Zone) ---
     if (_hasHomeRect)

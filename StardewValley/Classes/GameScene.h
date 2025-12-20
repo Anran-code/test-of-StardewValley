@@ -61,6 +61,8 @@ private:
 public:
     bool hasObstacle(const cocos2d::Vec2& tileIndex);
     int getObstacleType(const cocos2d::Vec2& tileIndex);
+    bool tryEatGrass(const cocos2d::Vec2& tileIndex); // For Animals
+    bool isColliding(const cocos2d::Rect& box); // Check collisions with buildings/walls/obstacles
 
 private:
     bool checkCollisionWithObstacles(const cocos2d::Rect& box);
@@ -91,6 +93,7 @@ private:
     cocos2d::Rect _homeDoorRect;
     cocos2d::Rect _homeDoorTunnelRect;
     cocos2d::Rect _homeExitDoorRect;
+    cocos2d::Rect _henhouseRect; // Added: collision for henhouse building
     cocos2d::Rect _henhouseDoorRect;
     cocos2d::Rect _bedRect;
     std::vector<cocos2d::Rect> _poolRects;
@@ -107,6 +110,7 @@ private:
     bool _hasPoolRect;
     bool _hasTownHomewayRect;
     bool _hasHouseRect;
+    bool _hasHenhouseRect; // Added
     bool _exitedHomeDoor;
     bool _hasRightExit;
     bool _hasBoundary;
