@@ -75,8 +75,12 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _canExitHomeDoor = false;
     _canEnterTownFromRight = false;
     _canReturnFarmFromTown = false;
+    _canEnterHenhouse = false;
     _canEnterTownFromRight = false;
     _canReturnFarmFromTown = false;
+    _hasHenhouseDoor = false;
+    _canEnterHenhouse = false;
+    _enteredHenhouse = false;
 
     _sleepDialogActive = false;
     _isSleeping = false;
@@ -298,6 +302,24 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         }
                     }
                 }
+
+                auto henhouseDoorGroup = _map->getObjectGroup("henhouse door");
+                if (henhouseDoorGroup)
+                {
+                    const auto& objs = henhouseDoorGroup->getObjects();
+                    if (!objs.empty())
+                    {
+                        const auto& dict = objs.front().asValueMap();
+                        float hx = dict.at("x").asFloat();
+                        float hy = dict.at("y").asFloat();
+                        float hw = dict.at("width").asFloat();
+                        float hh = dict.at("height").asFloat();
+                        _henhouseDoorRect = Rect(hx, hy, hw, hh);
+                        _hasHenhouseDoor = true;
+                        GameScene::sFarmHenhouseDoorPos = Vec2(hx + hw * 0.5f, hy + hh * 0.5f);
+                        GameScene::sHasFarmHenhouseDoorPos = true;
+                    }
+                }
         
         CropSystem::getInstance()->init(_map, GameScene::sClock, GameScene::sWallet, GameScene::sInventory);
         // Explicitly set map (init does it, but redundant call is safe)
@@ -516,6 +538,100 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         }
     }
 
+    if (_type == BackgroundType::Henhouse)
+    {
+        auto map = TMXTiledMap::create("map/henhouse.tmx");
+        if (map)
+        {
+            map->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+            map->setPosition(Vec2::ZERO);
+            addChild(map, 0);
+
+            _map = map;
+            _backgroundNode = map;
+
+            Size mapSizeTiles = map->getMapSize();
+            Size tileSize = map->getTileSize();
+            float mapWidth = mapSizeTiles.width * tileSize.width;
+            float mapHeight = mapSizeTiles.height * tileSize.height;
+
+            auto visibleSize = Director::getInstance()->getVisibleSize();
+            Vec2 origin = Director::getInstance()->getVisibleOrigin();
+            float offsetX = origin.x + (visibleSize.width - mapWidth) * 0.5f;
+            float offsetY = origin.y + (visibleSize.height - mapHeight) * 0.5f;
+
+            setPosition(Vec2(offsetX, offsetY));
+
+            _groundLayer = _map->getLayer("图块层 1");
+            if (!_groundLayer)
+            {
+                if (_map->getChildrenCount() > 0)
+                {
+                    _groundLayer = dynamic_cast<TMXLayer*>(_map->getChildren().at(0));
+                }
+            }
+
+            auto doorGroup = _map->getObjectGroup("door");
+            if (doorGroup)
+            {
+                const auto& objs = doorGroup->getObjects();
+                if (!objs.empty())
+                {
+                    const auto& dict = objs.front().asValueMap();
+                    float dx = dict.at("x").asFloat();
+                    float dy = dict.at("y").asFloat();
+                    float dw = dict.at("width").asFloat();
+                    float dh = dict.at("height").asFloat();
+                    _henhouseDoorRect = Rect(dx, dy, dw, dh);
+                    _hasHenhouseDoor = true;
+                }
+            }
+
+            auto player = Player::create("player.png", tileSize.height);
+            if (!player)
+            {
+                player = Player::create("HelloWorld.png", tileSize.height);
+            }
+            if (player)
+            {
+                Vec2 spawnPos(mapWidth * 0.5f, mapHeight * 0.5f);
+                if (_hasHenhouseDoor)
+                {
+                    float spawnX = _henhouseDoorRect.getMidX();
+                    float spawnY = _henhouseDoorRect.getMidY() + tileSize.height;
+                    spawnPos = Vec2(spawnX, spawnY);
+                }
+                player->setPosition(spawnPos);
+                addChild(player, 1);
+                _player = player;
+
+                _facingDebug = DrawNode::create();
+                _map->addChild(_facingDebug, 100);
+
+                scheduleUpdate();
+
+                auto listener = EventListenerKeyboard::create();
+                listener->onKeyPressed = CC_CALLBACK_2(BackgroundLayer::onKeyPressed, this);
+                listener->onKeyReleased = CC_CALLBACK_2(BackgroundLayer::onKeyReleased, this);
+                _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
+
+                auto mouseListener = EventListenerMouse::create();
+                mouseListener->onMouseDown = CC_CALLBACK_1(BackgroundLayer::onMouseDown, this);
+                _eventDispatcher->addEventListenerWithSceneGraphPriority(mouseListener, this);
+
+                _boundaryLeftRect = Rect(tileSize.width, 0.0f, tileSize.width, mapHeight);
+                _boundaryRightRect = Rect(mapWidth - tileSize.width * 2.0f, 0.0f, tileSize.width, mapHeight);
+                _boundaryBottomRect = Rect(0.0f, tileSize.height, mapWidth, tileSize.height);
+                _boundaryTopRect = Rect(0.0f, mapHeight, mapWidth, 0.0f);
+                _hasBoundary = false;
+
+                updateSeasonFilter();
+
+                return true;
+            }
+        }
+    }
+
     if (_type == BackgroundType::Home)
     {
         auto map = TMXTiledMap::create("map/home.tmx");
@@ -650,6 +766,9 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         break;
     case BackgroundType::Shop:
         imageFile = "res/shop_bg.png";
+        break;
+    case BackgroundType::Henhouse:
+        imageFile = "res/farm_bg.png";
         break;
     default:
         return false;
@@ -1433,6 +1552,7 @@ void BackgroundLayer::update(float dt)
         Rect boxAfter = _player->getBoundingBox();
         float halfW = boxAfter.size.width * 0.5f;
         float halfH = boxAfter.size.height * 0.5f;
+
         pos.x = std::max(halfW, std::min(pos.x, mapWidth - halfW));
         pos.y = std::max(halfH, std::min(pos.y, mapHeight - halfH));
 
@@ -1445,8 +1565,12 @@ void BackgroundLayer::update(float dt)
         _player->setLocalZOrder(static_cast<int>(mapHeight - _player->getPositionY()));
     }
 
+    // Reset per-frame interaction flags
+    _canEnterHomeDoor = false;
+    _canExitHomeDoor = false;
     _canEnterTownFromRight = false;
     _canReturnFarmFromTown = false;
+    _canEnterHenhouse = false;
 
     if (_type == BackgroundType::Farm && _hasHomeRect && !_enteredHome && _map && _groundLayer)
     {
@@ -1471,6 +1595,15 @@ void BackgroundLayer::update(float dt)
         }
     }
 
+    if (_type == BackgroundType::Farm && _hasHenhouseDoor && !_enteredHenhouse && _player)
+    {
+        Rect box = _player->getBoundingBox();
+        if (box.intersectsRect(_henhouseDoorRect))
+        {
+            _canEnterHenhouse = true;
+        }
+    }
+
     if (_type == BackgroundType::Town && _hasTownHomewayRect)
     {
         Rect box = _player->getBoundingBox();
@@ -1492,6 +1625,15 @@ void BackgroundLayer::update(float dt)
             {
                 _canExitHomeDoor = true;
             }
+        }
+    }
+
+    if (_type == BackgroundType::Henhouse && _hasHenhouseDoor && _player)
+    {
+        Rect box = _player->getBoundingBox();
+        if (box.intersectsRect(_henhouseDoorRect))
+        {
+            _canEnterHenhouse = true;
         }
     }
 
@@ -2105,6 +2247,8 @@ Vec2 GameScene::sFarmStartPos = Vec2::ZERO;
 bool GameScene::sHasFarmStartPos = false;
 Vec2 GameScene::sFarmTownwayPos = Vec2::ZERO;
 bool GameScene::sHasFarmTownwayPos = false;
+Vec2 GameScene::sFarmHenhouseDoorPos = Vec2::ZERO;
+bool GameScene::sHasFarmHenhouseDoorPos = false;
 bool GameScene::sSpawnAtFarmStart = false;
 bool GameScene::sStartAtHomeBed = false;
 
@@ -2394,7 +2538,7 @@ void BackgroundLayer::onMouseDown(Event* event)
         return; // No farming in Home
     }
     
-    // --- 2. Farm Interactions (Enter Home / Town) ---
+    // --- 2. Farm Interactions (Enter Home / Town / Henhouse) ---
     if (_type == BackgroundType::Farm)
     {
         if (_canEnterHomeDoor && !_enteredHome && _map && _groundLayer && _player)
@@ -2403,6 +2547,20 @@ void BackgroundLayer::onMouseDown(Event* event)
             GameScene::sLastFarmPlayerPos = _player->getPosition();
             GameScene::sHasLastFarmPlayerPos = true;
             auto next = GameScene::createScene(BackgroundType::Home);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+                return;
+            }
+        }
+
+        if (_canEnterHenhouse && !_enteredHenhouse && _map && _groundLayer && _player)
+        {
+            _enteredHenhouse = true;
+            GameScene::sLastFarmPlayerPos = _player->getPosition();
+            GameScene::sHasLastFarmPlayerPos = true;
+            auto next = GameScene::createScene(BackgroundType::Henhouse);
             if (next)
             {
                 auto trans = TransitionFade::create(0.5f, next);
@@ -2429,6 +2587,27 @@ void BackgroundLayer::onMouseDown(Event* event)
             if (GameScene::sHasFarmTownwayPos)
             {
                 GameScene::sLastFarmPlayerPos = GameScene::sFarmTownwayPos;
+                GameScene::sHasLastFarmPlayerPos = true;
+                GameScene::sSpawnAtFarmStart = false;
+            }
+            auto next = GameScene::createScene(BackgroundType::Farm);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+                return;
+            }
+        }
+    }
+
+    // --- 4. Henhouse Interactions (Return to Farm) ---
+    if (_type == BackgroundType::Henhouse)
+    {
+        if (_canEnterHenhouse && _hasHenhouseDoor && _map && _groundLayer && _player)
+        {
+            if (GameScene::sHasFarmHenhouseDoorPos)
+            {
+                GameScene::sLastFarmPlayerPos = GameScene::sFarmHenhouseDoorPos;
                 GameScene::sHasLastFarmPlayerPos = true;
                 GameScene::sSpawnAtFarmStart = false;
             }

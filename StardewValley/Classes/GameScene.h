@@ -15,7 +15,8 @@ enum class BackgroundType
     Farm,
     Path,
     Town,
-    Shop
+    Shop,
+    Henhouse
 };
 
 class BackgroundLayer : public cocos2d::Layer
@@ -89,6 +90,7 @@ private:
     cocos2d::Rect _homeDoorRect;
     cocos2d::Rect _homeDoorTunnelRect;
     cocos2d::Rect _homeExitDoorRect;
+    cocos2d::Rect _henhouseDoorRect;
     cocos2d::Rect _bedRect;
     std::vector<cocos2d::Rect> _poolRects;
     std::vector<cocos2d::Rect> _houseRects;
@@ -114,6 +116,9 @@ private:
     bool _canExitHomeDoor;
     bool _canEnterTownFromRight;
     bool _canReturnFarmFromTown;
+    bool _hasHenhouseDoor;
+    bool _canEnterHenhouse;
+    bool _enteredHenhouse;
 
     bool _sleepDialogActive;
     bool _isSleeping;
@@ -172,6 +177,8 @@ public:
     static bool sHasFarmStartPos;
     static cocos2d::Vec2 sFarmTownwayPos;
     static bool sHasFarmTownwayPos;
+    static cocos2d::Vec2 sFarmHenhouseDoorPos;
+    static bool sHasFarmHenhouseDoorPos;
     static bool sSpawnAtFarmStart;
     static bool sStartAtHomeBed;
 
