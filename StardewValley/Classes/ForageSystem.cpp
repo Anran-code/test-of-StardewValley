@@ -2,6 +2,7 @@
 #include "GameScene.h"
 #include "Inventory.h"
 #include "Item.h"
+#include "ExperienceSystem.h"
 
 USING_NS_CC;
 
@@ -16,7 +17,7 @@ ForageSystem* ForageSystem::getInstance()
     return sInstance;
 }
 
-ForageSystem::ForageSystem() : _layer(nullptr), _pendingSpawn(false), _pendingSeason(GameClock::Season::Spring), _lastDay(-1)
+ForageSystem::ForageSystem() : _layer(nullptr), _lastDay(-1)
 {
 }
 
@@ -25,13 +26,25 @@ void ForageSystem::update(GameClock* clock)
     if (!clock) return;
     int currentDay = clock->getDay();
     
-    // On first update, if day is different from -1, it triggers newDay.
-    // This ensures items spawn on game start.
+    // Check if new day
     if (_lastDay != currentDay)
     {
-        // Only trigger if we have moved to a new day (or first day)
         newDay(clock->getSeason());
         _lastDay = currentDay;
+    }
+
+    // Check if we need to spawn for the CURRENT layer (e.g. walked into Farm)
+    if (_layer)
+    {
+        BackgroundType type = _layer->getType();
+        if (isOutdoors(type))
+        {
+            if (_spawnedDays.find(type) == _spawnedDays.end() || _spawnedDays[type] != currentDay)
+            {
+                spawnForMap(_layer);
+                _spawnedDays[type] = currentDay;
+            }
+        }
     }
 }
 
@@ -39,42 +52,54 @@ void ForageSystem::init(BackgroundLayer* layer)
 {
     _layer = layer;
     
-    if (_pendingSpawn)
-    {
-        _items.clear();
-        newDay(_pendingSeason);
-        _pendingSpawn = false;
-        return;
-    }
+    // Restore visuals for existing items matching THIS map
+    BackgroundType currentType = layer->getType();
     
-    // Restore visuals for existing items
     for (auto& item : _items)
     {
-        // If sprite exists (shouldn't if cleared), remove it
+        // Remove old sprite ref if it exists (it might be from previous scene)
         if (item.sprite)
         {
             item.sprite->removeFromParent();
             item.sprite = nullptr;
         }
         
-        auto data = CropSystem::getInstance()->getCropData(item.type);
-        item.sprite = Sprite::create(data->itemIcon);
-        if (item.sprite)
+        // Only render if it belongs to this map
+        if (item.mapType == currentType)
         {
-            // Position logic (same as spawn)
-            if (_layer && _layer->getMap())
+            auto data = CropSystem::getInstance()->getCropData(item.type);
+            item.sprite = Sprite::create(data->itemIcon);
+            if (item.sprite)
             {
-                Size tileSize = _layer->getMap()->getTileSize();
-                float mapHeight = _layer->getMap()->getMapSize().height * tileSize.height;
-                float cx = (item.tilePosition.x + 0.5f) * tileSize.width;
-                float cy = mapHeight - (item.tilePosition.y + 0.5f) * tileSize.height;
-                item.sprite->setPosition(Vec2(cx, cy));
-                item.sprite->setScale(2.0f); // Make them visible
-                _layer->addChild(item.sprite, (int)(mapHeight - cy)); // Z-order
+                if (_layer && _layer->getMap())
+                {
+                    Size tileSize = _layer->getMap()->getTileSize();
+                    float mapHeight = _layer->getMap()->getMapSize().height * tileSize.height;
+                    float cx = (item.tilePosition.x + 0.5f) * tileSize.width;
+                    float cy = mapHeight - (item.tilePosition.y + 0.5f) * tileSize.height;
+                    item.sprite->setPosition(Vec2(cx, cy));
+                    
+                    // Fixed Scale Logic: Fit to tile
+                    if (item.sprite->getContentSize().width > tileSize.width)
+                    {
+                        item.sprite->setScale(tileSize.width / item.sprite->getContentSize().width);
+                    }
+                    else
+                    {
+                         // Optional: scale up slightly if too small? 
+                         // But for consistency with newDay, let's keep it simple.
+                         // Stardew items are usually 16x16, tiles are 16x16 (scaled).
+                         // If sprite is huge (high res), we scale down.
+                    }
+
+                    _layer->addChild(item.sprite, (int)(mapHeight - cy)); // Z-order
+                }
             }
         }
     }
 }
+
+
 
 void ForageSystem::clearVisuals()
 {
@@ -96,29 +121,37 @@ void ForageSystem::detachLayer()
 
 void ForageSystem::newDay(GameClock::Season season)
 {
-    // Clear previous day's items completely
+    // Clear ALL items from previous day (Daily Reset)
     clearVisuals();
-    
-    if (!_layer)
-    {
-        _pendingSpawn = true;
-        _pendingSeason = season;
-        return;
-    }
-    
     _items.clear();
+    // _spawnedDays will be updated as we visit maps
+    // But we need to reset it?
+    // Actually, if we clear items, we should clear _spawnedDays too, 
+    // so that when we visit a map, it spawns NEW items.
+    _spawnedDays.clear();
+}
+
+void ForageSystem::spawnForMap(BackgroundLayer* layer)
+{
+    if (!layer) return;
     
-    auto types = getForageTypesForSeason(season);
-    if (types.empty()) return;
-    
-    auto map = _layer->getMap();
+    auto map = layer->getMap();
     if (!map) return;
     
+    BackgroundType mapType = layer->getType();
+    
+    // Get season from clock via GameScene (global access)
+    // We assume season matches current clock
+    GameClock::Season season = GameScene::sClock ? GameScene::sClock->getSeason() : GameClock::Season::Spring;
+
+    auto types = getForageTypesForSeason(season);
+    if (types.empty()) return;
+
     Size mapSize = map->getMapSize();
     Size tileSize = map->getTileSize();
     float mapHeight = mapSize.height * tileSize.height;
     
-    // Spawn 6-10 items
+    // Spawn 6-10 items per map
     int count = RandomHelper::random_int(6, 10);
     
     for (int i = 0; i < count; ++i)
@@ -130,13 +163,14 @@ void ForageSystem::newDay(GameClock::Season season)
             int y = RandomHelper::random_int(0, (int)mapSize.height - 1);
             Vec2 tilePos((float)x, (float)y);
             
-            if (isValidTile(tilePos))
+            // Check if valid spawn position on THIS layer
+            if (layer->isValidSpawnPosition(x, y))
             {
-                // Check if we already have an item here
+                // Check if we already have an item here (on this map)
                 bool alreadyHasItem = false;
                 for (const auto& existing : _items)
                 {
-                    if (existing.tilePosition == tilePos)
+                    if (existing.mapType == mapType && existing.tilePosition == tilePos)
                     {
                         alreadyHasItem = true;
                         break;
@@ -162,12 +196,13 @@ void ForageSystem::newDay(GameClock::Season season)
                     }
                      
                     int zOrder = static_cast<int>(mapHeight - cyPos);
-                    _layer->addChild(sprite, zOrder);
+                    layer->addChild(sprite, zOrder);
                     
                     ForageItem newItem;
                     newItem.type = type;
                     newItem.tilePosition = tilePos;
                     newItem.sprite = sprite;
+                    newItem.mapType = mapType; // Set map type
                     _items.push_back(newItem);
                     
                     break; // Success for this item
@@ -179,9 +214,13 @@ void ForageSystem::newDay(GameClock::Season season)
 
 bool ForageSystem::tryHarvest(const cocos2d::Vec2& tilePos)
 {
+    if (!_layer) return false;
+    BackgroundType currentMapType = _layer->getType();
+
     for (auto it = _items.begin(); it != _items.end(); ++it)
     {
-        if (it->tilePosition == tilePos)
+        // Must match current map AND position
+        if (it->mapType == currentMapType && it->tilePosition == tilePos)
         {
             // Found item
             auto data = CropSystem::getInstance()->getCropData(it->type);
@@ -192,8 +231,8 @@ bool ForageSystem::tryHarvest(const cocos2d::Vec2& tilePos)
                 Item item = Item::createCrop(it->type, data->itemName, data->itemIcon, 1);
                 GameScene::sInventory->addItem(item);
                 
-                // Optional: Play sound
-                // CocosDenshion::SimpleAudioEngine::getInstance()->playEffect("pickup.wav");
+                // Gain Experience
+                ExperienceSystem::getInstance()->addExperience(SkillType::Foraging, data->xp);
             }
             
             // Remove visual
@@ -212,14 +251,32 @@ bool ForageSystem::tryHarvest(const cocos2d::Vec2& tilePos)
 
 bool ForageSystem::hasItem(const cocos2d::Vec2& tilePos) const
 {
+    if (!_layer) return false;
+    BackgroundType currentMapType = _layer->getType();
+
     for (const auto& item : _items)
     {
-        if (item.tilePosition == tilePos)
+        if (item.mapType == currentMapType && item.tilePosition == tilePos)
         {
             return true;
         }
     }
     return false;
+}
+
+const ForageItem* ForageSystem::getItemAt(const cocos2d::Vec2& tilePos) const
+{
+    if (!_layer) return nullptr;
+    BackgroundType currentMapType = _layer->getType();
+
+    for (const auto& item : _items)
+    {
+        if (item.mapType == currentMapType && item.tilePosition == tilePos)
+        {
+            return &item;
+        }
+    }
+    return nullptr;
 }
 
 std::vector<CropType> ForageSystem::getForageTypesForSeason(GameClock::Season season)
@@ -247,4 +304,11 @@ bool ForageSystem::isValidTile(const cocos2d::Vec2& tilePos)
 {
     if (!_layer) return false;
     return _layer->isValidSpawnPosition((int)tilePos.x, (int)tilePos.y);
+}
+
+bool ForageSystem::isOutdoors(BackgroundType type)
+{
+    return (type == BackgroundType::Farm || 
+            type == BackgroundType::Town || 
+            type == BackgroundType::Path);
 }

@@ -41,6 +41,9 @@ void ExperienceSystem::init()
     
     _currentExperience[SkillType::Fishing] = 0;
     _currentLevel[SkillType::Fishing] = 0;
+
+    _currentExperience[SkillType::Foraging] = 0;
+    _currentLevel[SkillType::Foraging] = 0;
 }
 
 void ExperienceSystem::loadXPThresholds()
@@ -69,6 +72,7 @@ std::string ExperienceSystem::getSkillName(SkillType skill) const
     {
         case SkillType::Farming: return "Farming";
         case SkillType::Fishing: return "Fishing";
+        case SkillType::Foraging: return "Foraging";
         default: return "Unknown";
     }
 }

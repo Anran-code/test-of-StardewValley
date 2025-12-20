@@ -50,6 +50,9 @@ public:
     void showNotification(const std::string& message);
 
 private:
+    void removeNotification(cocos2d::Label* label);
+    std::vector<cocos2d::Label*> _activeNotifications;
+
     bool _lowEnergyWarned;
 
     cocos2d::EventListenerMouse* _mouseListener;

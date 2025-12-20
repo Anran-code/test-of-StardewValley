@@ -1059,6 +1059,13 @@ int CropSystem::getSellPrice(CropType type) const
     {
         skill = SkillType::Fishing;
     }
+    else if (type == CropType::Daffodil || type == CropType::Leek || type == CropType::WildHorseradish ||
+             type == CropType::Grape || type == CropType::SpiceBerry || type == CropType::SweetPea ||
+             type == CropType::Blackberry || type == CropType::CommonMushroom || type == CropType::WildPlum ||
+             type == CropType::CrystalFruit || type == CropType::SnowYam || type == CropType::WinterRoot)
+    {
+        skill = SkillType::Foraging;
+    }
     
     int level = ExperienceSystem::getInstance()->getLevel(skill);
     // Apply 5% increase per level
@@ -1075,4 +1082,11 @@ const CropData* CropSystem::getCropData(CropType type) const
         return &it->second;
     }
     return nullptr;
+}
+
+const CropInstance* CropSystem::getCropAt(const cocos2d::Vec2& tileIndex) const
+{
+    if (!inBounds(tileIndex)) return nullptr;
+    const auto& slot = _tiles[(int)tileIndex.x][(int)tileIndex.y];
+    return slot.crop.get();
 }

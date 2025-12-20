@@ -70,7 +70,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasRightExit = false;
     _exitedRight = false;
     _hasBoundary = false;
-    _isDebugMode = false;
+    _isDebugMode = GameScene::sDebugMode;
     _canEnterHomeDoor = false;
     _canExitHomeDoor = false;
     _canEnterTownFromRight = false;
@@ -797,6 +797,9 @@ bool BackgroundLayer::initWithType(BackgroundType type)
 
     addChild(sprite, 0);
 
+    _facingDebug = DrawNode::create();
+    addChild(_facingDebug, 100);
+
     // Create season overlay for static backgrounds
     // It should cover the whole screen or the sprite?
     // Let's cover the screen.
@@ -1032,6 +1035,12 @@ void BackgroundLayer::beginSleep()
 {
     if (_isSleeping) return;
     _isSleeping = true;
+
+    // Close confirmation overlay if open
+    if (_confirmationOverlay) {
+        _confirmationOverlay->removeFromParent();
+        _confirmationOverlay = nullptr;
+    }
 
     // Ensure sleep overlay exists for fainting/sleeping animation
     if (!_sleepOverlay)
@@ -1292,6 +1301,11 @@ void BackgroundLayer::endFishing(bool success)
                 {
                     _fishingLabel->setString("You caught a " + data->itemName + "!");
                 }
+                
+                if (_player)
+                {
+                    _player->showToolFeedback(data->itemIcon);
+                }
             }
         }
     }
@@ -1330,30 +1344,7 @@ void BackgroundLayer::update(float dt)
         _sleepOverlay->setPosition(origin - layerWorldPos);
     }
     
-    // Time-based checks (Midnight Warning & 2:00 AM Fainting)
-    if (GameScene::sClock && !_isSleeping)
-    {
-        int hour = GameScene::sClock->getHour();
-
-        // Midnight Warning (0:00 to 1:50)
-        if (hour >= 0 && hour < 2)
-        {
-            if (!GameScene::sMidnightWarned)
-            {
-                std::string msg = "It's getting late...";
-                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
-                GameScene::sMidnightWarned = true;
-            }
-        }
-        // 2:00 AM Fainting
-        else if (hour == 2)
-        {
-             std::string msg = "You passed out...";
-             Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
-             GameScene::sWasFainted = true;
-             beginSleep();
-        }
-    }
+    // Time-based checks moved to GameScene::update to ensure they run even if layer is blocked
 
     if (_isFishing)
     {
@@ -1627,7 +1618,6 @@ void BackgroundLayer::update(float dt)
             }
         }
     }
-
     if (_type == BackgroundType::Henhouse && _hasHenhouseDoor && _player)
     {
         Rect box = _player->getBoundingBox();
@@ -1642,9 +1632,11 @@ void BackgroundLayer::update(float dt)
         _facingDebug->clear();
 
         // 1. Always draw facing tile cursor (User requirement: always visible)
-        Vec2 tileIndex = getFacingTile();
-        if (tileIndex.x >= 0 && tileIndex.y >= 0)
+        if (_groundLayer && _map)
         {
+            Vec2 tileIndex = getFacingTile();
+            if (tileIndex.x >= 0 && tileIndex.y >= 0)
+            {
             if (!(_type == BackgroundType::Home && tileIndex.y < 3))
             {
                 Size tileSize2 = _map->getTileSize();
@@ -1738,6 +1730,7 @@ void BackgroundLayer::update(float dt)
                 _facingDebug->drawRect(p1, p2, borderColor);
             }
         }
+        }
 
         if (_isDebugMode)
         {
@@ -1776,6 +1769,41 @@ void BackgroundLayer::update(float dt)
                 Vec2 r2(_rightExitRect.getMaxX(), _rightExitRect.getMaxY());
                 _facingDebug->drawSolidRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 0.2f));
                 _facingDebug->drawRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 1.0f));
+            }
+
+            if (_hasBedRect)
+            {
+                Vec2 r1(_bedRect.getMinX(), _bedRect.getMinY());
+                Vec2 r2(_bedRect.getMaxX(), _bedRect.getMaxY());
+                _facingDebug->drawSolidRect(r1, r2, Color4F(0.0f, 0.0f, 1.0f, 0.2f)); // Blue for bed
+                _facingDebug->drawRect(r1, r2, Color4F(0.0f, 0.0f, 1.0f, 1.0f));
+            }
+
+            if (_hasHomeExitDoor)
+            {
+                Vec2 r1(_homeExitDoorRect.getMinX(), _homeExitDoorRect.getMinY());
+                Vec2 r2(_homeExitDoorRect.getMaxX(), _homeExitDoorRect.getMaxY());
+                _facingDebug->drawSolidRect(r1, r2, Color4F(0.0f, 1.0f, 0.0f, 0.2f)); // Green for exit
+                _facingDebug->drawRect(r1, r2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
+            }
+
+            if (_hasTownHomewayRect)
+            {
+                Vec2 r1(_townHomewayRect.getMinX(), _townHomewayRect.getMinY());
+                Vec2 r2(_townHomewayRect.getMaxX(), _townHomewayRect.getMaxY());
+                _facingDebug->drawSolidRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 0.2f)); // Yellow for way back
+                _facingDebug->drawRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 1.0f));
+            }
+
+            if (_hasHouseRect && !_houseRects.empty())
+            {
+                for (const auto& r : _houseRects)
+                {
+                    Vec2 p1(r.getMinX(), r.getMinY());
+                    Vec2 p2(r.getMaxX(), r.getMaxY());
+                    _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 0.0f, 0.2f)); // Red tint for houses
+                    _facingDebug->drawRect(p1, p2, Color4F(1.0f, 0.0f, 0.0f, 1.0f));
+                }
             }
 
             if (_player)
@@ -1820,6 +1848,30 @@ void BackgroundLayer::update(float dt)
                         Color4F(1.0f, 0.0f, 0.0f, 1.0f) // Red for obstacles
                     );
                 }
+
+                // Debug draw for Forage Items
+                const auto& forageItems = ForageSystem::getInstance()->getItems();
+                for (const auto& item : forageItems)
+                {
+                    // Only draw items for the current map
+                    if (item.mapType == _type)
+                    {
+                        float cx = (item.tilePosition.x + 0.5f) * tileSize.width;
+                        float cy = mapHeight - (item.tilePosition.y + 0.5f) * tileSize.height;
+
+                        float shrinkFactor = 0.85f; 
+                        float w = tileSize.width * shrinkFactor;
+                        float h = tileSize.height * shrinkFactor;
+
+                        Rect itemRect(cx - w * 0.5f, cy - h * 0.5f, w, h);
+                    
+                        _facingDebug->drawRect(
+                            Vec2(itemRect.getMinX(), itemRect.getMinY()),
+                            Vec2(itemRect.getMaxX(), itemRect.getMaxY()),
+                            Color4F(1.0f, 0.5f, 0.0f, 1.0f) // Orange for forage items
+                        );
+                    }
+                }
             }
         }
     }
@@ -1827,6 +1879,12 @@ void BackgroundLayer::update(float dt)
 
 void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
+    // Block all inputs if sleeping or fainted
+    if (_isSleeping || GameScene::sWasFainted)
+    {
+        return;
+    }
+
     if (_isFishing)
     {
         if (_fishingGame)
@@ -1905,17 +1963,21 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
     {
         return;
     }
+
+    if (keyCode == EventKeyboard::KeyCode::KEY_GRAVE)
+    {
+        _isDebugMode = !_isDebugMode;
+        GameScene::sDebugMode = _isDebugMode;
+        if (GameScene::sHud) { GameScene::sHud->updateInventoryUI(); }
+        Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("DEBUG_MODE_CHANGED");
+        return;
+    }
+
     if (_type == BackgroundType::Farm)
     {
         Vec2 tile = getFacingTile();
         switch (keyCode)
         {
-        case EventKeyboard::KeyCode::KEY_GRAVE: // Tilde key (~)
-            _isDebugMode = !_isDebugMode;
-            GameScene::sDebugMode = _isDebugMode;
-            if (GameScene::sHud) { GameScene::sHud->updateInventoryUI(); }
-            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("DEBUG_MODE_CHANGED");
-            break;
         case EventKeyboard::KeyCode::KEY_1:
             CropSystem::getInstance()->setSelectedCrop(CropType::Parsnip);
             break;
@@ -2122,44 +2184,60 @@ void BackgroundLayer::onKeyReleased(EventKeyboard::KeyCode keyCode, Event* event
 
 cocos2d::Vec2 BackgroundLayer::getFacingTile() const
 {
-    if (!_map || !_player)
+    if (!_player)
     {
         return Vec2(-1, -1);
     }
 
-    Size mapSizeTiles = _map->getMapSize();
-    Size tileSize = _map->getTileSize();
+    // 1. If we have a TMX map, use tile coordinates
+    if (_map)
+    {
+        Size mapSizeTiles = _map->getMapSize();
+        Size tileSize = _map->getTileSize();
 
-    float mapWidth = mapSizeTiles.width * tileSize.width;
-    float mapHeight = mapSizeTiles.height * tileSize.height;
+        float mapWidth = mapSizeTiles.width * tileSize.width;
+        float mapHeight = mapSizeTiles.height * tileSize.height;
 
-    // Use the feet position (collision box center) for more accurate tile selection
-    // instead of the anchor point which might be higher up.
-    Rect spriteBox = _player->getBoundingBox();
-    float footH = spriteBox.size.height * 0.25f; // Match collision logic
-    Vec2 feetPos(spriteBox.getMidX(), spriteBox.getMinY() + footH * 0.5f);
+        Rect spriteBox = _player->getBoundingBox();
+        float footH = spriteBox.size.height * 0.25f;
+        Vec2 feetPos(spriteBox.getMidX(), spriteBox.getMinY() + footH * 0.5f);
 
-    float clampedX = std::max(0.0f, std::min(feetPos.x, mapWidth - 1.0f));
-    float clampedY = std::max(0.0f, std::min(feetPos.y, mapHeight - 1.0f));
+        float clampedX = std::max(0.0f, std::min(feetPos.x, mapWidth - 1.0f));
+        float clampedY = std::max(0.0f, std::min(feetPos.y, mapHeight - 1.0f));
 
-    // 世界坐标 → 以左上角为原点的瓷砖坐标
-    float tileXTop = clampedX / tileSize.width;
-    float tileYTop = (mapHeight - clampedY) / tileSize.height;
+        float tileXTop = clampedX / tileSize.width;
+        float tileYTop = (mapHeight - clampedY) / tileSize.height;
 
-    int ix = static_cast<int>(tileXTop);
-    int iy = static_cast<int>(tileYTop);
+        int ix = static_cast<int>(tileXTop);
+        int iy = static_cast<int>(tileYTop);
 
-    Vec2 offset = _player->getFacingOffset();
-    int tx = ix + static_cast<int>(offset.x);
-    int ty = iy + static_cast<int>(offset.y);
+        Vec2 offset = _player->getFacingOffset();
+        int tx = ix + static_cast<int>(offset.x);
+        int ty = iy + static_cast<int>(offset.y);
 
-    int maxX = static_cast<int>(mapSizeTiles.width) - 1;
-    int maxY = static_cast<int>(mapSizeTiles.height) - 1;
+        int maxX = static_cast<int>(mapSizeTiles.width) - 1;
+        int maxY = static_cast<int>(mapSizeTiles.height) - 1;
 
-    tx = std::max(0, std::min(tx, maxX));
-    ty = std::max(0, std::min(ty, maxY));
+        tx = std::max(0, std::min(tx, maxX));
+        ty = std::max(0, std::min(ty, maxY));
 
-    return Vec2(tx, ty);
+        return Vec2(tx, ty);
+    }
+    // 2. If no map (static background), calculate pseudo-grid
+    // Assuming static backgrounds (Path, Shop) cover the screen or have a main sprite
+    // For now, we return (-1, -1) or a "screen grid" if needed.
+    // However, the debug drawing relies on this. 
+    // Let's implement a virtual grid for static scenes if needed, or just return (-1, -1) and handle debug drawing separately.
+    // But wait, the user wants to see collision boxes.
+    // Collision boxes (rects) don't rely on tiles. They rely on world coordinates.
+    // The tile cursor (yellow dot) relies on tiles.
+    // If we want to show a cursor on static scenes, we need a virtual grid.
+    
+    // For static scenes, let's use a virtual 16x16 grid based on visible size or the background sprite size.
+    // Find the background sprite (usually child 0 or by tag)
+    // But for now, let's just return (-1, -1) and fix the debug drawing to not crash or skip rects.
+    
+    return Vec2(-1, -1);
 }
 
 Vec2 FarmMapUtils::gridToWorld(const Vec2& gridIndex, Sprite* mapSprite, int cols, int rows)
@@ -2379,10 +2457,80 @@ bool GameScene::initWithStartType(BackgroundType type)
 // BackgroundLayer implementation
 void BackgroundLayer::onMouseDown(Event* event)
 {
+    EventMouse* e = (EventMouse*)event;
+
+    // Special case for sleep input (Click to continue)
+    if (_waitingForSleepInput)
+    {
+         if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
+         {
+             _waitingForSleepInput = false;
+             if (_sleepLabel) _sleepLabel->setVisible(false);
+
+             // Wake up logic
+             if (GameScene::sClock)
+             {
+                 GameScene::sClock->setHour(6);
+                 GameScene::sClock->setMinute(0);
+                 GameScene::sClock->addDay(1);
+             }
+             CropSystem::getInstance()->updateDailyGrowth();
+             ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
+             
+             if (GameScene::sWasFainted)
+             {
+                 EnergySystem::getInstance()->resetEnergy(0.75f);
+             }
+             else
+             {
+                 EnergySystem::getInstance()->resetEnergy();
+             }
+             GameScene::sWasFainted = false;
+             GameScene::sMidnightWarned = false;
+             
+             if (_type != BackgroundType::Home)
+             {
+                  GameScene::sStartAtHomeBed = true;
+                  auto next = GameScene::createScene(BackgroundType::Home);
+                  Director::getInstance()->replaceScene(next);
+                  return;
+             }
+
+             if (_player && _hasBedRect)
+             {
+                 Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
+                 _player->setPosition(pos);
+             }
+             
+             // Fade out overlay
+             if (_sleepOverlay)
+             {
+                 _sleepOverlay->stopAllActions();
+                 _sleepOverlay->runAction(Sequence::create(
+                     FadeTo::create(1.0f, 0),
+                     CallFunc::create([this](){ 
+                         _sleepOverlay->setVisible(false); 
+                         _isSleeping = false;
+                     }),
+                     nullptr
+                 ));
+             }
+             else
+             {
+                 _isSleeping = false;
+             }
+             return;
+         }
+    }
+
+    // Block all other inputs if sleeping or fainted
+    if (_isSleeping || GameScene::sWasFainted)
+    {
+        return;
+    }
+
     if (PauseLayer::isGamePaused()) return;
     if (_confirmationOverlay) return; // Block input if confirmation dialog is open
-
-    EventMouse* e = (EventMouse*)event;
     
     // Handle Right Click (Eat)
     if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_RIGHT)
@@ -2419,71 +2567,9 @@ void BackgroundLayer::onMouseDown(Event* event)
 
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
 
-    if (_waitingForSleepInput)
-    {
-        _waitingForSleepInput = false;
-        if (_sleepLabel) _sleepLabel->setVisible(false);
-
-        // Wake up logic
-        if (GameScene::sClock)
-        {
-            GameScene::sClock->setHour(6);
-            GameScene::sClock->setMinute(0);
-            GameScene::sClock->addDay(1);
-        }
-        CropSystem::getInstance()->updateDailyGrowth();
-        ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
-        
-        if (GameScene::sWasFainted)
-        {
-            EnergySystem::getInstance()->resetEnergy(0.75f);
-        }
-        else
-        {
-            EnergySystem::getInstance()->resetEnergy();
-        }
-        GameScene::sWasFainted = false;
-        GameScene::sMidnightWarned = false;
-        
-        if (_type != BackgroundType::Home)
-        {
-             GameScene::sStartAtHomeBed = true;
-             auto next = GameScene::createScene(BackgroundType::Home);
-             Director::getInstance()->replaceScene(next);
-             return;
-        }
-
-        if (_player && _hasBedRect)
-        {
-            Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
-            _player->setPosition(pos);
-        }
-        
-        // Fade out overlay
-        if (_sleepOverlay)
-        {
-            _sleepOverlay->stopAllActions();
-            _sleepOverlay->runAction(Sequence::create(
-                FadeTo::create(1.0f, 0),
-                CallFunc::create([this](){ 
-                    _sleepOverlay->setVisible(false); 
-                    _isSleeping = false;
-                }),
-                nullptr
-            ));
-        }
-        else
-        {
-            _isSleeping = false;
-        }
-
-        return;
-    }
-
+    // Use the tile the player is currently facing (interaction block)
     Vec2 clickPos = e->getLocation();
     if (GameScene::sHud && (GameScene::sHud->isPointInToolbarWorld(clickPos) || GameScene::sHud->isConsumingClick())) return;
-
-    // Use the tile the player is currently facing (interaction block)
     Vec2 targetTile = getFacingTile();
     
     if (!_map) return;
@@ -2624,8 +2710,17 @@ void BackgroundLayer::onMouseDown(Event* event)
     // --- 3. Foraging (Harvest) ---
     if (_type == BackgroundType::Farm)
     {
+        // Get feedback data before harvest
+        std::string forageIcon = "";
+        const ForageItem* fItem = ForageSystem::getInstance()->getItemAt(targetTile);
+        if (fItem) {
+            auto data = CropSystem::getInstance()->getCropData(fItem->type);
+            if (data) forageIcon = data->itemIcon;
+        }
+
         if (ForageSystem::getInstance()->tryHarvest(targetTile))
         {
+            if (!forageIcon.empty() && _player) _player->showToolFeedback(forageIcon);
             return;
         }
     }
@@ -2669,12 +2764,27 @@ void BackgroundLayer::onMouseDown(Event* event)
     // Priority: Harvest -> Obstacle -> Tool/Plant
     
     // 1. Harvest
+    // Get feedback data before harvest
+    std::string cropIcon = "";
+    const CropInstance* cInst = CropSystem::getInstance()->getCropAt(targetTile);
+    if (cInst) {
+        auto data = CropSystem::getInstance()->getCropData(cInst->type);
+        if (data) cropIcon = data->itemIcon;
+    }
+
     if (CropSystem::getInstance()->harvestTile(targetTile))
     {
+        if (!cropIcon.empty() && _player) _player->showToolFeedback(cropIcon);
         return; // Harvested
     }
     
     if (!item) return;
+
+    // Show tool feedback for any tool usage attempt
+    if (item->type == ItemType::Tool && _player)
+    {
+         _player->showToolFeedback(item->iconPath);
+    }
 
     // 2. Obstacles
     if (hasObstacle(targetTile))
@@ -2783,6 +2893,11 @@ void BackgroundLayer::onMouseDown(Event* event)
         
         if (CropSystem::getInstance()->plantSelected(targetTile))
         {
+            if (_player)
+            {
+                _player->showToolFeedback(item->iconPath);
+            }
+
             int slot = GameScene::sInventory->getSelectedSlot();
             GameScene::sInventory->removeItem(slot, 1);
             Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
@@ -3026,9 +3141,13 @@ bool BackgroundLayer::checkCollisionWithObstacles(const Rect& box)
     {
         for (int y = tMinY; y <= tMaxY; ++y)
         {
-            if (hasObstacle(Vec2(x, y)))
+            // Check for Obstacles OR Forage Items
+            bool isObstacle = hasObstacle(Vec2(x, y));
+            bool isForage = ForageSystem::getInstance()->hasItem(Vec2(x, y));
+
+            if (isObstacle || isForage)
             {
-                // Refined collision: Use a smaller box for the obstacle
+                // Refined collision: Use a smaller box for the obstacle/item
                 // to prevent getting stuck on edges ("sticky corners")
                 float cx = (x + 0.5f) * tileSize.width;
                 float cy = mapHeight - (y + 0.5f) * tileSize.height;
@@ -3087,7 +3206,43 @@ void GameScene::update(float dt)
     }
     CropSystem::getInstance()->updateDailyGrowth();
 
-    // Check for fainting
+    // Time-based checks (Midnight Warning & 2:00 AM Fainting)
+    // Moved here to ensure it runs even if BackgroundLayer is blocked (e.g. by confirmation dialog)
+    if (_clock && !GameScene::sWasFainted)
+    {
+        int hour = _clock->getHour();
+
+        // Midnight Warning (0:00 to 1:50)
+        if (hour >= 0 && hour < 2)
+        {
+            if (!GameScene::sMidnightWarned)
+            {
+                std::string msg = "It's getting late...";
+                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+                GameScene::sMidnightWarned = true;
+            }
+        }
+        // 2:00 AM Fainting
+        else if (hour == 2)
+        {
+             std::string msg = "You passed out...";
+             Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+             GameScene::sWasFainted = true;
+             
+             // Trigger sleep via BackgroundLayer
+             for (auto child : getChildren())
+             {
+                 auto bg = dynamic_cast<BackgroundLayer*>(child);
+                 if (bg)
+                 {
+                     bg->beginSleep();
+                     break;
+                 }
+             }
+        }
+    }
+
+    // Check for fainting (Energy)
     if (EnergySystem::getInstance()->isExhausted())
     {
         // Set to minimal energy to prevent re-triggering loop, actual restore happens in sleep
