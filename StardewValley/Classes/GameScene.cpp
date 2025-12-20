@@ -6,6 +6,7 @@
 #include "ExperienceSystem.h"
 #include "EnergySystem.h"
 #include "ForageSystem.h"
+#include "AnimalSystem.h"
 #include "SimpleAudioEngine.h"
 // #include "Basket.h" // Ignore Shop related includes
 // #include "ShopLayer.h" // Ignore Shop related includes
@@ -549,6 +550,9 @@ bool BackgroundLayer::initWithType(BackgroundType type)
 
             _map = map;
             _backgroundNode = map;
+            
+            // Init Animal System
+            AnimalSystem::getInstance()->init(this, map);
 
             Size mapSizeTiles = map->getMapSize();
             Size tileSize = map->getTileSize();
@@ -2054,6 +2058,8 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             {
                 GameScene::sClock->addDay(1);
                 CropSystem::getInstance()->updateDailyGrowth();
+                ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
+                AnimalSystem::getInstance()->updateDailyGrowth();
             }
             break;
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
@@ -2061,6 +2067,8 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             {
                 GameScene::sClock->addDay(-1);
                 CropSystem::getInstance()->updateDailyGrowth();
+                ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
+                AnimalSystem::getInstance()->updateDailyGrowth();
             }
             break;
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
@@ -2471,13 +2479,14 @@ void BackgroundLayer::onMouseDown(Event* event)
              if (GameScene::sClock)
              {
                  GameScene::sClock->setHour(6);
-                 GameScene::sClock->setMinute(0);
-                 GameScene::sClock->addDay(1);
-             }
-             CropSystem::getInstance()->updateDailyGrowth();
-             ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
-             
-             if (GameScene::sWasFainted)
+             GameScene::sClock->setMinute(0);
+             GameScene::sClock->addDay(1);
+         }
+         CropSystem::getInstance()->updateDailyGrowth();
+         ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
+         AnimalSystem::getInstance()->updateDailyGrowth(); // Animals grow/lay eggs
+         
+         if (GameScene::sWasFainted)
              {
                  EnergySystem::getInstance()->resetEnergy(0.75f);
              }
@@ -2686,9 +2695,18 @@ void BackgroundLayer::onMouseDown(Event* event)
         }
     }
 
-    // --- 4. Henhouse Interactions (Return to Farm) ---
+    // --- 4. Henhouse Interactions ---
+    const Item* item = GameScene::sInventory ? GameScene::sInventory->getSelectedItem() : nullptr;
     if (_type == BackgroundType::Henhouse)
     {
+        // Harvest Egg
+        if (AnimalSystem::getInstance()->tryHarvestEgg(targetTile))
+        {
+            if (_player) _player->showToolFeedback("animals/White Egg.png"); // Generic feedback
+            return;
+        }
+
+        // Return to Farm
         if (_canEnterHenhouse && _hasHenhouseDoor && _map && _groundLayer && _player)
         {
             if (GameScene::sHasFarmHenhouseDoorPos)
@@ -2703,6 +2721,23 @@ void BackgroundLayer::onMouseDown(Event* event)
                 auto trans = TransitionFade::create(0.5f, next);
                 Director::getInstance()->replaceScene(trans);
                 return;
+            }
+        }
+        
+        // Incubator Interaction
+        if (item)
+        {
+            if (item->name.find("Egg") != std::string::npos) // Simple check
+            {
+                 // Try incubate
+                 if (AnimalSystem::getInstance()->tryIncubateEgg(targetTile, item->name))
+                 {
+                     // Remove egg from inventory
+                     int slot = GameScene::sInventory->getSelectedSlot();
+                     GameScene::sInventory->removeItem(slot, 1);
+                     Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                     return;
+                 }
             }
         }
     }
@@ -2727,7 +2762,7 @@ void BackgroundLayer::onMouseDown(Event* event)
 
     // Now handle tool use on this tile
     if (!GameScene::sClock) return;
-    const Item* item = GameScene::sInventory->getSelectedItem();
+    item = GameScene::sInventory->getSelectedItem();
     
     // 0. Fishing Logic (added)
     if (_type == BackgroundType::Farm && _hasPoolRect && _map && _groundLayer && _player)
@@ -3205,6 +3240,7 @@ void GameScene::update(float dt)
         ForageSystem::getInstance()->update(_clock);
     }
     CropSystem::getInstance()->updateDailyGrowth();
+    AnimalSystem::getInstance()->update(dt); // Update animals
 
     // Time-based checks (Midnight Warning & 2:00 AM Fainting)
     // Moved here to ensure it runs even if BackgroundLayer is blocked (e.g. by confirmation dialog)

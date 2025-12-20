@@ -30,6 +30,21 @@
     <ClCompile Include="..\Classes\Player.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\Classes\GameClock.cpp" />
+    <ClCompile Include="..\Classes\Wallet.cpp" />
+    <ClCompile Include="..\Classes\HudLayer.cpp" />
+    <ClCompile Include="..\Classes\CropSystem.cpp" />
+    <ClCompile Include="..\Classes\Inventory.cpp" />
+    <ClCompile Include="..\Classes\ExperienceSystem.cpp" />
+    <ClCompile Include="..\Classes\EnergySystem.cpp" />
+    <ClCompile Include="..\Classes\ForageSystem.cpp" />
+    <ClCompile Include="..\Classes\PauseLayer.cpp" />
+    <ClCompile Include="..\Classes\Animal.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\AnimalSystem.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
@@ -51,6 +66,21 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\Classes\EnergySystem.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\GameClock.h" />
+    <ClInclude Include="..\Classes\Wallet.h" />
+    <ClInclude Include="..\Classes\HudLayer.h" />
+    <ClInclude Include="..\Classes\CropSystem.h" />
+    <ClInclude Include="..\Classes\Inventory.h" />
+    <ClInclude Include="..\Classes\ExperienceSystem.h" />
+    <ClInclude Include="..\Classes\ForageSystem.h" />
+    <ClInclude Include="..\Classes\PauseLayer.h" />
+    <ClInclude Include="..\Classes\Item.h" />
+    <ClInclude Include="..\Classes\Animal.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\AnimalSystem.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
