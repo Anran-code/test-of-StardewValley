@@ -52,6 +52,7 @@ private:
     
     struct EggData {
         cocos2d::Vec2 tilePos;
+        cocos2d::Vec2 worldPos;
         cocos2d::Sprite* sprite;
         bool isLarge;
         Animal::Type type; // Blue or White egg

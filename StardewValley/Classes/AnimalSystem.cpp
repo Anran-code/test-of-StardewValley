@@ -38,17 +38,6 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
     _bgLayer = layer;
     _map = map;
     _hasHopper = false;
-    // _troughs.clear(); // Don't clear immediately, we might want to persist hay?
-    // Actually, if we reload map, positions are same.
-    // If _troughs is empty, parse. If not, just rebind sprites.
-    
-    // Determine context (Farm or Henhouse)
-    // We can infer from map name or layer type but AnimalSystem doesn't know.
-    // However, init is called by GameScene.
-    // Let's assume if map has "henhouse" object group, it's henhouse.
-    // If it has "farm" logic or we are in Farm scene...
-    // Actually, we should know if we are in Farm or Henhouse.
-    // But since we don't have that param, let's detect.
     
     bool isHenhouse = false;
     if (_map) {
@@ -186,19 +175,28 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
             if (!FileUtils::getInstance()->isFileExist(filename)) continue;
             
             auto sprite = Sprite::create(filename);
-            if (sprite)
-            {
-                Size tileSize = _map->getTileSize();
-                Size mapSize = _map->getMapSize();
-                float mapHeight = mapSize.height * tileSize.height;
-                float cx = (egg.tilePos.x + 0.5f) * tileSize.width;
-                float cy = mapHeight - (egg.tilePos.y + 0.5f) * tileSize.height;
-                
-                sprite->setPosition(Vec2(cx, cy));
-                sprite->setScale(0.8f);
-                if (_layer) _layer->addChild(sprite, 2);
-                egg.sprite = sprite;
-            }
+                    if (sprite)
+                    {
+                        // Use stored worldPos if available (check if non-zero)
+                        if (egg.worldPos.lengthSquared() > 0.1f)
+                        {
+                            sprite->setPosition(egg.worldPos);
+                        }
+                        else
+                        {
+                            // Fallback to recalculating from tilePos (Legacy/Old Save)
+                            Size tileSize = _map->getTileSize();
+                            Size mapSize = _map->getMapSize();
+                            float mapHeight = mapSize.height * tileSize.height;
+                            float cx = (egg.tilePos.x + 0.5f) * tileSize.width;
+                            float cy = mapHeight - (egg.tilePos.y + 0.5f) * tileSize.height;
+                            sprite->setPosition(Vec2(cx, cy));
+                        }
+                        
+                        sprite->setScale(0.8f);
+                        if (_layer) _layer->addChild(sprite, 2);
+                        egg.sprite = sprite;
+                    }
         }
         
         // Re-create Hay Sprites
@@ -256,6 +254,7 @@ void AnimalSystem::updateDailyGrowth()
     for (auto animal : _animals)
     {
         bool fed = animal->isFed();
+        if (GameScene::sDebugMode) fed = true; // Force fed in debug mode
         
         // 1. Try eat Hay from Trough (Only if Inside and not yet fed)
         if (!fed && animal->getLocation() == Animal::Location::Inside)
@@ -281,35 +280,11 @@ void AnimalSystem::updateDailyGrowth()
         }
         else
         {
-            // If outside, assume they ate grass (handled in update loop usually, but for simplicity assume fed if outside in non-winter)
-            // Stardew logic: Animals eat grass during the day. If they ate, they are full.
-            // If they didn't find grass, they are hungry.
-            // But updateDailyGrowth runs at NIGHT/MORNING transition.
-            // If they were outside yesterday, did they eat?
-            // Let's assume for now if they are outside, they are fed (unless Winter/Rain).
             
-            fed = true; // <--- FIX: Assume fed if outside
-            
-            // For now, let's keep it simple: Reset location to Inside at night?
-            // Usually animals go back inside at 5pm.
-            // If door is closed, they stay outside and get grumpy/attacked by wolves.
-            // User request: "set a feature where chickens can go out ... at 6 am".
-            
-            // Logic:
-            // At 6 AM (New Day):
-            // Check weather (not implemented yet, assume Sunny).
-            // Move animals Outside.
-            // Set position to Farm Henhouse Door.
-            
-            // Wait, updateDailyGrowth is called at New Day (6 AM).
-            // So we move them out here.
+            fed = true; 
             
             animal->setLocation(Animal::Location::Outside);
-            
-            // Set position (Need Farm info, but we might be in House scene)
-            // When we load Farm scene, init() will place them.
-            // But we should set a default spawn pos on Farm.
-            // Henhouse door on Farm is at GameScene::sFarmHenhouseDoorPos
+
             if (GameScene::sHasFarmHenhouseDoorPos)
             {
                 // Add some random offset so they don't stack
@@ -325,95 +300,64 @@ void AnimalSystem::updateDailyGrowth()
         }
         
         // 2. Growth / Produce
-        // ... (Existing logic)
-        if (fed)
+        animal->incrementDaysAlive();
+        
+        if (animal->getAge() == Animal::Age::Baby && animal->getDaysAlive() >= DAYS_TO_MATURE)
         {
-            animal->incrementDaysAlive();
-            if (animal->getAge() == Animal::Age::Baby && animal->getDaysAlive() >= DAYS_TO_MATURE)
+            animal->growUp(); 
+        }
+        
+        // Produce Eggs (Adults only, and only if fed)
+        if (fed && animal->getAge() == Animal::Age::Adult)
+        {
+            Vec2 pos = animal->getPosition();
+            if (_map)
             {
-                animal->growUp(); 
-            }
-            
-            // Produce Eggs (Adults only)
-            if (animal->getAge() == Animal::Age::Adult)
-            {
-                Vec2 pos = animal->getPosition();
-                if (_map) // If map is not loaded (sleeping elsewhere), this might fail to spawn egg visually
-                {
-                    // If map is null, we can't calculate tile pos easily unless we track animal tile pos separately.
-                    // For now, assume eggs only spawn if map is loaded or handle deferred spawn?
-                    // Let's assume egg is spawned where animal IS.
-                    // If animal is off-screen/mapless, we skip egg or use last known pos?
-                    // Animals are persistent, so their position is valid.
-                    
-                    // But we need tile size to snap.
-                    // If _map is null (we are at Home), we can't spawn egg into the scene.
-                    // But we should record the egg existence.
-                    
-                    // Issue: If we are at Home, _map is Home map.
-                    // AnimalSystem _map might be stale or null.
-                    // If _map is null, we can't convert pos to tile.
-                    
-                    // Workaround: Store last known tile pos in Animal?
-                    // Or just skip egg production if not in Henhouse? (Unfair)
-                    // Or auto-collect?
-                    
-                    // For now, let's just proceed with existing logic.
-                    // If _map is valid (Henhouse loaded), spawn.
-                    // If not, maybe just skip for this iteration of development.
+                Size tileSize = _map->getTileSize();
+                Size mapSize = _map->getMapSize();
+                float mapHeight = mapSize.height * tileSize.height;
+
+                int tx = pos.x / tileSize.width;
+                int ty = (mapHeight - pos.y) / tileSize.height;
+
+                bool occupied = false;
+                for (const auto& e : _eggs) {
+                    if (e.tilePos.x == tx && e.tilePos.y == ty) { occupied = true; break; }
                 }
-                
-                if (_map)
+
+                if (!occupied)
                 {
-                    Size tileSize = _map->getTileSize();
-                    Size mapSize = _map->getMapSize();
-                    float mapHeight = mapSize.height * tileSize.height;
-                    
-                    int tx = pos.x / tileSize.width;
-                    int ty = (mapHeight - pos.y) / tileSize.height;
-                    
-                    bool occupied = false;
-                    for (const auto& e : _eggs) {
-                        if (e.tilePos.x == tx && e.tilePos.y == ty) { occupied = true; break; }
-                    }
-                    
-                    if (!occupied)
+                    bool isLarge = (rand() % 100) < 20;
+                    EggData newEgg;
+                    newEgg.tilePos = Vec2(tx, ty);
+                    newEgg.worldPos = pos; // Store actual world position
+                    newEgg.isLarge = isLarge;
+                    newEgg.type = animal->getType();
+                    newEgg.sprite = nullptr;
+
+                    std::string filename;
+                    if (newEgg.type == Animal::Type::Blue)
+                        filename = isLarge ? "animals/Large Blue Egg.png" : "animals/Blue Egg.png";
+                    else
+                        filename = isLarge ? "animals/Large White Egg.png" : "animals/White Egg.png";
+
+                    auto sprite = Sprite::create(filename);
+                    if (sprite)
                     {
-                        bool isLarge = (rand() % 100) < 20;
-                        EggData newEgg;
-                        newEgg.tilePos = Vec2(tx, ty);
-                        newEgg.isLarge = isLarge;
-                        newEgg.type = animal->getType();
-                        newEgg.sprite = nullptr;
+                        // Use worldPos directly for rendering if creating immediately
+                        sprite->setPosition(pos); 
+                        // float cx = (tx + 0.5f) * tileSize.width;
+                        // float cy = mapHeight - (ty + 0.5f) * tileSize.height;
+                        // sprite->setPosition(Vec2(cx, cy));
                         
-                        std::string filename;
-                        if (newEgg.type == Animal::Type::Blue)
-                            filename = isLarge ? "animals/Large Blue Egg.png" : "animals/Blue Egg.png";
-                        else
-                            filename = isLarge ? "animals/Large White Egg.png" : "animals/White Egg.png";
-
-                        auto sprite = Sprite::create(filename);
-                        if (sprite)
-                        {
-                            float cx = (tx + 0.5f) * tileSize.width;
-                            float cy = mapHeight - (ty + 0.5f) * tileSize.height;
-                            sprite->setPosition(Vec2(cx, cy));
-                            sprite->setScale(0.8f);
-                            if (_layer) _layer->addChild(sprite, 2);
-                            newEgg.sprite = sprite;
-                        }
-                        _eggs.push_back(newEgg);
+                        sprite->setScale(0.8f);
+                        if (_layer) _layer->addChild(sprite, 2);
+                        newEgg.sprite = sprite;
                     }
+                    _eggs.push_back(newEgg);
                 }
             }
-        }
-        else
-        {
-            // Starve
-            // Optional: visual feedback
-        }
-
-        // Reset for new day
+        }   // Reset for new day
         animal->setFed(false);
     }
 }
@@ -439,6 +383,9 @@ void AnimalSystem::update(float dt)
             if (isFarm)
             {
                 if (animal->getParent()) animal->removeFromParent();
+                // Reset position to a safe default for Henhouse (approx center)
+                // This ensures that when they load into Henhouse, they aren't at Farm coordinates
+                animal->setPosition(Vec2(400, 300));
             }
             // If we are currently in Henhouse, add them if missing
             else if (isHenhouse)
