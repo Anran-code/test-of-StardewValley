@@ -1944,6 +1944,36 @@ void BackgroundLayer::update(float dt)
                         );
                     }
                 }
+
+                // Debug draw for Henhouse specific layers
+                if (_type == BackgroundType::Henhouse)
+                {
+                    std::vector<std::string> debugLayers = { "door", "bucket", "eggbucket", "feedinghopper" };
+                    for (const auto& layerName : debugLayers)
+                    {
+                        auto group = _map->getObjectGroup(layerName);
+                        if (group)
+                        {
+                            const auto& objects = group->getObjects();
+                            for (const auto& obj : objects)
+                            {
+                                ValueMap dict = obj.asValueMap();
+                                float x = dict["x"].asFloat();
+                                float y = dict["y"].asFloat();
+                                float w = dict["width"].asFloat();
+                                float h = dict["height"].asFloat();
+                                
+                                Vec2 p1(x, y);
+                                Vec2 p2(x + w, y + h);
+                                
+                                // Draw solid rect with low opacity (Magenta)
+                                _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 1.0f, 0.2f)); 
+                                // Draw border
+                                _facingDebug->drawRect(p1, p2, Color4F(1.0f, 0.0f, 1.0f, 1.0f));
+                            }
+                        }
+                    }
+                }
             }
         }
     }

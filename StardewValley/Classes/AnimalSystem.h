@@ -78,6 +78,9 @@ private:
     cocos2d::Rect _hopperRect;
     bool _hasHopper = false;
     
+    cocos2d::Rect _incubatorRect;
+    bool _hasIncubator = false;
+    
     int _hayStorage = 0;
     const int MAX_HAY_STORAGE = 20;
     

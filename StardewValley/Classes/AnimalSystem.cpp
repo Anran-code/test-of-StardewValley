@@ -37,38 +37,50 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
     _layer = layer;
     _bgLayer = layer;
     _map = map;
+    // Clear dangling visual pointers from previous scene
+    // Since we are initializing a new layer, old sprites are invalid/destroyed.
+    for (auto& egg : _eggs) egg.sprite = nullptr;
+    for (auto& t : _troughs) t.sprite = nullptr;
+    
     _hasHopper = false;
-    
+    _hasIncubator = false;
     bool isHenhouse = false;
-    if (_map) {
-        if (_map->getObjectGroup("henhouse")) isHenhouse = true;
-    }
     
-    // Parse Objects (Only if Henhouse)
-    if (isHenhouse && _map)
+    // Check if we are in Henhouse based on map existence of specific layers or passing type
+    // Since we don't pass type, we infer or just try to load.
+    // However, it's better to just try loading the groups directly if map is valid.
+    
+    if (_map)
     {
-        auto objectGroup = _map->getObjectGroup("henhouse");
-        if (objectGroup)
+        // 1. Hopper (Bucket in TMX, stores hay)
+        // Note: TMX has "bucket" as an ObjectGroup, not an object inside "henhouse" group.
+        auto bucketGroup = _map->getObjectGroup("bucket");
+        if (bucketGroup)
         {
-            // Hopper (Bucket in TMX, stores hay)
-            auto hopperMap = objectGroup->getObject("bucket");
-            if (!hopperMap.empty())
+            auto objects = bucketGroup->getObjects();
+            if (!objects.empty())
             {
-                 float x = hopperMap["x"].asFloat();
-                 float y = hopperMap["y"].asFloat();
-                 float w = hopperMap["width"].asFloat();
-                 float h = hopperMap["height"].asFloat();
-                 _hopperRect = Rect(x, y, w, h);
-                 _hasHopper = true;
+                ValueMap hopperMap = objects.front().asValueMap();
+                float x = hopperMap["x"].asFloat();
+                float y = hopperMap["y"].asFloat();
+                float w = hopperMap["width"].asFloat();
+                float h = hopperMap["height"].asFloat();
+                _hopperRect = Rect(x, y, w, h);
+                _hasHopper = true;
             }
-            
-            // Troughs (FeedingHopper in TMX, eating spot)
-            auto bucketMap = objectGroup->getObject("feedinghopper");
-            if (!bucketMap.empty())
-            {
-                 // If it's the first time, populate _troughs
-                 if (_troughs.empty())
+        }
+        
+        // 2. Troughs (FeedingHopper in TMX, eating spot)
+        auto troughGroup = _map->getObjectGroup("feedinghopper");
+        if (troughGroup)
+        {
+             // If it's the first time, populate _troughs
+             if (_troughs.empty())
+             {
+                 auto objects = troughGroup->getObjects();
+                 for (const auto& obj : objects)
                  {
+                     ValueMap bucketMap = obj.asValueMap();
                      float x = bucketMap["x"].asFloat();
                      float y = bucketMap["y"].asFloat();
                      float w = bucketMap["width"].asFloat();
@@ -101,10 +113,29 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
                          }
                      }
                  }
+             }
+        }
+        
+        // 3. Incubator (EggBucket)
+        auto incubatorGroup = _map->getObjectGroup("eggbucket");
+        if (incubatorGroup)
+        {
+            auto objects = incubatorGroup->getObjects();
+            if (!objects.empty())
+            {
+                ValueMap incMap = objects.front().asValueMap();
+                float x = incMap["x"].asFloat();
+                float y = incMap["y"].asFloat();
+                float w = incMap["width"].asFloat();
+                float h = incMap["height"].asFloat();
+                _incubatorRect = Rect(x, y, w, h);
+                _hasIncubator = true;
             }
-
         }
     }
+    
+    // Update isHenhouse status based on findings
+    isHenhouse = !_troughs.empty() || _hasHopper || _hasIncubator;
         
     if (_animals.empty())
     {
@@ -211,6 +242,9 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
             if (t.hasHay)
             {
                 auto sprite = Sprite::create("block/Hay.png");
+                if (!sprite) {
+                    sprite = Sprite::create("Hay.png");
+                }
                 if (sprite)
                 {
                     Size tileSize = _map->getTileSize();
@@ -220,10 +254,18 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
                     float cy = mapHeight - (t.tilePos.y + 0.5f) * tileSize.height;
                     
                     sprite->setPosition(Vec2(cx, cy));
-                    // sprite->setScale(0.8f); 
-                    if (_layer) _layer->addChild(sprite, 2);
-                    t.sprite = sprite;
-                }
+                    
+                    // Scale to fit tile
+                float targetW = tileSize.width * 0.8f;
+                float targetH = tileSize.height * 0.8f;
+                float scaleX = targetW / sprite->getContentSize().width;
+                float scaleY = targetH / sprite->getContentSize().height;
+                sprite->setScale(std::min(scaleX, scaleY));
+                
+                // Use Local Z Order on Layer (Consistent with init)
+                if (_layer) _layer->addChild(sprite, 200);
+                t.sprite = sprite;
+                 }
             }
         }
     }
@@ -750,7 +792,7 @@ bool AnimalSystem::tryPlaceHay(const cocos2d::Vec2& tilePos)
             {
                 t.hasHay = true;
                 
-                // Create sprite
+                // Create sprite immediately
                 if (_layer && _map)
                 {
                     Size tileSize = _map->getTileSize();
@@ -760,13 +802,41 @@ bool AnimalSystem::tryPlaceHay(const cocos2d::Vec2& tilePos)
                     float cy = mapHeight - (t.tilePos.y + 0.5f) * tileSize.height;
                     
                     auto sprite = Sprite::create("block/Hay.png");
+                    if (!sprite) {
+                        sprite = Sprite::create("Hay.png");
+                    }
                     if (sprite)
                     {
                         sprite->setPosition(Vec2(cx, cy));
-                        _layer->addChild(sprite, 2);
+                        
+                        // Scale to fit tile (leaving a small margin)
+                        float targetW = tileSize.width * 0.8f; // Reduced to 0.8 to be safe
+                        float targetH = tileSize.height * 0.8f;
+                        float scaleX = targetW / sprite->getContentSize().width;
+                        float scaleY = targetH / sprite->getContentSize().height;
+                        sprite->setScale(std::min(scaleX, scaleY));
+                        
+                        // Use Local Z Order on Layer (Consistent with init)
+                        // Do NOT use Global Z Order as it might cause issues with scene graph updates
+                        if (_layer) _layer->addChild(sprite, 200);
+                        
                         t.sprite = sprite;
                     }
+                    else
+                    {
+                         // Debug fallback
+                         if (_layer) {
+                             auto debugNode = DrawNode::create();
+                             debugNode->drawDot(Vec2(cx, cy), 4.0f, Color4F::ORANGE);
+                             _layer->addChild(debugNode, 200);
+                         }
+                    }
                 }
+                
+                // Debug msg
+                // std::string msg = "Hay Placed!";
+                // Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
+                
                 return true;
             }
             return false; // Already has hay
