@@ -122,6 +122,11 @@ private:
     cocos2d::Label* _bpCurrentGoldLabel;
     cocos2d::Label* _bpTotalEarningsLabel;
     cocos2d::Label* _bpDateLabel;
+    
+    // XP Labels
+    cocos2d::Label* _bpFarmingXPLabel;
+    cocos2d::Label* _bpFishingXPLabel;
+    cocos2d::Label* _bpForagingXPLabel;
 
     // Energy UI
     cocos2d::DrawNode* _energyBarBackground;

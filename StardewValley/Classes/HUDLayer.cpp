@@ -4,6 +4,7 @@
 #include "Inventory.h"
 #include "GameScene.h"
 #include "EnergySystem.h"
+#include "ExperienceSystem.h"
 
 USING_NS_CC;
 
@@ -27,6 +28,10 @@ HudLayer::HudLayer()
     , _dateLabel(nullptr)
     , _weekLabel(nullptr)
     , _moneyLabel(nullptr)
+    , _bpDateLabel(nullptr)
+    , _bpFarmingXPLabel(nullptr)
+    , _bpFishingXPLabel(nullptr)
+    , _bpForagingXPLabel(nullptr)
     , _lowEnergyWarned(false)
 {
 }
@@ -128,6 +133,10 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     _bpTotalEarningsLabel = Label::createWithSystemFont("", "Arial", 24);
     _bpDateLabel = Label::createWithSystemFont("", "Arial", 24);
 
+    _bpFarmingXPLabel = Label::createWithSystemFont("", "Arial", 20);
+    _bpFishingXPLabel = Label::createWithSystemFont("", "Arial", 20);
+    _bpForagingXPLabel = Label::createWithSystemFont("", "Arial", 20);
+
     if (_timeLabel)
     {
         _timeLabel->setAnchorPoint(Vec2(1.0f, 1.0f));
@@ -168,6 +177,22 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         _bpDateLabel->setColor(Color3B::BLACK);
         _bpDateLabel->setVisible(false);
         addChild(_bpDateLabel, 1001);
+    }
+    
+    if (_bpFarmingXPLabel) {
+        _bpFarmingXPLabel->setColor(Color3B::BLACK);
+        _bpFarmingXPLabel->setVisible(false);
+        addChild(_bpFarmingXPLabel, 1001);
+    }
+    if (_bpFishingXPLabel) {
+        _bpFishingXPLabel->setColor(Color3B::BLACK);
+        _bpFishingXPLabel->setVisible(false);
+        addChild(_bpFishingXPLabel, 1001);
+    }
+    if (_bpForagingXPLabel) {
+        _bpForagingXPLabel->setColor(Color3B::BLACK);
+        _bpForagingXPLabel->setVisible(false);
+        addChild(_bpForagingXPLabel, 1001);
     }
 
     auto listener = EventListenerKeyboard::create();
@@ -505,10 +530,14 @@ void HudLayer::updateInventoryUI()
         float infoBottom = bpBottom + (INFO_AREA_BOTTOM * bpScale);
         float infoW = INFO_AREA_W * bpScale;
         float infoH = INFO_AREA_H * bpScale;
-        float infoCenterX = infoLeft + infoW * 0.5f;
+        
+        // Split into two columns
+        float leftColCenterX = infoLeft + (infoW * 0.25f);
+        float rightColCenterX = infoLeft + (infoW * 0.75f);
+        
         float infoCenterY = infoBottom + infoH * 0.5f; // Center Y of the info box
         
-        // Distribute vertically
+        // Distribute vertically for Left Column (Money/Date)
         float lineSpacing = 50.0f * bpScale; 
         
         float line1Y = infoCenterY + lineSpacing;
@@ -519,7 +548,7 @@ void HudLayer::updateInventoryUI()
         {
             _bpCurrentGoldLabel->setVisible(true);
             _bpCurrentGoldLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
-            _bpCurrentGoldLabel->setPosition(Vec2(infoCenterX, line1Y));
+            _bpCurrentGoldLabel->setPosition(Vec2(leftColCenterX, line1Y));
             
             char buf[64];
             std::snprintf(buf, sizeof(buf), "Current Funds: %d g", _wallet->getMoney());
@@ -530,7 +559,7 @@ void HudLayer::updateInventoryUI()
         {
             _bpTotalEarningsLabel->setVisible(true);
             _bpTotalEarningsLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
-            _bpTotalEarningsLabel->setPosition(Vec2(infoCenterX, line2Y));
+            _bpTotalEarningsLabel->setPosition(Vec2(leftColCenterX, line2Y));
             
             char buf[64];
             std::snprintf(buf, sizeof(buf), "Total Earnings: %d g", _wallet->getMoney()); 
@@ -541,7 +570,7 @@ void HudLayer::updateInventoryUI()
         {
             _bpDateLabel->setVisible(true);
             _bpDateLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
-            _bpDateLabel->setPosition(Vec2(infoCenterX, line3Y));
+            _bpDateLabel->setPosition(Vec2(leftColCenterX, line3Y));
             
             const char* s =
                 (_clock->getSeason() == GameClock::Season::Spring) ? "Spring" :
@@ -551,6 +580,50 @@ void HudLayer::updateInventoryUI()
             char buf[128];
             std::snprintf(buf, sizeof(buf), "Year %d, %s, Day %d", _clock->getYear(), s, _clock->getDay());
             _bpDateLabel->setString(buf);
+        }
+        
+        // Right Column (XP)
+        auto expSys = ExperienceSystem::getInstance();
+        if (expSys)
+        {
+            if (_bpFarmingXPLabel)
+            {
+                _bpFarmingXPLabel->setVisible(true);
+                _bpFarmingXPLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+                _bpFarmingXPLabel->setPosition(Vec2(rightColCenterX, line1Y));
+                
+                int lvl = expSys->getLevel(SkillType::Farming);
+                int xp = expSys->getCurrentExperience(SkillType::Farming);
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "Farming: Lvl %d (%d XP)", lvl, xp);
+                _bpFarmingXPLabel->setString(buf);
+            }
+            
+            if (_bpFishingXPLabel)
+            {
+                _bpFishingXPLabel->setVisible(true);
+                _bpFishingXPLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+                _bpFishingXPLabel->setPosition(Vec2(rightColCenterX, line2Y));
+                
+                int lvl = expSys->getLevel(SkillType::Fishing);
+                int xp = expSys->getCurrentExperience(SkillType::Fishing);
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "Fishing: Lvl %d (%d XP)", lvl, xp);
+                _bpFishingXPLabel->setString(buf);
+            }
+            
+            if (_bpForagingXPLabel)
+            {
+                _bpForagingXPLabel->setVisible(true);
+                _bpForagingXPLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+                _bpForagingXPLabel->setPosition(Vec2(rightColCenterX, line3Y));
+                
+                int lvl = expSys->getLevel(SkillType::Foraging);
+                int xp = expSys->getCurrentExperience(SkillType::Foraging);
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "Foraging: Lvl %d (%d XP)", lvl, xp);
+                _bpForagingXPLabel->setString(buf);
+            }
         }
         
         // Debug Drawing for Backpack Hit Areas
@@ -677,6 +750,9 @@ void HudLayer::updateInventoryUI()
         if (_bpCurrentGoldLabel) _bpCurrentGoldLabel->setVisible(false);
         if (_bpTotalEarningsLabel) _bpTotalEarningsLabel->setVisible(false);
         if (_bpDateLabel) _bpDateLabel->setVisible(false);
+        if (_bpFarmingXPLabel) _bpFarmingXPLabel->setVisible(false);
+        if (_bpFishingXPLabel) _bpFishingXPLabel->setVisible(false);
+        if (_bpForagingXPLabel) _bpForagingXPLabel->setVisible(false);
         
         // Ensure standard HUD labels are visible and in place
         auto visibleSize = Director::getInstance()->getVisibleSize();

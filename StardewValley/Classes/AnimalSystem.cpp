@@ -37,8 +37,6 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
     _layer = layer;
     _bgLayer = layer;
     _map = map;
-    // Clear dangling visual pointers from previous scene
-    // Since we are initializing a new layer, old sprites are invalid/destroyed.
     for (auto& egg : _eggs) egg.sprite = nullptr;
     for (auto& t : _troughs) t.sprite = nullptr;
     
@@ -46,14 +44,9 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
     _hasIncubator = false;
     bool isHenhouse = false;
     
-    // Check if we are in Henhouse based on map existence of specific layers or passing type
-    // Since we don't pass type, we infer or just try to load.
-    // However, it's better to just try loading the groups directly if map is valid.
-    
     if (_map)
     {
-        // 1. Hopper (Bucket in TMX, stores hay)
-        // Note: TMX has "bucket" as an ObjectGroup, not an object inside "henhouse" group.
+        // 1. Hopper
         auto bucketGroup = _map->getObjectGroup("bucket");
         if (bucketGroup)
         {
@@ -70,11 +63,10 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
             }
         }
         
-        // 2. Troughs (FeedingHopper in TMX, eating spot)
+        // 2. Troughs 
         auto troughGroup = _map->getObjectGroup("feedinghopper");
         if (troughGroup)
         {
-             // If it's the first time, populate _troughs
              if (_troughs.empty())
              {
                  auto objects = troughGroup->getObjects();
@@ -163,8 +155,6 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
             
             if (shouldRender && _layer) 
             {
-                 // Safety Check: Ensure position is within bounds
-                 // If moving from Farm (Large) to Henhouse (Small), pos might be out of bounds.
                  if (_map)
                  {
                      Size mapSize = _map->getMapSize();
@@ -215,7 +205,7 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
                         }
                         else
                         {
-                            // Fallback to recalculating from tilePos (Legacy/Old Save)
+                            // Fallback to recalculating from tilePos
                             Size tileSize = _map->getTileSize();
                             Size mapSize = _map->getMapSize();
                             float mapHeight = mapSize.height * tileSize.height;
@@ -296,9 +286,9 @@ void AnimalSystem::updateDailyGrowth()
     for (auto animal : _animals)
     {
         bool fed = animal->isFed();
-        if (GameScene::sDebugMode) fed = true; // Force fed in debug mode
+        if (GameScene::sDebugMode) fed = true;
         
-        // 1. Try eat Hay from Trough (Only if Inside and not yet fed)
+        // 1. Try eat Hay from Trough
         if (!fed && animal->getLocation() == Animal::Location::Inside)
         {
             for (auto& trough : _troughs)
@@ -386,11 +376,7 @@ void AnimalSystem::updateDailyGrowth()
                     auto sprite = Sprite::create(filename);
                     if (sprite)
                     {
-                        // Use worldPos directly for rendering if creating immediately
                         sprite->setPosition(pos); 
-                        // float cx = (tx + 0.5f) * tileSize.width;
-                        // float cy = mapHeight - (ty + 0.5f) * tileSize.height;
-                        // sprite->setPosition(Vec2(cx, cy));
                         
                         sprite->setScale(0.8f);
                         if (_layer) _layer->addChild(sprite, 2);
@@ -420,13 +406,10 @@ void AnimalSystem::update(float dt)
                 animal->setLocation(Animal::Location::Inside);
             }
             
-            // 2. Update Visual State (Continuous Check)
-            // If we are currently on Farm, remove them regardless of previous state
+            // 2. Update Visual State
             if (isFarm)
             {
                 if (animal->getParent()) animal->removeFromParent();
-                // Reset position to a safe default for Henhouse (approx center)
-                // This ensures that when they load into Henhouse, they aren't at Farm coordinates
                 animal->setPosition(Vec2(400, 300));
             }
             // If we are currently in Henhouse, add them if missing
@@ -434,11 +417,6 @@ void AnimalSystem::update(float dt)
             {
                 if (!animal->getParent() && _layer)
                 {
-                     // Reset position to center of Henhouse if just added
-                     // (We can't easily track if they were just added this frame or earlier, 
-                     //  but resetting pos every frame is bad. 
-                     //  However, if they are already in parent, we skip this block.
-                     //  So this only happens ONCE when they reappear.)
                      if (_map)
                      {
                          Size mapSize = _map->getMapSize();
@@ -453,14 +431,7 @@ void AnimalSystem::update(float dt)
         }
     }
 
-    // Check if we are in Farm scene to handle eating grass
     bool isFarm = false;
-    // We don't have direct access to Scene type here easily, but we can check if animals are Outside and _layer is valid.
-    // If animals are outside and rendered, we are likely in Farm.
-    
-    // Better: init() sets context. If we initialized in Farm (no henhouse group), isFarm = true?
-    // Let's use a member var or just check map name if possible?
-    // Or just check if animals are outside.
     
     for (auto animal : _animals)
     {
@@ -471,14 +442,6 @@ void AnimalSystem::update(float dt)
         if (animal->getLocation() == Animal::Location::Outside && 
             animal->getCurrentState() == Animal::State::Eat)
         {
-            // Try to find grass at current position
-            // Access obstacles from BackgroundLayer?
-            // AnimalSystem doesn't have friend access to BackgroundLayer private members.
-            // But we can check via GameScene::getBackgroundLayer()? 
-            // Or just assume we can cast _layer to BackgroundLayer if we include it.
-            
-            // For now, let's use a simple approach:
-            // If we are in Farm (inferred), check tile.
             if (_map && _layer)
             {
                 Size tileSize = _map->getTileSize();
@@ -489,15 +452,6 @@ void AnimalSystem::update(float dt)
                 int tx = pos.x / tileSize.width;
                 int ty = (mapHeight - pos.y) / tileSize.height;
                 
-                // We need a way to check/remove grass.
-                // BackgroundLayer has public hasObstacle/getObstacleType, but remove is private.
-                // Wait, removeObstacle is private in BackgroundLayer.
-                // We might need to expose it or use an event.
-                // Or maybe just let them eat "virtual" grass for now?
-                // User said "chicken can eat grass in the farm".
-                
-                // Let's try to cast _layer to BackgroundLayer
-                 // auto bgLayer = dynamic_cast<BackgroundLayer*>(_layer);
                  if (_bgLayer && _bgLayer->getType() == BackgroundType::Farm)
                  {
                      // Use newly added method
@@ -544,13 +498,7 @@ bool AnimalSystem::isWalkable(const cocos2d::Vec2& pos)
     float mapWidth = mapSize.width * tileSize.width;
     float mapHeight = mapSize.height * tileSize.height;
 
-    // 1. Boundary Check (Henhouse Interior Walls)
-    // Use the actual tile map size to determine boundaries
-    // Tiled Map usually has "wall" tiles. 
-    // If we want to be precise, we should check for "Collidable" property on tiles.
-    // But for now, we'll use a hardcoded margin based on typical map layout.
-    
-    // Assuming 1 tile border around the room is wall
+    // 1. Boundary Check
     int marginTiles = 1;
     // Top wall is usually 2 tiles high
     int topMarginTiles = 2; 
@@ -609,11 +557,6 @@ bool AnimalSystem::isWalkable(const cocos2d::Vec2& pos)
             {
                 int gid = layer->getTileGIDAt(Vec2(tx, ty));
                 
-                // If no tile (gid == 0), it's a void/black area -> Not Walkable
-                // EXCEPT on Farm where ground might be on different layers or handled differently?
-                // On Farm, we might have grass tiles.
-                // But for Henhouse Interior, void is definitely wall.
-                // Let's assume if gid == 0 it's not walkable for now.
                 if (gid == 0) return false;
                 
                 if (gid > 0)
@@ -638,18 +581,12 @@ bool AnimalSystem::isWalkable(const cocos2d::Vec2& pos)
         }
     }
     
-    // 4. Farm-Specific Checks (Buildings, Water, etc.)
-    // We can access GameScene singleton or check _layer type
-    // But direct access is cleaner if we cast _layer
-    // auto bgLayer = dynamic_cast<BackgroundLayer*>(_layer);
+    // 4. Farm-Specific Checks
     if (_bgLayer && _bgLayer->getType() == BackgroundType::Farm)
     {
         // Check Water
         if (_bgLayer->isWater(pos)) return false;
         
-        // Check Collisions (Buildings, Obstacles)
-        // We need to check if 'pos' (feet) is inside any obstacle or building rect
-        // Create a small rect for the animal
         Rect animalRect(pos.x - 6, pos.y - 6, 12, 12);
         
         if (_bgLayer->isColliding(animalRect)) return false;
@@ -702,10 +639,6 @@ bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos)
 
 bool AnimalSystem::tryIncubateEgg(const Vec2& tilePos, const std::string& eggName)
 {
-    // Simplified: Just consume egg and start timer
-    // We need to check if tilePos matches an incubator object
-    // For now, assume any click on incubator works.
-    // ... Implementation logic from previous steps or placeholders ...
     return false; // Placeholder
 }
 
@@ -713,10 +646,6 @@ bool AnimalSystem::tryDepositHay(const cocos2d::Vec2& tilePos)
 {
     if (!_hasHopper) return false;
     
-    // Check if tilePos is inside hopper rect
-    // Need to convert tilePos to world or rect to tiles.
-    // tilePos is in Grid coordinates.
-    // _hopperRect is in Pixels (Cocos space).
     
     if (!_map) return false;
     Size tileSize = _map->getTileSize();
@@ -816,8 +745,6 @@ bool AnimalSystem::tryPlaceHay(const cocos2d::Vec2& tilePos)
                         float scaleY = targetH / sprite->getContentSize().height;
                         sprite->setScale(std::min(scaleX, scaleY));
                         
-                        // Use Local Z Order on Layer (Consistent with init)
-                        // Do NOT use Global Z Order as it might cause issues with scene graph updates
                         if (_layer) _layer->addChild(sprite, 200);
                         
                         t.sprite = sprite;
@@ -832,10 +759,6 @@ bool AnimalSystem::tryPlaceHay(const cocos2d::Vec2& tilePos)
                          }
                     }
                 }
-                
-                // Debug msg
-                // std::string msg = "Hay Placed!";
-                // Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
                 
                 return true;
             }
