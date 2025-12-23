@@ -2,6 +2,7 @@
 #define __HUD_LAYER_H__
 
 #include "cocos2d.h"
+#include "Item.h"
 #include <string>
 #include <vector>
 
@@ -23,6 +24,12 @@ public:
     void refresh();
     void updateInventoryUI();
     void updateSelectorPosition();
+    void toggleBackpack();
+    void openBackpack();
+    bool isBackpackVisible() const;
+    void openBucketWindow();
+    void closeBucketWindow();
+    bool isBucketWindowVisible() const;
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onScroll(cocos2d::Event* event); // Mouse scroll for toolbar selection
@@ -66,6 +73,8 @@ private:
     cocos2d::Sprite* _backpack;
     cocos2d::LayerColor* _darkOverlay; // Dim background for backpack
     cocos2d::Sprite* _selector; // Highlight for selected tool
+    cocos2d::LayerColor* _bucketWindow;
+    cocos2d::Label* _bucketCountLabel;
 
     // Stored layout data for mouse hit testing
     float _cachedToolbarLeft;
@@ -112,6 +121,7 @@ private:
     int _dragSourceIndex = -1;
     cocos2d::Sprite* _draggedItemSprite = nullptr;
     cocos2d::Label* _draggedItemQty = nullptr;
+    bool _bucketWindowVisible = false;
 
     cocos2d::Label* _timeLabel;
     cocos2d::Label* _dateLabel;
@@ -136,6 +146,9 @@ private:
     std::vector<cocos2d::Sprite*> _itemSprites; // Sprites for items in slots
     std::vector<cocos2d::Label*> _quantityLabels; // Labels for quantities
     std::vector<cocos2d::DrawNode*> _waterBars; // Water bars for watering cans
+    std::vector<Item> _bucketItems;
+    std::vector<int> _bucketItemIndices;
+    std::vector<cocos2d::Sprite*> _bucketItemSprites;
 };
 
 #endif

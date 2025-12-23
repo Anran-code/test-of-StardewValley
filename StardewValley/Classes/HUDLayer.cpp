@@ -33,6 +33,8 @@ HudLayer::HudLayer()
     , _bpFishingXPLabel(nullptr)
     , _bpForagingXPLabel(nullptr)
     , _lowEnergyWarned(false)
+    , _bucketWindow(nullptr)
+    , _bucketCountLabel(nullptr)
 {
 }
 
@@ -103,6 +105,25 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         _backpack->setPosition(Vec2(visibleSize.width * 0.5f + origin.x, visibleSize.height * 0.5f + origin.y));
         _backpack->setVisible(false);
         addChild(_backpack, 10); 
+    }
+
+    _bucketWindow = LayerColor::create(Color4B(30, 30, 30, 220), 220.0f, 260.0f);
+    if (_bucketWindow)
+    {
+        _bucketWindow->setVisible(false);
+        _bucketWindow->setIgnoreAnchorPointForPosition(false);
+        _bucketWindow->setAnchorPoint(Vec2(0.5f, 0.5f));
+        _bucketWindow->setPosition(Vec2(visibleSize.width * 0.8f + origin.x, visibleSize.height * 0.5f + origin.y));
+        addChild(_bucketWindow, 20);
+
+        _bucketCountLabel = Label::createWithSystemFont("0", "Arial", 18);
+        if (_bucketCountLabel)
+        {
+            Size winSize = _bucketWindow->getContentSize();
+            _bucketCountLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+            _bucketCountLabel->setPosition(Vec2(winSize.width * 0.5f, 18.0f));
+            _bucketWindow->addChild(_bucketCountLabel, 1);
+        }
     }
 
     // Selector
@@ -285,16 +306,16 @@ void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
     if (keyCode == EventKeyboard::KeyCode::KEY_E)
     {
-        if (_backpack)
-        {
-            _backpack->setVisible(!_backpack->isVisible());
-            updateInventoryUI(); // Force UI refresh immediately
-        }
+        toggleBackpack();
     }
     else if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
     {
         if (_backpack && _backpack->isVisible())
         {
+            if (_bucketWindowVisible)
+            {
+                closeBucketWindow();
+            }
             _backpack->setVisible(false);
             updateInventoryUI();
             event->stopPropagation();
@@ -348,6 +369,76 @@ void HudLayer::onScroll(Event* event)
         _inventory->setSelectedSlot(current);
         updateSelectorPosition();
     }
+}
+
+void HudLayer::toggleBackpack()
+{
+    if (_backpack)
+    {
+        bool wasVisible = _backpack->isVisible();
+        _backpack->setVisible(!wasVisible);
+        if (wasVisible && _bucketWindowVisible)
+        {
+            closeBucketWindow();
+        }
+        updateInventoryUI();
+    }
+}
+
+void HudLayer::openBackpack()
+{
+    if (_backpack && !_backpack->isVisible())
+    {
+        _backpack->setVisible(true);
+        updateInventoryUI();
+    }
+}
+
+bool HudLayer::isBackpackVisible() const
+{
+    return _backpack && _backpack->isVisible();
+}
+
+void HudLayer::openBucketWindow()
+{
+    if (!_bucketWindow) return;
+    if (!_backpack) return;
+    if (!_backpack->isVisible())
+    {
+        _backpack->setVisible(true);
+    }
+    _bucketWindowVisible = true;
+    _bucketWindow->setVisible(true);
+    if (_bucketCountLabel)
+    {
+        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
+    }
+    updateInventoryUI();
+}
+
+void HudLayer::closeBucketWindow()
+{
+    _bucketWindowVisible = false;
+    if (_bucketWindow)
+    {
+        _bucketWindow->setVisible(false);
+    }
+    for (auto sp : _bucketItemSprites)
+    {
+        if (sp) sp->removeFromParent();
+    }
+    _bucketItemSprites.clear();
+    _bucketItems.clear();
+    _bucketItemIndices.clear();
+    if (_bucketCountLabel)
+    {
+        _bucketCountLabel->setString("0");
+    }
+}
+
+bool HudLayer::isBucketWindowVisible() const
+{
+    return _bucketWindowVisible;
 }
 
 void HudLayer::updateInventoryUI()
@@ -637,11 +728,14 @@ void HudLayer::updateInventoryUI()
             _debugBounds->drawRect(Vec2(cbLeft, cbBottom), Vec2(cbLeft + cbW, cbBottom + cbH), Color4F::RED);
             
             // Draw Trash Can
-            float trLeft = bpLeft + (TRASH_LEFT * bpScale);
-            float trBottom = bpBottom + (TRASH_BOTTOM * bpScale);
-            float trW = TRASH_W * bpScale;
-            float trH = TRASH_H * bpScale;
-            _debugBounds->drawRect(Vec2(trLeft, trBottom), Vec2(trLeft + trW, trBottom + trH), Color4F::MAGENTA);
+            if (!_bucketWindowVisible)
+            {
+                float trLeft = bpLeft + (TRASH_LEFT * bpScale);
+                float trBottom = bpBottom + (TRASH_BOTTOM * bpScale);
+                float trW = TRASH_W * bpScale;
+                float trH = TRASH_H * bpScale;
+                _debugBounds->drawRect(Vec2(trLeft, trBottom), Vec2(trLeft + trW, trBottom + trH), Color4F::MAGENTA);
+            }
             
             // Draw Slots
             for (int i = 0; i < Inventory::BACKPACK_SIZE; i++)
@@ -723,6 +817,45 @@ void HudLayer::updateInventoryUI()
                         _quantityLabels.push_back(label);
                     }
                 }
+            }
+        }
+
+        if (_bucketWindowVisible && _bucketWindow)
+        {
+            for (auto sp : _bucketItemSprites)
+            {
+                if (sp) sp->removeFromParent();
+            }
+            _bucketItemSprites.clear();
+
+            Size winSize = _bucketWindow->getContentSize();
+            Vec2 winPos = _bucketWindow->getPosition();
+            float left = winPos.x - winSize.width * 0.5f;
+            float bottom = winPos.y - winSize.height * 0.5f;
+
+            float cellSize = 48.0f;
+            float padding = 8.0f;
+            int cols = 3;
+
+            for (size_t i = 0; i < _bucketItems.size(); ++i)
+            {
+                const Item& item = _bucketItems[i];
+                auto sprite = Sprite::create(item.iconPath);
+                if (!sprite) continue;
+
+                int col = static_cast<int>(i % cols);
+                int row = static_cast<int>(i / cols);
+
+                float x = left + padding + cellSize * 0.5f + col * (cellSize + padding);
+                float y = bottom + winSize.height - padding - cellSize * 0.5f - row * (cellSize + padding);
+
+                float sX = cellSize / sprite->getContentSize().width;
+                float sY = cellSize / sprite->getContentSize().height;
+                float scale = std::min(sX, sY);
+                sprite->setScale(scale);
+                sprite->setPosition(Vec2(x, y));
+                addChild(sprite, 25);
+                _bucketItemSprites.push_back(sprite);
             }
         }
     }
@@ -887,6 +1020,7 @@ bool HudLayer::isPointInCloseButton(const Vec2& p)
 bool HudLayer::isPointInTrashCan(const Vec2& p)
 {
     if (!_backpack || !_backpack->isVisible()) return false;
+    if (_bucketWindowVisible) return false;
     
     Vec2 localPos = _backpack->convertToNodeSpace(p);
     Rect trashRect(TRASH_LEFT, TRASH_BOTTOM, TRASH_W, TRASH_H);
@@ -929,6 +1063,10 @@ void HudLayer::onMouseDown(Event* event)
         // 1. 检测关闭按钮
         if (isPointInCloseButton(clickPos))
         {
+            if (_bucketWindowVisible)
+            {
+                closeBucketWindow();
+            }
             _backpack->setVisible(false);
             _consumingClick = true;
             event->stopPropagation();
@@ -1041,25 +1179,45 @@ void HudLayer::onMouseUp(Event* event)
         
         bool actionTaken = false;
         
-        // Check Trash Can
-        if (isPointInTrashCan(pos))
+        if (_bucketWindowVisible && _bucketWindow)
         {
-            const auto& item = _inventory->getItem(_dragSourceIndex);
-            if (item.type != ItemType::Tool)
+            Vec2 winPos = _bucketWindow->getPosition();
+            Size winSize = _bucketWindow->getContentSize();
+            Rect winRect(winPos.x - winSize.width * 0.5f, winPos.y - winSize.height * 0.5f, winSize.width, winSize.height);
+            if (winRect.containsPoint(pos))
             {
-                _inventory->removeItem(_dragSourceIndex, 9999); // Remove all
-                actionTaken = true;
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
+                {
+                    _bucketItems.push_back(item);
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    if (_bucketCountLabel)
+                    {
+                        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
+                    }
+                    actionTaken = true;
+                }
             }
         }
         else
         {
-            // Check Drop Target
-            int targetSlot = getSlotIndexFromPoint(pos);
-            if (targetSlot != -1)
+            if (isPointInTrashCan(pos))
             {
-                // Swap
-                _inventory->swapItems(_dragSourceIndex, targetSlot);
-                actionTaken = true;
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
+                {
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    actionTaken = true;
+                }
+            }
+            else
+            {
+                int targetSlot = getSlotIndexFromPoint(pos);
+                if (targetSlot != -1)
+                {
+                    _inventory->swapItems(_dragSourceIndex, targetSlot);
+                    actionTaken = true;
+                }
             }
         }
         
@@ -1093,6 +1251,10 @@ bool HudLayer::onTouchBegan(Touch* touch, Event* event)
         // 检测关闭按钮
         if (isPointInCloseButton(p))
         {
+            if (_bucketWindowVisible)
+            {
+                closeBucketWindow();
+            }
             _backpack->setVisible(false);
             _consumingClick = true; // 标记正在处理点击
             updateInventoryUI();
@@ -1205,24 +1367,47 @@ void HudLayer::onTouchEnded(Touch* touch, Event* event)
 
         bool actionTaken = false;
 
-        // 检测是否扔进垃圾桶
-        if (isPointInTrashCan(pos))
+        if (_bucketWindowVisible && _bucketWindow)
         {
-            const auto& item = _inventory->getItem(_dragSourceIndex);
-            if (item.type != ItemType::Tool)
+            Vec2 winPos = _bucketWindow->getPosition();
+            Size winSize = _bucketWindow->getContentSize();
+            Rect winRect(winPos.x - winSize.width * 0.5f, winPos.y - winSize.height * 0.5f, winSize.width, winSize.height);
+            if (winRect.containsPoint(pos))
             {
-                _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
-                actionTaken = true;
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
+                {
+                    _bucketItems.push_back(item);
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    if (_bucketCountLabel)
+                    {
+                        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
+                    }
+                    actionTaken = true;
+                }
             }
         }
         else
         {
-            // 检测是否放入背包格子 (交换/放置)
-            int targetSlot = getSlotIndexFromPoint(pos);
-            if (targetSlot != -1)
+            // 检测是否扔进垃圾桶
+            if (isPointInTrashCan(pos))
             {
-                _inventory->swapItems(_dragSourceIndex, targetSlot);
-                actionTaken = true;
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
+                {
+                    _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
+                    actionTaken = true;
+                }
+            }
+            else
+            {
+                // 检测是否放入背包格子 (交换/放置)
+                int targetSlot = getSlotIndexFromPoint(pos);
+                if (targetSlot != -1)
+                {
+                    _inventory->swapItems(_dragSourceIndex, targetSlot);
+                    actionTaken = true;
+                }
             }
         }
 

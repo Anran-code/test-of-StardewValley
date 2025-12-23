@@ -67,6 +67,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasHouseRect = false;
     _hasHenhouseRect = false; // Added
     _hasTownHomewayRect = false;
+    _hasBucket = false;
     _exitedHomeDoor = false;
     _enteredHome = false;
     _hasRightExit = false;
@@ -283,6 +284,73 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     cocos2d::log("Pool object group not found in TMX map.");
                 }
 
+                auto henhouseGroup = _map->getObjectGroup("henhouse");
+                if (henhouseGroup)
+                {
+                    const auto& objs = henhouseGroup->getObjects();
+                    bool first = true;
+                    float minX = 0.0f;
+                    float minY = 0.0f;
+                    float maxX = 0.0f;
+                    float maxY = 0.0f;
+
+                    for (const auto& obj : objs)
+                    {
+                        const auto& dict = obj.asValueMap();
+
+                        auto itX = dict.find("x");
+                        auto itY = dict.find("y");
+                        if (itX == dict.end() || itY == dict.end())
+                        {
+                            continue;
+                        }
+
+                        float hx = itX->second.asFloat();
+                        float hy = itY->second.asFloat();
+
+                        float hw = 0.0f;
+                        float hh = 0.0f;
+
+                        auto itW = dict.find("width");
+                        if (itW != dict.end())
+                        {
+                            hw = itW->second.asFloat();
+                        }
+                        auto itH = dict.find("height");
+                        if (itH != dict.end())
+                        {
+                            hh = itH->second.asFloat();
+                        }
+
+                        float left = hx;
+                        float bottom = hy;
+                        float right = hx + hw;
+                        float top = hy + hh;
+
+                        if (first)
+                        {
+                            minX = left;
+                            maxX = right;
+                            minY = bottom;
+                            maxY = top;
+                            first = false;
+                        }
+                        else
+                        {
+                            if (left < minX) minX = left;
+                            if (right > maxX) maxX = right;
+                            if (bottom < minY) minY = bottom;
+                            if (top > maxY) maxY = top;
+                        }
+                    }
+
+                    if (!first && maxX > minX && maxY > minY)
+                    {
+                        _henhouseRect = Rect(minX, minY, maxX - minX, maxY - minY);
+                        _hasHenhouseRect = true;
+                    }
+                }
+
                 auto doorGroup = _map->getObjectGroup("door");
                 if (doorGroup)
                 {
@@ -306,8 +374,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 }
 
                 auto henhouseDoorGroup = _map->getObjectGroup("henhouse door");
-                if (!henhouseDoorGroup) henhouseDoorGroup = _map->getObjectGroup("Henhouse Door"); // Try Title Case
-                if (!henhouseDoorGroup) henhouseDoorGroup = _map->getObjectGroup("Buildings"); // Try Buildings layer
+                if (!henhouseDoorGroup) henhouseDoorGroup = _map->getObjectGroup("Henhouse Door");
+                if (!henhouseDoorGroup) henhouseDoorGroup = _map->getObjectGroup("Buildings");
                 
                 if (henhouseDoorGroup)
                 {
@@ -345,35 +413,50 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         float hw = dict.at("width").asFloat();
                         float hh = dict.at("height").asFloat();
                         
-                        // If we found it in "Buildings", use the rect directly as the building
                         if (groupName == "Buildings")
                         {
                             _henhouseRect = Rect(hx, hy, hw, hh);
                             _hasHenhouseRect = true;
-                            
-                            // Guess door pos (bottom center)
-                            _henhouseDoorRect = Rect(hx + hw/2 - 16, hy, 32, 48);
+
+                            _henhouseDoorRect = Rect(hx + hw / 2 - 16, hy, 32, 48);
                             _hasHenhouseDoor = true;
                             GameScene::sFarmHenhouseDoorPos = Vec2(hx + hw * 0.5f, hy + 24);
                             GameScene::sHasFarmHenhouseDoorPos = true;
                         }
                         else
                         {
-                            // It's the door object
                             _henhouseDoorRect = Rect(hx, hy, hw, hh);
                             _hasHenhouseDoor = true;
                             GameScene::sFarmHenhouseDoorPos = Vec2(hx + hw * 0.5f, hy + hh * 0.5f);
                             GameScene::sHasFarmHenhouseDoorPos = true;
-                            
-                            // Infer Henhouse Building Rect
-                            float buildW = tileSize.width * 6.0f;
-                            float buildH = tileSize.height * 3.0f;
-                            float doorCenterX = hx + hw * 0.5f;
-                            float bodyX = doorCenterX - buildW * 0.5f;
-                            float bodyY = hy; 
-                            _henhouseRect = Rect(bodyX, bodyY, buildW, buildH);
-                            _hasHenhouseRect = true;
+
+                            if (!_hasHenhouseRect)
+                            {
+                                float buildW = tileSize.width * 6.0f;
+                                float buildH = tileSize.height * 3.0f;
+                                float doorCenterX = hx + hw * 0.5f;
+                                float bodyX = doorCenterX - buildW * 0.5f;
+                                float bodyY = hy;
+                                _henhouseRect = Rect(bodyX, bodyY, buildW, buildH);
+                                _hasHenhouseRect = true;
+                            }
                         }
+                    }
+                }
+
+                auto bucketGroup = _map->getObjectGroup("bucket");
+                if (bucketGroup)
+                {
+                    const auto& objs = bucketGroup->getObjects();
+                    if (!objs.empty())
+                    {
+                        const auto& dict = objs.front().asValueMap();
+                        float bx = dict.at("x").asFloat();
+                        float by = dict.at("y").asFloat();
+                        float bw = dict.at("width").asFloat();
+                        float bh = dict.at("height").asFloat();
+                        _bucketRect = Rect(bx, by, bw, bh);
+                        _hasBucket = true;
                     }
                 }
         
@@ -2770,6 +2853,21 @@ void BackgroundLayer::onMouseDown(Event* event)
             GameScene::sHasLastFarmPlayerPos = true;
             GameScene::switchViaRightExit(0.5f);
             return;
+        }
+
+        if (_hasBucket && _map && _groundLayer)
+        {
+            Size tileSize2 = _map->getTileSize();
+            Vec2 tilePos = _groundLayer->getPositionAt(targetTile);
+            Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+            if (facingRect.intersectsRect(_bucketRect))
+            {
+                if (GameScene::sHud)
+                {
+                    GameScene::sHud->openBucketWindow();
+                }
+                return;
+            }
         }
     }
 

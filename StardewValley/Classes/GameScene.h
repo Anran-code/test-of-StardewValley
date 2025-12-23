@@ -100,6 +100,7 @@ private:
     std::vector<cocos2d::Rect> _houseRects;
     cocos2d::Rect _townHomewayRect;
     cocos2d::Rect _rightExitRect;
+    cocos2d::Rect _bucketRect;
     cocos2d::Rect _boundaryLeftRect;
     cocos2d::Rect _boundaryRightRect;
     cocos2d::Rect _boundaryTopRect;
@@ -111,6 +112,7 @@ private:
     bool _hasTownHomewayRect;
     bool _hasHouseRect;
     bool _hasHenhouseRect; // Added
+    bool _hasBucket;
     bool _exitedHomeDoor;
     bool _hasRightExit;
     bool _hasBoundary;
