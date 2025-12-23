@@ -2908,7 +2908,9 @@ void BackgroundLayer::onMouseDown(Event* event)
         {
             if (GameScene::sHasFarmHenhouseDoorPos)
             {
-                GameScene::sLastFarmPlayerPos = GameScene::sFarmHenhouseDoorPos;
+                Vec2 exitPos = GameScene::sFarmHenhouseDoorPos;
+                exitPos.y -= 48.0f; 
+                GameScene::sLastFarmPlayerPos = exitPos;
                 GameScene::sHasLastFarmPlayerPos = true;
                 GameScene::sSpawnAtFarmStart = false;
             }
