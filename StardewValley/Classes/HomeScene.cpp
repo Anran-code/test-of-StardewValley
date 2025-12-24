@@ -105,9 +105,18 @@ void HomeScene::update(float dt)
     CropSystem::getInstance()->updateDailyGrowth();
 }
 
+void HomeScene::switchTo(BackgroundType type, float duration)
+{
+    // Create new scene
+    auto scene = HomeScene::createScene(type);
+    
+    // Transition
+    Director::getInstance()->replaceScene(TransitionFade::create(duration, scene, Color3B::BLACK));
+}
+
 void HomeScene::switchViaRightExit(float duration)
 {
-    // Implementation for switching scene
+    switchTo(BackgroundType::Town, duration);
 }
 
 HomeScene::~HomeScene()
@@ -138,10 +147,15 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     if (!Layer::init()) return false;
 
     _type = type;
-    std::string mapFile = "res/farm.tmx"; // Default
-    if (type == BackgroundType::Home) mapFile = "res/home.tmx"; // Assumption
+    std::string mapFile = "map/outdoors_spring.tmx"; // Default (Farm)
+    if (type == BackgroundType::Home) mapFile = "map/home.tmx";
+    else if (type == BackgroundType::Town) mapFile = "map/town.tmx";
+    
     // Check if file exists, if not use default
-    if (!FileUtils::getInstance()->isFileExist(mapFile)) mapFile = "res/farm.tmx";
+    if (!FileUtils::getInstance()->isFileExist(mapFile)) {
+        cocos2d::log("Map file not found: %s, fallback to map/outdoors_spring.tmx", mapFile.c_str());
+        mapFile = "map/outdoors_spring.tmx";
+    }
 
     _map = TMXTiledMap::create(mapFile);
     if (!_map) {
@@ -354,6 +368,83 @@ void BackgroundLayer::update(float dt)
         Size tileSize = _map->getTileSize();
         float mapW = mapSize.width * tileSize.width;
         float mapH = mapSize.height * tileSize.height;
+        
+        // Scene Switching Logic
+        if (_type == BackgroundType::Farm)
+        {
+            // Right Exit -> Town
+            if (pos.x > mapW - 10)
+            {
+                // Save position but offset it left so we don't immediately re-trigger exit upon return
+                HomeScene::sLastFarmPlayerPos = pos - Vec2(50, 0); 
+                HomeScene::sHasLastFarmPlayerPos = true;
+                HomeScene::switchTo(BackgroundType::Town);
+                return; // Stop update to avoid multiple calls
+            }
+        }
+        else if (_type == BackgroundType::Town)
+        {
+            // Left Exit -> Farm
+            if (pos.x < 10)
+            {
+                HomeScene::switchTo(BackgroundType::Farm);
+                return;
+            }
+            
+            // Shop Entrance (Assume specific area, e.g., center building door)
+            // Let's define a "ShopZone" rect.
+            // For now, hardcode a likely position if map objects aren't reliable.
+            // Or better, check for "ShopDoor" object.
+            bool enteredShop = false;
+            auto objectGroup = _map->getObjectGroup("Objects");
+            if (objectGroup)
+            {
+                auto shopObj = objectGroup->getObject("ShopDoor");
+                if (!shopObj.empty())
+                {
+                    float x = shopObj["x"].asFloat();
+                    float y = shopObj["y"].asFloat();
+                    float w = shopObj["width"].asFloat();
+                    float h = shopObj["height"].asFloat();
+                    Rect shopRect(x, y, w, h);
+                    if (shopRect.containsPoint(pos))
+                    {
+                        enteredShop = true;
+                    }
+                }
+            }
+            
+            // Fallback if no object: Middle of map, slightly up
+            if (!enteredShop && objectGroup == nullptr) 
+            {
+                 // Mock shop area for testing if map lacks objects
+                 Rect mockShop(mapW * 0.4f, mapH * 0.5f, mapW * 0.2f, 50);
+                 if (mockShop.containsPoint(pos))
+                 {
+                     enteredShop = true;
+                 }
+            }
+
+            if (enteredShop)
+             {
+                  // Open Shop Layer
+                  if (!Director::getInstance()->getRunningScene()->getChildByName("ShopLayer"))
+                  {
+                      _player->stopMove(true);
+                      _player->stopMove(false);
+                      
+                      auto shop = ShopLayer::create(HomeScene::sWallet, HomeScene::sBasket, CropSystem::getInstance());
+                      if (shop)
+                      {
+                          shop->setName("ShopLayer");
+                          Director::getInstance()->getRunningScene()->addChild(shop, 2000);
+                          
+                          // Move player back a bit so they don't re-trigger immediately on close
+                          _player->setPosition(pos + Vec2(0, -30)); 
+                      }
+                  }
+             }
+        }
         
         if (pos.x < 0) pos.x = 0;
         if (pos.x > mapW) pos.x = mapW;

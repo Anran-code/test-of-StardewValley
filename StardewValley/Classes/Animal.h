@@ -42,6 +42,7 @@ public:
     void setLocation(Location loc) { _location = loc; }
     Location getLocation() const { return _location; }
     State getCurrentState() const { return _currentState; }
+    void setStateTimer(float t) { _stateTimer = t; }
 
 private:
     void initAnimations();
