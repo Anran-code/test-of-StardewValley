@@ -236,25 +236,26 @@ void Animal::pickNewState()
     // Simple Random AI
     int r = rand() % 100;
     
-    // 60% Chance to Walk
-    if (r < 60)
+    // 40% Chance to Walk
+    if (r < 40)
     {
         setState(State::Walk);
-        _stateTimer = 1.0f + (rand() % 20) / 10.0f; 
+        _stateTimer = 1.0f + (rand() % 20) / 10.0f; // 1-3 seconds
         
+        // Pick random direction
         int d = rand() % 4;
         setDirection(static_cast<Direction>(d));
     }
-    // 20% Chance to Idle
-    else if (r < 80)
+    // 30% Chance to Idle
+    else if (r < 70)
     {
         setState(State::Idle);
-        _stateTimer = 1.0f + (rand() % 30) / 10.0f; 
+        _stateTimer = 1.0f + (rand() % 30) / 10.0f; // 1-4 seconds
     }
-    // 20% Chance to Sit/Sleep
+    // 30% Chance to Sit/Sleep
     else
     {
         setState(State::Sit);
-        _stateTimer = 3.0f + (rand() % 50) / 10.0f; 
+        _stateTimer = 3.0f + (rand() % 50) / 10.0f; // 3-8 seconds
     }
 }

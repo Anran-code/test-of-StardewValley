@@ -163,13 +163,10 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClCompile Include="..\Classes\HudLayer.cpp" />
     <ClCompile Include="..\Classes\CropSystem.cpp" />
     <ClCompile Include="..\Classes\Inventory.cpp" />
-<<<<<<< HEAD
     <ClCompile Include="..\Classes\ExperienceSystem.cpp" />
     <ClCompile Include="..\Classes\EnergySystem.cpp" />
     <ClCompile Include="..\Classes\ForageSystem.cpp" />
     <ClCompile Include="..\Classes\PauseLayer.cpp" />
-=======
->>>>>>> parent of b9ea4bf (Update basket)
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>

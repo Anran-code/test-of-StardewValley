@@ -95,12 +95,12 @@ private:
     cocos2d::Rect _homeExitDoorRect;
     cocos2d::Rect _henhouseRect; // Added: collision for henhouse building
     cocos2d::Rect _henhouseDoorRect;
-    cocos2d::Rect _bucketRect;
     cocos2d::Rect _bedRect;
     std::vector<cocos2d::Rect> _poolRects;
     std::vector<cocos2d::Rect> _houseRects;
     cocos2d::Rect _townHomewayRect;
     cocos2d::Rect _rightExitRect;
+    cocos2d::Rect _bucketRect;
     cocos2d::Rect _boundaryLeftRect;
     cocos2d::Rect _boundaryRightRect;
     cocos2d::Rect _boundaryTopRect;
@@ -187,8 +187,6 @@ public:
     static bool sHasFarmTownwayPos;
     static cocos2d::Vec2 sFarmHenhouseDoorPos;
     static bool sHasFarmHenhouseDoorPos;
-    static cocos2d::Rect sFarmHenhouseRect;
-    static bool sHasFarmHenhouseRect;
     static bool sSpawnAtFarmStart;
     static bool sStartAtHomeBed;
 

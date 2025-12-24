@@ -418,8 +418,6 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         {
                             _henhouseRect = Rect(hx, hy, hw, hh);
                             _hasHenhouseRect = true;
-                            GameScene::sFarmHenhouseRect = _henhouseRect;
-                            GameScene::sHasFarmHenhouseRect = true;
 
                             _henhouseDoorRect = Rect(hx + hw / 2 - 16, hy, 32, 48);
                             _hasHenhouseDoor = true;
@@ -442,8 +440,6 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                                 float bodyY = hy;
                                 _henhouseRect = Rect(bodyX, bodyY, buildW, buildH);
                                 _hasHenhouseRect = true;
-                                GameScene::sFarmHenhouseRect = _henhouseRect;
-                                GameScene::sHasFarmHenhouseRect = true;
                             }
                         }
                     }
@@ -1841,8 +1837,7 @@ void BackgroundLayer::update(float dt)
                 bool isValid = false;
                 
                 if (CropSystem::getInstance()->canHarvest(tileIndex) || 
-                    (_type == BackgroundType::Farm && ForageSystem::getInstance()->hasItem(tileIndex)) ||
-                    (_type == BackgroundType::Farm && AnimalSystem::getInstance()->hasEgg(tileIndex)))
+                    (_type == BackgroundType::Farm && ForageSystem::getInstance()->hasItem(tileIndex)))
                 {
                     isValid = true;
                 }
@@ -2502,7 +2497,7 @@ void BackgroundLayer::onExit()
     {
         CropSystem::getInstance()->setMap(nullptr);
     }
-    AnimalSystem::getInstance()->cleanupVisuals(this);
+    AnimalSystem::getInstance()->cleanupVisuals();
     Layer::onExit();
 }
 
@@ -2538,8 +2533,6 @@ Vec2 GameScene::sFarmTownwayPos = Vec2::ZERO;
 bool GameScene::sHasFarmTownwayPos = false;
 Vec2 GameScene::sFarmHenhouseDoorPos = Vec2::ZERO;
 bool GameScene::sHasFarmHenhouseDoorPos = false;
-Rect GameScene::sFarmHenhouseRect = Rect::ZERO;
-bool GameScene::sHasFarmHenhouseRect = false;
 bool GameScene::sSpawnAtFarmStart = false;
 bool GameScene::sStartAtHomeBed = false;
 
@@ -2967,9 +2960,7 @@ void BackgroundLayer::onMouseDown(Event* event)
         {
             if (GameScene::sHasFarmHenhouseDoorPos)
             {
-                Vec2 exitPos = GameScene::sFarmHenhouseDoorPos;
-                exitPos.y -= 48.0f; 
-                GameScene::sLastFarmPlayerPos = exitPos;
+                GameScene::sLastFarmPlayerPos = GameScene::sFarmHenhouseDoorPos;
                 GameScene::sHasLastFarmPlayerPos = true;
                 GameScene::sSpawnAtFarmStart = false;
             }
@@ -3043,12 +3034,6 @@ void BackgroundLayer::onMouseDown(Event* event)
         if (ForageSystem::getInstance()->tryHarvest(targetTile))
         {
             if (!forageIcon.empty() && _player) _player->showToolFeedback(forageIcon);
-            return;
-        }
-
-        // Try Harvest Egg
-        if (AnimalSystem::getInstance()->tryHarvestEgg(targetTile))
-        {
             return;
         }
     }
