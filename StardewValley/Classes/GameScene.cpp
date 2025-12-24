@@ -8,7 +8,7 @@
 #include "ForageSystem.h"
 #include "AnimalSystem.h"
 #include "SimpleAudioEngine.h"
-#include "Basket.h"
+// #include "Basket.h" // Ignore Shop related includes
 // #include "ShopLayer.h" // Ignore Shop related includes
 
 USING_NS_CC;
@@ -102,7 +102,6 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _biteWindow = 0.0f;
     
     _waitingForSleepInput = false;
-    _waitingForEarningsInput = false;
     _sleepLabel = nullptr;
     _pauseMenu = nullptr;
     
@@ -1057,8 +1056,6 @@ void BackgroundLayer::showSleepDialog()
 {
     if (_sleepDialogActive || _isSleeping) return;
     _sleepDialogActive = true;
-    _waitingForSleepInput = false;
-    _waitingForEarningsInput = false;
     auto director = Director::getInstance();
     Size visibleSize = director->getVisibleSize();
     Vec2 origin = director->getVisibleOrigin();
@@ -1069,24 +1066,18 @@ void BackgroundLayer::showSleepDialog()
         _sleepOverlay->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
         Vec2 layerWorldPos = this->getPosition();
         _sleepOverlay->setPosition(origin - layerWorldPos);
-        addChild(_sleepOverlay, 5000);
-    }
-    else
-    {
-        _sleepOverlay->setVisible(true);
-        _sleepOverlay->setOpacity(160);
-    }
-
-    if (_sleepOverlay)
-    {
-        _sleepOverlay->removeAllChildren();
-        _sleepLabel = nullptr;
         auto label = Label::createWithSystemFont("Do you want to sleep? press Y/N", "Arial", 32.0f);
         if (label)
         {
             label->setPosition(Vec2(visibleSize.width * 0.5f, visibleSize.height * 0.5f));
             _sleepOverlay->addChild(label);
         }
+        addChild(_sleepOverlay, 5000);
+    }
+    else
+    {
+        _sleepOverlay->setVisible(true);
+        _sleepOverlay->setOpacity(160);
     }
 }
 
@@ -1259,12 +1250,6 @@ void BackgroundLayer::beginSleep()
         }
         CropSystem::getInstance()->updateDailyGrowth();
         ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
-        int earned = 0;
-        if (GameScene::sHud)
-        {
-            earned = GameScene::sHud->settleBucketAndGetTotal();
-        }
-        GameScene::sTodayEarnings = earned;
         // Restore Energy
         if (GameScene::sWasFainted)
         {
@@ -2150,7 +2135,6 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             if (_sleepOverlay)
             {
                 _sleepOverlay->removeAllChildren();
-                _sleepLabel = nullptr;
             }
             beginSleep();
         }
@@ -2537,8 +2521,6 @@ bool GameScene::sSpawnAtFarmStart = false;
 bool GameScene::sStartAtHomeBed = false;
 
 Inventory* GameScene::sInventory = nullptr; // Define sInventory
-Basket* GameScene::sBasket = nullptr;
-int GameScene::sTodayEarnings = 0;
 
 void GameScene::switchTo(BackgroundType type, float duration)
 {
@@ -2594,7 +2576,6 @@ bool GameScene::init()
     if (!GameScene::sClock) { GameScene::sClock = new GameClock(); }
     if (!GameScene::sWallet) { GameScene::sWallet = new Wallet(); }
     if (!GameScene::sInventory) { GameScene::sInventory = new Inventory(); }
-    if (!GameScene::sBasket) { GameScene::sBasket = new Basket(); }
 
     _clock = GameScene::sClock;
     _wallet = GameScene::sWallet;
@@ -2607,7 +2588,6 @@ bool GameScene::init()
         GameScene::sHud = _hud;
     }
     CropSystem::getInstance()->init(nullptr, _clock, _wallet, _inventory);
-    CropSystem::getInstance()->setBasket(GameScene::sBasket);
     scheduleUpdate();
 
     GameScene::sStartAtHomeBed = false;
@@ -2645,7 +2625,6 @@ bool GameScene::initWithStartType(BackgroundType type)
     if (!GameScene::sClock) { GameScene::sClock = new GameClock(); }
     if (!GameScene::sWallet) { GameScene::sWallet = new Wallet(); }
     if (!GameScene::sInventory) { GameScene::sInventory = new Inventory(); }
-    if (!GameScene::sBasket) { GameScene::sBasket = new Basket(); }
 
     _clock = GameScene::sClock;
     _wallet = GameScene::sWallet;
@@ -2658,7 +2637,6 @@ bool GameScene::initWithStartType(BackgroundType type)
         GameScene::sHud = _hud;
     }
     CropSystem::getInstance()->init(nullptr, _clock, _wallet, _inventory);
-    CropSystem::getInstance()->setBasket(GameScene::sBasket);
     scheduleUpdate();
 
     GameScene::sStartAtHomeBed = false;
@@ -2671,13 +2649,12 @@ void BackgroundLayer::onMouseDown(Event* event)
 {
     EventMouse* e = (EventMouse*)event;
 
-    // Special case for sleep input (Click to continue -> show earnings)
+    // Special case for sleep input (Click to continue)
     if (_waitingForSleepInput)
     {
          if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
          {
              _waitingForSleepInput = false;
-             _waitingForEarningsInput = true;
              if (_sleepLabel) _sleepLabel->setVisible(false);
 
              // Wake up logic
@@ -2691,24 +2668,6 @@ void BackgroundLayer::onMouseDown(Event* event)
          ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
          AnimalSystem::getInstance()->updateDailyGrowth(); // Animals grow/lay eggs
          
-         int earned = 0;
-         if (GameScene::sHud)
-         {
-             earned = GameScene::sHud->settleBucketAndGetTotal();
-         }
-         GameScene::sTodayEarnings = earned;
-         
-             if (_sleepOverlay)
-             {
-                 Size overlaySize = _sleepOverlay->getContentSize();
-                 auto earningsLabel = Label::createWithSystemFont("Today Earnings: " + std::to_string(earned) + " g", "Arial", 36.0f);
-                 if (earningsLabel)
-                 {
-                     earningsLabel->setPosition(Vec2(overlaySize.width * 0.5f, overlaySize.height * 0.6f));
-                     _sleepOverlay->addChild(earningsLabel);
-                 }
-             }
-         
          if (GameScene::sWasFainted)
              {
                  EnergySystem::getInstance()->resetEnergy(0.75f);
@@ -2720,50 +2679,39 @@ void BackgroundLayer::onMouseDown(Event* event)
              GameScene::sWasFainted = false;
              GameScene::sMidnightWarned = false;
              
-             // Now waiting for a second click to dismiss earnings and finish sleep
+             if (_type != BackgroundType::Home)
+             {
+                  GameScene::sStartAtHomeBed = true;
+                  auto next = GameScene::createScene(BackgroundType::Home);
+                  Director::getInstance()->replaceScene(next);
+                  return;
+             }
+
+             if (_player && _hasBedRect)
+             {
+                 Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
+                 _player->setPosition(pos);
+             }
+             
+             // Fade out overlay
+             if (_sleepOverlay)
+             {
+                 _sleepOverlay->stopAllActions();
+                 _sleepOverlay->runAction(Sequence::create(
+                     FadeTo::create(1.0f, 0),
+                     CallFunc::create([this](){ 
+                         _sleepOverlay->setVisible(false); 
+                         _isSleeping = false;
+                     }),
+                     nullptr
+                 ));
+             }
+             else
+             {
+                 _isSleeping = false;
+             }
              return;
          }
-    }
-
-    // Second click: dismiss earnings text and finish sleep transition
-    if (_waitingForEarningsInput)
-    {
-        if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
-        {
-            _waitingForEarningsInput = false;
-
-            if (_type != BackgroundType::Home)
-            {
-                GameScene::sStartAtHomeBed = true;
-                auto next = GameScene::createScene(BackgroundType::Home);
-                Director::getInstance()->replaceScene(next);
-                return;
-            }
-
-            if (_player && _hasBedRect)
-            {
-                Vec2 pos(_bedRect.getMidX(), _bedRect.getMidY());
-                _player->setPosition(pos);
-            }
-
-            if (_sleepOverlay)
-            {
-                _sleepOverlay->stopAllActions();
-                _sleepOverlay->runAction(Sequence::create(
-                    FadeTo::create(1.0f, 0),
-                    CallFunc::create([this](){
-                        _sleepOverlay->setVisible(false);
-                        _isSleeping = false;
-                    }),
-                    nullptr
-                ));
-            }
-            else
-            {
-                _isSleeping = false;
-            }
-            return;
-        }
     }
 
     // Block all other inputs if sleeping or fainted

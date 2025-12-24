@@ -5,9 +5,6 @@
 #include "GameScene.h"
 #include "EnergySystem.h"
 #include "ExperienceSystem.h"
-#include "CropSystem.h"
-#include "Basket.h"
-#include <algorithm>
 
 USING_NS_CC;
 
@@ -414,12 +411,7 @@ void HudLayer::openBucketWindow()
     _bucketWindow->setVisible(true);
     if (_bucketCountLabel)
     {
-        int count = 0;
-        if (GameScene::sBasket)
-        {
-            count = GameScene::sBasket->getTotalCount();
-        }
-        _bucketCountLabel->setString(std::to_string(count));
+        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
     }
     updateInventoryUI();
 }
@@ -436,19 +428,11 @@ void HudLayer::closeBucketWindow()
         if (sp) sp->removeFromParent();
     }
     _bucketItemSprites.clear();
-    for (auto lbl : _bucketQuantityLabels)
-    {
-        if (lbl) lbl->removeFromParent();
-    }
-    _bucketQuantityLabels.clear();
+    _bucketItems.clear();
+    _bucketItemIndices.clear();
     if (_bucketCountLabel)
     {
-        int count = 0;
-        if (GameScene::sBasket)
-        {
-            count = GameScene::sBasket->getTotalCount();
-        }
-        _bucketCountLabel->setString(std::to_string(count));
+        _bucketCountLabel->setString("0");
     }
 }
 
@@ -468,8 +452,6 @@ void HudLayer::updateInventoryUI()
     _quantityLabels.clear();
     for (auto bar : _waterBars) bar->removeFromParent();
     _waterBars.clear();
-    for (auto lbl : _bucketQuantityLabels) lbl->removeFromParent();
-    _bucketQuantityLabels.clear();
 
     Size toolbarSize = _toolbar->getContentSize();
     float scale = _toolbar->getScale();
@@ -664,16 +646,16 @@ void HudLayer::updateInventoryUI()
             _bpCurrentGoldLabel->setString(buf);
         }
 
-    if (_bpTotalEarningsLabel && _wallet)
-    {
-        _bpTotalEarningsLabel->setVisible(true);
-        _bpTotalEarningsLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
-        _bpTotalEarningsLabel->setPosition(Vec2(leftColCenterX, line2Y));
-        
-        char buf[64];
-        std::snprintf(buf, sizeof(buf), "Today Earnings: %d g", GameScene::sTodayEarnings);
-        _bpTotalEarningsLabel->setString(buf);
-    }
+        if (_bpTotalEarningsLabel && _wallet)
+        {
+            _bpTotalEarningsLabel->setVisible(true);
+            _bpTotalEarningsLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+            _bpTotalEarningsLabel->setPosition(Vec2(leftColCenterX, line2Y));
+            
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "Total Earnings: %d g", _wallet->getMoney()); 
+            _bpTotalEarningsLabel->setString(buf);
+        }
 
         if (_bpDateLabel && _clock)
         {
@@ -838,20 +820,13 @@ void HudLayer::updateInventoryUI()
             }
         }
 
-        if (_bucketWindowVisible && _bucketWindow && GameScene::sBasket)
+        if (_bucketWindowVisible && _bucketWindow)
         {
             for (auto sp : _bucketItemSprites)
             {
                 if (sp) sp->removeFromParent();
             }
             _bucketItemSprites.clear();
-            for (auto lbl : _bucketQuantityLabels)
-            {
-                if (lbl) lbl->removeFromParent();
-            }
-            _bucketQuantityLabels.clear();
-            _bucketTypes.clear();
-            _bucketCounts.clear();
 
             Size winSize = _bucketWindow->getContentSize();
             Vec2 winPos = _bucketWindow->getPosition();
@@ -862,25 +837,14 @@ void HudLayer::updateInventoryUI()
             float padding = 8.0f;
             int cols = 3;
 
-            auto crops = CropSystem::getInstance();
-            auto allMap = GameScene::sBasket->getAll();
-            std::vector<std::pair<CropType, int>> items(allMap.begin(), allMap.end());
-            std::sort(items.begin(), items.end(), [](const std::pair<CropType, int>& a, const std::pair<CropType, int>& b) {
-                return static_cast<int>(a.first) < static_cast<int>(b.first);
-            });
-
-            for (int index = 0; index < (int)items.size(); ++index)
+            for (size_t i = 0; i < _bucketItems.size(); ++i)
             {
-                CropType type = items[index].first;
-                int quantity = items[index].second;
-
-                const CropData* data = crops ? crops->getCropData(type) : nullptr;
-                if (!data) continue;
-                auto sprite = Sprite::create(data->itemIcon);
+                const Item& item = _bucketItems[i];
+                auto sprite = Sprite::create(item.iconPath);
                 if (!sprite) continue;
 
-                int col = index % cols;
-                int row = index / cols;
+                int col = static_cast<int>(i % cols);
+                int row = static_cast<int>(i / cols);
 
                 float x = left + padding + cellSize * 0.5f + col * (cellSize + padding);
                 float y = bottom + winSize.height - padding - cellSize * 0.5f - row * (cellSize + padding);
@@ -891,21 +855,7 @@ void HudLayer::updateInventoryUI()
                 sprite->setScale(scale);
                 sprite->setPosition(Vec2(x, y));
                 addChild(sprite, 25);
-
-                auto qtyLabel = Label::createWithSystemFont(std::to_string(quantity), "Arial", 16);
-                if (qtyLabel)
-                {
-                    qtyLabel->setColor(Color3B::WHITE);
-                    qtyLabel->enableOutline(Color4B::BLACK, 2);
-                    qtyLabel->setAnchorPoint(Vec2(1.0f, 0.0f));
-                    qtyLabel->setPosition(Vec2(x + cellSize * 0.5f - 4.0f, y - cellSize * 0.5f + 4.0f));
-                    addChild(qtyLabel, 26);
-                    _bucketQuantityLabels.push_back(qtyLabel);
-                }
-
                 _bucketItemSprites.push_back(sprite);
-                _bucketTypes.push_back(type);
-                _bucketCounts.push_back(quantity);
             }
         }
     }
@@ -1103,73 +1053,13 @@ void HudLayer::onMouseDown(Event* event)
     if (!_inventory || !_toolbar) return;
 
     EventMouse* e = (EventMouse*)event;
+    if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
+
     Vec2 clickPos = e->getLocation();
 
     // 优先检测背包 (Backpack)
     if (_backpack && _backpack->isVisible())
     {
-        // 0. 检测是否点在篮子物品上 -> 可能开始拖拽
-        if (_bucketWindowVisible && _bucketWindow && GameScene::sBasket)
-        {
-            auto button = e->getMouseButton();
-            if (button == EventMouse::MouseButton::BUTTON_LEFT ||
-                button == EventMouse::MouseButton::BUTTON_RIGHT)
-            {
-                for (int i = 0; i < (int)_bucketItemSprites.size(); ++i)
-                {
-                    Sprite* sp = _bucketItemSprites[i];
-                    if (!sp) continue;
-                    Rect r = sp->getBoundingBox();
-                    if (r.containsPoint(clickPos))
-                    {
-                        if (i < (int)_bucketTypes.size() && i < (int)_bucketCounts.size())
-                        {
-                            CropType type = _bucketTypes[i];
-                            int count = _bucketCounts[i];
-                            if (count > 0)
-                            {
-                                _isDragging = true;
-                                _isDraggingFromBucket = true;
-                                _dragBucketIndex = i;
-                                _dragBucketType = type;
-                                _dragBucketCount = count;
-                                _dragButton = button;
-                                _dragStartPos = clickPos;
-
-                                auto crops = CropSystem::getInstance();
-                                const CropData* data = crops ? crops->getCropData(type) : nullptr;
-                                if (data)
-                                {
-                                    _draggedItemSprite = Sprite::create(data->itemIcon);
-                                    if (_draggedItemSprite)
-                                    {
-                                        _draggedItemSprite->setOpacity(180);
-                                        _draggedItemSprite->setScale(1.0f);
-                                        _draggedItemSprite->setPosition(clickPos);
-                                        addChild(_draggedItemSprite, 1000);
-
-                                        int previewCount = (button == EventMouse::MouseButton::BUTTON_RIGHT) ? 1 : count;
-                                        if (previewCount > 1)
-                                        {
-                                            _draggedItemQty = Label::createWithSystemFont(std::to_string(previewCount), "Arial", 16);
-                                            _draggedItemQty->setColor(Color3B::WHITE);
-                                            _draggedItemQty->enableOutline(Color4B::BLACK, 2);
-                                            _draggedItemQty->setPosition(Vec2(clickPos.x + 20, clickPos.y - 20));
-                                            addChild(_draggedItemQty, 1001);
-                                        }
-                                    }
-                                }
-                                _consumingClick = true;
-                                event->stopPropagation();
-                                return;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
         // 1. 检测关闭按钮
         if (isPointInCloseButton(clickPos))
         {
@@ -1190,32 +1080,23 @@ void HudLayer::onMouseDown(Event* event)
         {
             if (_inventory->hasItem(slotIndex))
             {
-                auto button = e->getMouseButton();
-                if (button != EventMouse::MouseButton::BUTTON_LEFT &&
-                    button != EventMouse::MouseButton::BUTTON_RIGHT)
-                {
-                    return;
-                }
                 _isDragging = true;
                 _dragSourceIndex = slotIndex;
-                _dragButton = button;
-                 _dragStartPos = clickPos;
                 _consumingClick = true;
                 event->stopPropagation();
 
-                // 生成拖拽图标（左键预览整堆，右键只预览 1 个）
+                // 生成拖拽图标
                 const Item& item = _inventory->getItem(slotIndex);
                 _draggedItemSprite = Sprite::create(item.iconPath);
                 if (_draggedItemSprite)
                 {
                     _draggedItemSprite->setOpacity(180);
-                    _draggedItemSprite->setScale(1.0f);
+                    _draggedItemSprite->setScale(1.0f); // 保持原始比例或微调
                     _draggedItemSprite->setPosition(clickPos);
                     addChild(_draggedItemSprite, 1000);
 
-                    int previewCount = (button == EventMouse::MouseButton::BUTTON_RIGHT) ? 1 : item.quantity;
-                    if (previewCount > 1) {
-                        _draggedItemQty = Label::createWithSystemFont(std::to_string(previewCount), "Arial", 16);
+                    if (item.quantity > 1) {
+                        _draggedItemQty = Label::createWithSystemFont(std::to_string(item.quantity), "Arial", 16);
                         _draggedItemQty->setColor(Color3B::WHITE);
                         _draggedItemQty->enableOutline(Color4B::BLACK, 2);
                         _draggedItemQty->setPosition(Vec2(clickPos.x + 20, clickPos.y - 20));
@@ -1228,12 +1109,13 @@ void HudLayer::onMouseDown(Event* event)
             return;
         }
 
+        // 检测是否点在了背包背景图上
         Vec2 localP = _backpack->convertToNodeSpace(clickPos);
         Size bpSize = _backpack->getContentSize();
         if (Rect(0, 0, bpSize.width, bpSize.height).containsPoint(localP)) {
             _consumingClick = true;
             event->stopPropagation();
-            return;
+            return; // 吞噬事件，不做任何事，但也不让工具栏响应
         }
 
         return;
@@ -1252,7 +1134,6 @@ void HudLayer::onMouseDown(Event* event)
 
     if (hitRectWorld.containsPoint(clickPos))
     {
-        if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
         _consumingClick = true;
         event->stopPropagation();
 
@@ -1297,152 +1178,45 @@ void HudLayer::onMouseUp(Event* event)
         Vec2 pos = e->getLocation();
         
         bool actionTaken = false;
-
-        if (_isDraggingFromBucket)
+        
+        if (_bucketWindowVisible && _bucketWindow)
         {
-            float dragDist = pos.distance(_dragStartPos);
-            const float clickThreshold = 10.0f;
-
-            // 如果几乎没有移动，当作点击来处理（全拿/拿一个）
-            if (dragDist < clickThreshold)
+            Vec2 winPos = _bucketWindow->getPosition();
+            Size winSize = _bucketWindow->getContentSize();
+            Rect winRect(winPos.x - winSize.width * 0.5f, winPos.y - winSize.height * 0.5f, winSize.width, winSize.height);
+            if (winRect.containsPoint(pos))
             {
-                handleBucketClick(pos, _dragButton);
-                actionTaken = true;
-            }
-            else
-            {
-                int targetSlot = getSlotIndexFromPoint(pos);
-                if (targetSlot != -1 && _inventory && GameScene::sBasket)
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
                 {
-                    auto crops = CropSystem::getInstance();
-                    const CropData* data = crops ? crops->getCropData(_dragBucketType) : nullptr;
-                    if (data)
+                    _bucketItems.push_back(item);
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    if (_bucketCountLabel)
                     {
-                        int available = GameScene::sBasket->getCount(_dragBucketType);
-                        int moveCount = (_dragButton == EventMouse::MouseButton::BUTTON_RIGHT) ? 1 : available;
-                        if (moveCount > available) moveCount = available;
-                        if (moveCount > 0)
-                        {
-                            Item item = Item::createCrop(_dragBucketType, data->itemName, data->itemIcon, moveCount);
-                            _inventory->addItem(item);
-                            GameScene::sBasket->removeCrop(_dragBucketType, moveCount);
-                            if (_bucketCountLabel)
-                            {
-                                int total = GameScene::sBasket->getTotalCount();
-                                _bucketCountLabel->setString(std::to_string(total));
-                            }
-                            actionTaken = true;
-                        }
+                        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
                     }
+                    actionTaken = true;
                 }
             }
         }
         else
         {
-            if (_bucketWindowVisible && _bucketWindow)
+            if (isPointInTrashCan(pos))
             {
                 const auto& item = _inventory->getItem(_dragSourceIndex);
-
-                float dragDist = pos.distance(_dragStartPos);
-                const float clickThreshold = 10.0f;
-
-                // 小幅移动：当作“背包格子点击一次把物品丢进篮子”
-                if (dragDist < clickThreshold)
+                if (item.type != ItemType::Tool)
                 {
-                    if (item.type == ItemType::Crop && GameScene::sBasket)
-                    {
-                        int count = item.quantity;
-                        int moveCount = (_dragButton == EventMouse::MouseButton::BUTTON_RIGHT) ? 1 : count;
-                        if (moveCount > count) moveCount = count;
-                        if (moveCount > 0 && GameScene::sBasket->addCrop(item.cropType, moveCount))
-                        {
-                            _inventory->removeItem(_dragSourceIndex, moveCount);
-                            if (_bucketCountLabel)
-                            {
-                                int total = GameScene::sBasket->getTotalCount();
-                                _bucketCountLabel->setString(std::to_string(total));
-                            }
-                            actionTaken = true;
-                        }
-                    }
-                }
-                else
-                {
-                    Vec2 winPos = _bucketWindow->getPosition();
-                    Size winSize = _bucketWindow->getContentSize();
-                    Rect winRect(winPos.x - winSize.width * 0.5f, winPos.y - winSize.height * 0.5f, winSize.width, winSize.height);
-                    if (winRect.containsPoint(pos))
-                    {
-                        if (item.type == ItemType::Crop && GameScene::sBasket)
-                        {
-                            int count = item.quantity;
-                            int moveCount = (_dragButton == EventMouse::MouseButton::BUTTON_RIGHT) ? 1 : count;
-                            if (moveCount > count) moveCount = count;
-                            if (moveCount > 0 && GameScene::sBasket->addCrop(item.cropType, moveCount))
-                            {
-                                _inventory->removeItem(_dragSourceIndex, moveCount);
-                                if (_bucketCountLabel)
-                                {
-                                    int total = GameScene::sBasket->getTotalCount();
-                                    _bucketCountLabel->setString(std::to_string(total));
-                                }
-                                actionTaken = true;
-                            }
-                        }
-                        else if (item.type != ItemType::Tool)
-                        {
-                            actionTaken = false;
-                        }
-                    }
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    actionTaken = true;
                 }
             }
             else
             {
-                if (isPointInTrashCan(pos))
+                int targetSlot = getSlotIndexFromPoint(pos);
+                if (targetSlot != -1)
                 {
-                    const auto& item = _inventory->getItem(_dragSourceIndex);
-                    if (item.type != ItemType::Tool)
-                    {
-                        int moveCount = (_dragButton == EventMouse::MouseButton::BUTTON_RIGHT) ? 1 : item.quantity;
-                        if (moveCount > 0)
-                        {
-                            _inventory->removeItem(_dragSourceIndex, moveCount);
-                            actionTaken = true;
-                        }
-                    }
-                }
-                else
-                {
-                    int targetSlot = getSlotIndexFromPoint(pos);
-                    if (targetSlot != -1)
-                    {
-                        if (_dragButton == EventMouse::MouseButton::BUTTON_RIGHT)
-                        {
-                            Item& src = _inventory->getItem(_dragSourceIndex);
-                            if (src.quantity > 0 && src.type != ItemType::Tool)
-                            {
-                                Item& dst = _inventory->getItem(targetSlot);
-                                if (dst.quantity == 0)
-                                {
-                                    dst = src;
-                                    dst.quantity = 1;
-                                    _inventory->removeItem(_dragSourceIndex, 1);
-                                    actionTaken = true;
-                                }
-                                else if (dst.type == src.type && dst.name == src.name && dst.quantity < dst.maxStack)
-                                {
-                                    dst.quantity += 1;
-                                    _inventory->removeItem(_dragSourceIndex, 1);
-                                    actionTaken = true;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            _inventory->swapItems(_dragSourceIndex, targetSlot);
-                            actionTaken = true;
-                        }
-                    }
+                    _inventory->swapItems(_dragSourceIndex, targetSlot);
+                    actionTaken = true;
                 }
             }
         }
@@ -1456,91 +1230,12 @@ void HudLayer::onMouseUp(Event* event)
             _draggedItemQty->removeFromParent();
             _draggedItemQty = nullptr;
         }
-
+        
         _isDragging = false;
-        _isDraggingFromBucket = false;
         _dragSourceIndex = -1;
         
         updateInventoryUI();
     }
-    else
-    {
-        EventMouse* e = (EventMouse*)event;
-        if (!e) return;
-        if (_bucketWindowVisible && _bucketWindow && GameScene::sBasket)
-        {
-            auto button = e->getMouseButton();
-            if (button == EventMouse::MouseButton::BUTTON_LEFT ||
-                button == EventMouse::MouseButton::BUTTON_RIGHT)
-            {
-                handleBucketClick(e->getLocation(), button);
-            }
-        }
-    }
-}
-
-void HudLayer::handleBucketClick(const Vec2& pos, EventMouse::MouseButton button)
-{
-    if (!_bucketWindowVisible || !_bucketWindow || !_inventory || !GameScene::sBasket) return;
-    if (button != EventMouse::MouseButton::BUTTON_LEFT &&
-        button != EventMouse::MouseButton::BUTTON_RIGHT) return;
-
-    if (_bucketItemSprites.empty() || _bucketTypes.empty() || _bucketCounts.empty()) return;
-
-    int clickedIndex = -1;
-    for (int i = 0; i < (int)_bucketItemSprites.size(); ++i)
-    {
-        Sprite* sp = _bucketItemSprites[i];
-        if (!sp) continue;
-        Rect r = sp->getBoundingBox();
-        if (r.containsPoint(pos))
-        {
-            clickedIndex = i;
-            break;
-        }
-    }
-
-    if (clickedIndex < 0 || clickedIndex >= (int)_bucketTypes.size() || clickedIndex >= (int)_bucketCounts.size()) return;
-
-    CropType type = _bucketTypes[clickedIndex];
-    int count = _bucketCounts[clickedIndex];
-
-    int moveCount = (button == EventMouse::MouseButton::BUTTON_LEFT) ? count : 1;
-    if (moveCount <= 0) return;
-    if (moveCount > count) moveCount = count;
-
-    auto crops = CropSystem::getInstance();
-    const CropData* data = crops ? crops->getCropData(type) : nullptr;
-    if (!data) return;
-
-    Item item = Item::createCrop(type, data->itemName, data->itemIcon, moveCount);
-    _inventory->addItem(item);
-    GameScene::sBasket->removeCrop(type, moveCount);
-
-    Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
-    
-    if (_bucketCountLabel)
-    {
-        int total = GameScene::sBasket->getTotalCount();
-        _bucketCountLabel->setString(std::to_string(total));
-    }
-    
-    updateInventoryUI();
-}
-
-int HudLayer::settleBucketAndGetTotal()
-{
-    auto crops = CropSystem::getInstance();
-    if (!crops || !_wallet || !GameScene::sBasket) return 0;
-
-    int total = crops->sellBasket();
-    _bucketItemSprites.clear();
-    if (_bucketCountLabel)
-    {
-        _bucketCountLabel->setString("0");
-    }
-    
-    return total;
 }
 
 bool HudLayer::onTouchBegan(Touch* touch, Event* event)
@@ -1553,23 +1248,6 @@ bool HudLayer::onTouchBegan(Touch* touch, Event* event)
     // 优先检测背包 (Backpack) - 逻辑与 onMouseDown 保持一致
     if (_backpack && _backpack->isVisible())
     {
-        // 先检测是否点在篮子里的物品上（触摸：当作左键点击整格）
-        if (_bucketWindowVisible && _bucketWindow && GameScene::sBasket)
-        {
-            for (int i = 0; i < (int)_bucketItemSprites.size(); ++i)
-            {
-                Sprite* sp = _bucketItemSprites[i];
-                if (!sp) continue;
-                Rect r = sp->getBoundingBox();
-                if (r.containsPoint(p))
-                {
-                    handleBucketClick(p, EventMouse::MouseButton::BUTTON_LEFT);
-                    _consumingClick = true;
-                    return true;
-                }
-            }
-        }
-
         // 检测关闭按钮
         if (isPointInCloseButton(p))
         {
@@ -1697,23 +1375,15 @@ void HudLayer::onTouchEnded(Touch* touch, Event* event)
             if (winRect.containsPoint(pos))
             {
                 const auto& item = _inventory->getItem(_dragSourceIndex);
-                if (item.type == ItemType::Crop && GameScene::sBasket)
+                if (item.type != ItemType::Tool)
                 {
-                    int count = item.quantity;
-                    if (count > 0 && GameScene::sBasket->addCrop(item.cropType, count))
+                    _bucketItems.push_back(item);
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    if (_bucketCountLabel)
                     {
-                        _inventory->removeItem(_dragSourceIndex, count);
-                        if (_bucketCountLabel)
-                        {
-                            int total = GameScene::sBasket->getTotalCount();
-                            _bucketCountLabel->setString(std::to_string(total));
-                        }
-                        actionTaken = true;
+                        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
                     }
-                }
-                else if (item.type != ItemType::Tool)
-                {
-                    actionTaken = false;
+                    actionTaken = true;
                 }
             }
         }

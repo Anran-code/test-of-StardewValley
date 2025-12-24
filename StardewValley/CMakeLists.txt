@@ -62,7 +62,6 @@ list(APPEND GAME_SOURCE
      Classes/EnergySystem.cpp
      Classes/ExperienceSystem.cpp
      Classes/ForageSystem.cpp
-     Classes/AnimalSystem.cpp
      Classes/Inventory.cpp
      Classes/PauseLayer.cpp
      )
@@ -81,7 +80,6 @@ list(APPEND GAME_HEADER
      Classes/EnergySystem.h
      Classes/ExperienceSystem.h
      Classes/ForageSystem.h
-     Classes/AnimalSystem.h
      Classes/Inventory.h
      Classes/Item.h
      Classes/PauseLayer.h

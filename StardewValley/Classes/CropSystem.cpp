@@ -2,7 +2,7 @@
 #include "cocos2d.h"
 #include "Inventory.h"
 #include "ExperienceSystem.h"
-#include "Basket.h"
+// #include "Basket.h"
 
 using namespace cocos2d;
 
@@ -20,7 +20,6 @@ CropSystem::CropSystem()
     , _clock(nullptr)
     , _wallet(nullptr)
     , _inventory(nullptr)
-    , _basket(nullptr)
 
     , _selected(CropType::Parsnip)
     , _lastProcessedDay(-1)
@@ -43,11 +42,6 @@ void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet, Invent
         _lastProcessedDay = _clock->getDay();
         _lastProcessedSeason = (int)_clock->getSeason();
     }
-}
-
-void CropSystem::setBasket(Basket* basket)
-{
-    _basket = basket;
 }
 
 void CropSystem::setMap(TMXTiledMap* map)
@@ -1078,18 +1072,6 @@ int CropSystem::getSellPrice(CropType type) const
     float multiplier = 1.0f + (level * 0.05f);
     
     return (int)(basePrice * multiplier);
-}
-
-int CropSystem::sellBasket()
-{
-    if (!_basket || !_wallet) return 0;
-    int total = _basket->calculateTotalSellValue(this);
-    if (total > 0)
-    {
-        _wallet->addMoney(total);
-        _basket->clear();
-    }
-    return total;
 }
 
 const CropData* CropSystem::getCropData(CropType type) const
