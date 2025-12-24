@@ -6,6 +6,7 @@
 #include "ExperienceSystem.h"
 #include "EnergySystem.h"
 #include "ForageSystem.h"
+#include "AnimalSystem.h"
 #include "SimpleAudioEngine.h"
 // #include "Basket.h" // Ignore Shop related includes
 // #include "ShopLayer.h" // Ignore Shop related includes
@@ -64,7 +65,9 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasBedRect = false;
     _hasPoolRect = false;
     _hasHouseRect = false;
+    _hasHenhouseRect = false; // Added
     _hasTownHomewayRect = false;
+    _hasBucket = false;
     _exitedHomeDoor = false;
     _enteredHome = false;
     _hasRightExit = false;
@@ -75,8 +78,12 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _canExitHomeDoor = false;
     _canEnterTownFromRight = false;
     _canReturnFarmFromTown = false;
+    _canEnterHenhouse = false;
     _canEnterTownFromRight = false;
     _canReturnFarmFromTown = false;
+    _hasHenhouseDoor = false;
+    _canEnterHenhouse = false;
+    _enteredHenhouse = false;
 
     _sleepDialogActive = false;
     _isSleeping = false;
@@ -277,6 +284,73 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     cocos2d::log("Pool object group not found in TMX map.");
                 }
 
+                auto henhouseGroup = _map->getObjectGroup("henhouse");
+                if (henhouseGroup)
+                {
+                    const auto& objs = henhouseGroup->getObjects();
+                    bool first = true;
+                    float minX = 0.0f;
+                    float minY = 0.0f;
+                    float maxX = 0.0f;
+                    float maxY = 0.0f;
+
+                    for (const auto& obj : objs)
+                    {
+                        const auto& dict = obj.asValueMap();
+
+                        auto itX = dict.find("x");
+                        auto itY = dict.find("y");
+                        if (itX == dict.end() || itY == dict.end())
+                        {
+                            continue;
+                        }
+
+                        float hx = itX->second.asFloat();
+                        float hy = itY->second.asFloat();
+
+                        float hw = 0.0f;
+                        float hh = 0.0f;
+
+                        auto itW = dict.find("width");
+                        if (itW != dict.end())
+                        {
+                            hw = itW->second.asFloat();
+                        }
+                        auto itH = dict.find("height");
+                        if (itH != dict.end())
+                        {
+                            hh = itH->second.asFloat();
+                        }
+
+                        float left = hx;
+                        float bottom = hy;
+                        float right = hx + hw;
+                        float top = hy + hh;
+
+                        if (first)
+                        {
+                            minX = left;
+                            maxX = right;
+                            minY = bottom;
+                            maxY = top;
+                            first = false;
+                        }
+                        else
+                        {
+                            if (left < minX) minX = left;
+                            if (right > maxX) maxX = right;
+                            if (bottom < minY) minY = bottom;
+                            if (top > maxY) maxY = top;
+                        }
+                    }
+
+                    if (!first && maxX > minX && maxY > minY)
+                    {
+                        _henhouseRect = Rect(minX, minY, maxX - minX, maxY - minY);
+                        _hasHenhouseRect = true;
+                    }
+                }
+
                 auto doorGroup = _map->getObjectGroup("door");
                 if (doorGroup)
                 {
@@ -298,6 +372,97 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                         }
                     }
                 }
+
+                auto henhouseDoorGroup = _map->getObjectGroup("henhouse door");
+                if (!henhouseDoorGroup) henhouseDoorGroup = _map->getObjectGroup("Henhouse Door");
+                if (!henhouseDoorGroup) henhouseDoorGroup = _map->getObjectGroup("Buildings");
+                
+                if (henhouseDoorGroup)
+                {
+                    bool found = false;
+                    ValueMap dict;
+                    
+                    // If strictly "henhouse door" group, take first object
+                    std::string groupName = henhouseDoorGroup->getGroupName();
+                    if (groupName == "henhouse door" || groupName == "Henhouse Door")
+                    {
+                        const auto& objs = henhouseDoorGroup->getObjects();
+                        if (!objs.empty()) {
+                            dict = objs.front().asValueMap();
+                            found = true;
+                        }
+                    }
+                    else if (groupName == "Buildings")
+                    {
+                        // Look for "Hen House" or "Coop"
+                         for (const auto& obj : henhouseDoorGroup->getObjects()) {
+                            ValueMap d = obj.asValueMap();
+                            std::string name = d["name"].asString();
+                            if (name == "Hen House" || name == "Coop" || name == "HenHouse") {
+                                dict = d;
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (found)
+                    {
+                        float hx = dict.at("x").asFloat();
+                        float hy = dict.at("y").asFloat();
+                        float hw = dict.at("width").asFloat();
+                        float hh = dict.at("height").asFloat();
+                        
+                        if (groupName == "Buildings")
+                        {
+                            _henhouseRect = Rect(hx, hy, hw, hh);
+                            _hasHenhouseRect = true;
+                            GameScene::sFarmHenhouseRect = _henhouseRect;
+                            GameScene::sHasFarmHenhouseRect = true;
+
+                            _henhouseDoorRect = Rect(hx + hw / 2 - 16, hy, 32, 48);
+                            _hasHenhouseDoor = true;
+                            GameScene::sFarmHenhouseDoorPos = Vec2(hx + hw * 0.5f, hy + 24);
+                            GameScene::sHasFarmHenhouseDoorPos = true;
+                        }
+                        else
+                        {
+                            _henhouseDoorRect = Rect(hx, hy, hw, hh);
+                            _hasHenhouseDoor = true;
+                            GameScene::sFarmHenhouseDoorPos = Vec2(hx + hw * 0.5f, hy + hh * 0.5f);
+                            GameScene::sHasFarmHenhouseDoorPos = true;
+
+                            if (!_hasHenhouseRect)
+                            {
+                                float buildW = tileSize.width * 6.0f;
+                                float buildH = tileSize.height * 3.0f;
+                                float doorCenterX = hx + hw * 0.5f;
+                                float bodyX = doorCenterX - buildW * 0.5f;
+                                float bodyY = hy;
+                                _henhouseRect = Rect(bodyX, bodyY, buildW, buildH);
+                                _hasHenhouseRect = true;
+                                GameScene::sFarmHenhouseRect = _henhouseRect;
+                                GameScene::sHasFarmHenhouseRect = true;
+                            }
+                        }
+                    }
+                }
+
+                auto bucketGroup = _map->getObjectGroup("bucket");
+                if (bucketGroup)
+                {
+                    const auto& objs = bucketGroup->getObjects();
+                    if (!objs.empty())
+                    {
+                        const auto& dict = objs.front().asValueMap();
+                        float bx = dict.at("x").asFloat();
+                        float by = dict.at("y").asFloat();
+                        float bw = dict.at("width").asFloat();
+                        float bh = dict.at("height").asFloat();
+                        _bucketRect = Rect(bx, by, bw, bh);
+                        _hasBucket = true;
+                    }
+                }
         
         CropSystem::getInstance()->init(_map, GameScene::sClock, GameScene::sWallet, GameScene::sInventory);
         // Explicitly set map (init does it, but redundant call is safe)
@@ -305,6 +470,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
 
         initObstacles(); // Init obstacles for Farm type
         ForageSystem::getInstance()->init(this);
+        AnimalSystem::getInstance()->init(this, map);
         
         // Initial update for Farm
     updateSeasonFilter();
@@ -516,6 +682,103 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         }
     }
 
+    if (_type == BackgroundType::Henhouse)
+    {
+        auto map = TMXTiledMap::create("map/henhouse.tmx");
+        if (map)
+        {
+            map->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
+            map->setPosition(Vec2::ZERO);
+            addChild(map, 0);
+
+            _map = map;
+            _backgroundNode = map;
+            
+            // Init Animal System
+            AnimalSystem::getInstance()->init(this, map);
+
+            Size mapSizeTiles = map->getMapSize();
+            Size tileSize = map->getTileSize();
+            float mapWidth = mapSizeTiles.width * tileSize.width;
+            float mapHeight = mapSizeTiles.height * tileSize.height;
+
+            auto visibleSize = Director::getInstance()->getVisibleSize();
+            Vec2 origin = Director::getInstance()->getVisibleOrigin();
+            float offsetX = origin.x + (visibleSize.width - mapWidth) * 0.5f;
+            float offsetY = origin.y + (visibleSize.height - mapHeight) * 0.5f;
+
+            setPosition(Vec2(offsetX, offsetY));
+
+            _groundLayer = _map->getLayer("图块层 1");
+            if (!_groundLayer)
+            {
+                if (_map->getChildrenCount() > 0)
+                {
+                    _groundLayer = dynamic_cast<TMXLayer*>(_map->getChildren().at(0));
+                }
+            }
+
+            auto doorGroup = _map->getObjectGroup("door");
+            if (doorGroup)
+            {
+                const auto& objs = doorGroup->getObjects();
+                if (!objs.empty())
+                {
+                    const auto& dict = objs.front().asValueMap();
+                    float dx = dict.at("x").asFloat();
+                    float dy = dict.at("y").asFloat();
+                    float dw = dict.at("width").asFloat();
+                    float dh = dict.at("height").asFloat();
+                    _henhouseDoorRect = Rect(dx, dy, dw, dh);
+                    _hasHenhouseDoor = true;
+                }
+            }
+
+            auto player = Player::create("player.png", tileSize.height);
+            if (!player)
+            {
+                player = Player::create("HelloWorld.png", tileSize.height);
+            }
+            if (player)
+            {
+                Vec2 spawnPos(mapWidth * 0.5f, mapHeight * 0.5f);
+                if (_hasHenhouseDoor)
+                {
+                    float spawnX = _henhouseDoorRect.getMidX();
+                    float spawnY = _henhouseDoorRect.getMidY() + tileSize.height;
+                    spawnPos = Vec2(spawnX, spawnY);
+                }
+                player->setPosition(spawnPos);
+                addChild(player, 1);
+                _player = player;
+
+                _facingDebug = DrawNode::create();
+                _map->addChild(_facingDebug, 100);
+
+                scheduleUpdate();
+
+                auto listener = EventListenerKeyboard::create();
+                listener->onKeyPressed = CC_CALLBACK_2(BackgroundLayer::onKeyPressed, this);
+                listener->onKeyReleased = CC_CALLBACK_2(BackgroundLayer::onKeyReleased, this);
+                _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
+
+                auto mouseListener = EventListenerMouse::create();
+                mouseListener->onMouseDown = CC_CALLBACK_1(BackgroundLayer::onMouseDown, this);
+                _eventDispatcher->addEventListenerWithSceneGraphPriority(mouseListener, this);
+
+                _boundaryLeftRect = Rect(tileSize.width, 0.0f, tileSize.width, mapHeight);
+                _boundaryRightRect = Rect(mapWidth - tileSize.width * 2.0f, 0.0f, tileSize.width, mapHeight);
+                _boundaryBottomRect = Rect(0.0f, tileSize.height, mapWidth, tileSize.height);
+                _boundaryTopRect = Rect(0.0f, mapHeight, mapWidth, 0.0f);
+                _hasBoundary = false;
+
+                updateSeasonFilter();
+
+                return true;
+            }
+        }
+    }
+
     if (_type == BackgroundType::Home)
     {
         auto map = TMXTiledMap::create("map/home.tmx");
@@ -650,6 +913,9 @@ bool BackgroundLayer::initWithType(BackgroundType type)
         break;
     case BackgroundType::Shop:
         imageFile = "res/shop_bg.png";
+        break;
+    case BackgroundType::Henhouse:
+        imageFile = "res/farm_bg.png";
         break;
     default:
         return false;
@@ -1272,6 +1538,13 @@ void BackgroundLayer::update(float dt)
             Rect boxX = box;
             boxX.origin.x += delta.x;
             bool blockX = boxX.intersectsRect(_homeRect) || (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
+            if (!blockX && _hasHenhouseRect && boxX.intersectsRect(_henhouseRect))
+            {
+                // Allow entering door zone
+                if (!boxX.intersectsRect(_henhouseDoorRect))
+                    blockX = true;
+            }
+            
             if (!blockX && _hasPoolRect && !_poolRects.empty())
             {
                 for (const auto& r : _poolRects)
@@ -1320,6 +1593,11 @@ void BackgroundLayer::update(float dt)
                     allowY = boxY.intersectsRect(_homeDoorTunnelRect);
                 }
                 blockY = !allowY;
+            }
+            if (!blockY && _hasHenhouseRect && boxY.intersectsRect(_henhouseRect))
+            {
+                if (!boxY.intersectsRect(_henhouseDoorRect))
+                    blockY = true;
             }
             if (_hasBoundary)
             {
@@ -1424,6 +1702,7 @@ void BackgroundLayer::update(float dt)
         Rect boxAfter = _player->getBoundingBox();
         float halfW = boxAfter.size.width * 0.5f;
         float halfH = boxAfter.size.height * 0.5f;
+
         pos.x = std::max(halfW, std::min(pos.x, mapWidth - halfW));
         pos.y = std::max(halfH, std::min(pos.y, mapHeight - halfH));
 
@@ -1436,8 +1715,12 @@ void BackgroundLayer::update(float dt)
         _player->setLocalZOrder(static_cast<int>(mapHeight - _player->getPositionY()));
     }
 
+    // Reset per-frame interaction flags
+    _canEnterHomeDoor = false;
+    _canExitHomeDoor = false;
     _canEnterTownFromRight = false;
     _canReturnFarmFromTown = false;
+    _canEnterHenhouse = false;
 
     if (_type == BackgroundType::Farm && _hasHomeRect && !_enteredHome && _map && _groundLayer)
     {
@@ -1459,6 +1742,15 @@ void BackgroundLayer::update(float dt)
         if (box.intersectsRect(_rightExitRect))
         {
             _canEnterTownFromRight = true;
+        }
+    }
+
+    if (_type == BackgroundType::Farm && _hasHenhouseDoor && !_enteredHenhouse && _player)
+    {
+        Rect box = _player->getBoundingBox();
+        if (box.intersectsRect(_henhouseDoorRect))
+        {
+            _canEnterHenhouse = true;
         }
     }
 
@@ -1485,8 +1777,16 @@ void BackgroundLayer::update(float dt)
             }
         }
     }
+    if (_type == BackgroundType::Henhouse && _hasHenhouseDoor && _player)
+    {
+        Rect box = _player->getBoundingBox();
+        if (box.intersectsRect(_henhouseDoorRect))
+        {
+            _canEnterHenhouse = true;
+        }
+    }
 
-    if (_facingDebug)
+    if (_facingDebug && _groundLayer)
     {
         _facingDebug->clear();
 
@@ -1526,7 +1826,8 @@ void BackgroundLayer::update(float dt)
                 bool isValid = false;
                 
                 if (CropSystem::getInstance()->canHarvest(tileIndex) || 
-                    (_type == BackgroundType::Farm && ForageSystem::getInstance()->hasItem(tileIndex)))
+                    (_type == BackgroundType::Farm && ForageSystem::getInstance()->hasItem(tileIndex)) ||
+                    (_type == BackgroundType::Farm && AnimalSystem::getInstance()->hasEgg(tileIndex)))
                 {
                     isValid = true;
                 }
@@ -1731,6 +2032,36 @@ void BackgroundLayer::update(float dt)
                         );
                     }
                 }
+
+                // Debug draw for Henhouse specific layers
+                if (_type == BackgroundType::Henhouse)
+                {
+                    std::vector<std::string> debugLayers = { "door", "bucket", "eggbucket", "feedinghopper" };
+                    for (const auto& layerName : debugLayers)
+                    {
+                        auto group = _map->getObjectGroup(layerName);
+                        if (group)
+                        {
+                            const auto& objects = group->getObjects();
+                            for (const auto& obj : objects)
+                            {
+                                ValueMap dict = obj.asValueMap();
+                                float x = dict["x"].asFloat();
+                                float y = dict["y"].asFloat();
+                                float w = dict["width"].asFloat();
+                                float h = dict["height"].asFloat();
+                                
+                                Vec2 p1(x, y);
+                                Vec2 p2(x + w, y + h);
+                                
+                                // Draw solid rect with low opacity (Magenta)
+                                _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 1.0f, 0.2f)); 
+                                // Draw border
+                                _facingDebug->drawRect(p1, p2, Color4F(1.0f, 0.0f, 1.0f, 1.0f));
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1913,6 +2244,8 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             {
                 GameScene::sClock->addDay(1);
                 CropSystem::getInstance()->updateDailyGrowth();
+                ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
+                AnimalSystem::getInstance()->updateDailyGrowth();
             }
             break;
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
@@ -1920,6 +2253,8 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
             {
                 GameScene::sClock->addDay(-1);
                 CropSystem::getInstance()->updateDailyGrowth();
+                ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
+                AnimalSystem::getInstance()->updateDailyGrowth();
             }
             break;
         case EventKeyboard::KeyCode::KEY_LEFT_ARROW:
@@ -2151,6 +2486,7 @@ void BackgroundLayer::onExit()
     {
         CropSystem::getInstance()->setMap(nullptr);
     }
+    AnimalSystem::getInstance()->cleanupVisuals(this);
     Layer::onExit();
 }
 
@@ -2184,6 +2520,10 @@ Vec2 GameScene::sFarmStartPos = Vec2::ZERO;
 bool GameScene::sHasFarmStartPos = false;
 Vec2 GameScene::sFarmTownwayPos = Vec2::ZERO;
 bool GameScene::sHasFarmTownwayPos = false;
+Vec2 GameScene::sFarmHenhouseDoorPos = Vec2::ZERO;
+bool GameScene::sHasFarmHenhouseDoorPos = false;
+Rect GameScene::sFarmHenhouseRect = Rect::ZERO;
+bool GameScene::sHasFarmHenhouseRect = false;
 bool GameScene::sSpawnAtFarmStart = false;
 bool GameScene::sStartAtHomeBed = false;
 
@@ -2328,13 +2668,14 @@ void BackgroundLayer::onMouseDown(Event* event)
              if (GameScene::sClock)
              {
                  GameScene::sClock->setHour(6);
-                 GameScene::sClock->setMinute(0);
-                 GameScene::sClock->addDay(1);
-             }
-             CropSystem::getInstance()->updateDailyGrowth();
-             ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
-             
-             if (GameScene::sWasFainted)
+             GameScene::sClock->setMinute(0);
+             GameScene::sClock->addDay(1);
+         }
+         CropSystem::getInstance()->updateDailyGrowth();
+         ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
+         AnimalSystem::getInstance()->updateDailyGrowth(); // Animals grow/lay eggs
+         
+         if (GameScene::sWasFainted)
              {
                  EnergySystem::getInstance()->resetEnergy(0.75f);
              }
@@ -2481,7 +2822,7 @@ void BackgroundLayer::onMouseDown(Event* event)
         return; // No farming in Home
     }
     
-    // --- 2. Farm Interactions (Enter Home / Town) ---
+    // --- 2. Farm Interactions (Enter Home / Town / Henhouse) ---
     if (_type == BackgroundType::Farm)
     {
         if (_canEnterHomeDoor && !_enteredHome && _map && _groundLayer && _player)
@@ -2498,6 +2839,20 @@ void BackgroundLayer::onMouseDown(Event* event)
             }
         }
 
+        if (_canEnterHenhouse && !_enteredHenhouse && _map && _groundLayer && _player)
+        {
+            _enteredHenhouse = true;
+            GameScene::sLastFarmPlayerPos = _player->getPosition();
+            GameScene::sHasLastFarmPlayerPos = true;
+            auto next = GameScene::createScene(BackgroundType::Henhouse);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+                return;
+            }
+        }
+
         if (_canEnterTownFromRight && !_exitedRight && _map && _groundLayer && _player)
         {
             _exitedRight = true;
@@ -2505,6 +2860,21 @@ void BackgroundLayer::onMouseDown(Event* event)
             GameScene::sHasLastFarmPlayerPos = true;
             GameScene::switchViaRightExit(0.5f);
             return;
+        }
+
+        if (_hasBucket && _map && _groundLayer)
+        {
+            Size tileSize2 = _map->getTileSize();
+            Vec2 tilePos = _groundLayer->getPositionAt(targetTile);
+            Rect facingRect(tilePos.x, tilePos.y, tileSize2.width, tileSize2.height);
+            if (facingRect.intersectsRect(_bucketRect))
+            {
+                if (GameScene::sHud)
+                {
+                    GameScene::sHud->openBucketWindow();
+                }
+                return;
+            }
         }
     }
 
@@ -2529,6 +2899,84 @@ void BackgroundLayer::onMouseDown(Event* event)
         }
     }
 
+    // --- 4. Henhouse Interactions ---
+    const Item* item = GameScene::sInventory ? GameScene::sInventory->getSelectedItem() : nullptr;
+    if (_type == BackgroundType::Henhouse)
+    {
+        // Harvest Egg
+        if (AnimalSystem::getInstance()->tryHarvestEgg(targetTile))
+        {
+            if (_player) _player->showToolFeedback("animals/White Egg.png"); // Generic feedback
+            return;
+        }
+
+        // Return to Farm
+        if (_canEnterHenhouse && _hasHenhouseDoor && _map && _groundLayer && _player)
+        {
+            if (GameScene::sHasFarmHenhouseDoorPos)
+            {
+                Vec2 exitPos = GameScene::sFarmHenhouseDoorPos;
+                exitPos.y -= 48.0f; 
+                GameScene::sLastFarmPlayerPos = exitPos;
+                GameScene::sHasLastFarmPlayerPos = true;
+                GameScene::sSpawnAtFarmStart = false;
+            }
+            auto next = GameScene::createScene(BackgroundType::Farm);
+            if (next)
+            {
+                auto trans = TransitionFade::create(0.5f, next);
+                Director::getInstance()->replaceScene(trans);
+                return;
+            }
+        }
+        
+        // Incubator Interaction
+        if (item)
+        {
+            if (item->name.find("Egg") != std::string::npos) // Simple check
+            {
+                 // Try incubate
+                 if (AnimalSystem::getInstance()->tryIncubateEgg(targetTile, item->name))
+                 {
+                     // Remove egg from inventory
+                     int slot = GameScene::sInventory->getSelectedSlot();
+                     GameScene::sInventory->removeItem(slot, 1);
+                     Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                     return;
+                 }
+            }
+        }
+        
+        // Feeding Interaction
+        if (item && item->name == "Hay")
+        {
+            // Try Deposit to Hopper
+            if (AnimalSystem::getInstance()->tryDepositHay(targetTile))
+            {
+                 int slot = GameScene::sInventory->getSelectedSlot();
+                 GameScene::sInventory->removeItem(slot, 1);
+                 Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                 return;
+            }
+            // Try Place in Trough
+            if (AnimalSystem::getInstance()->tryPlaceHay(targetTile))
+            {
+                 int slot = GameScene::sInventory->getSelectedSlot();
+                 GameScene::sInventory->removeItem(slot, 1);
+                 Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                 return;
+            }
+        }
+        else
+        {
+            // Try Withdraw from Hopper (Empty hand or other item)
+            if (AnimalSystem::getInstance()->tryWithdrawHay(targetTile))
+            {
+                return;
+            }
+        }
+    }
+
     // --- 3. Foraging (Harvest) ---
     if (_type == BackgroundType::Farm)
     {
@@ -2545,11 +2993,17 @@ void BackgroundLayer::onMouseDown(Event* event)
             if (!forageIcon.empty() && _player) _player->showToolFeedback(forageIcon);
             return;
         }
+
+        // Try Harvest Egg
+        if (AnimalSystem::getInstance()->tryHarvestEgg(targetTile))
+        {
+            return;
+        }
     }
 
     // Now handle tool use on this tile
     if (!GameScene::sClock) return;
-    const Item* item = GameScene::sInventory->getSelectedItem();
+    item = GameScene::sInventory->getSelectedItem();
     
     // 0. Fishing Logic (added)
     if (_type == BackgroundType::Farm && _hasPoolRect && _map && _groundLayer && _player)
@@ -2617,7 +3071,26 @@ void BackgroundLayer::onMouseDown(Event* event)
         {
             if (obsType == 0 && item->toolType == ToolType::Axe) removed = true; // Wood
             else if (obsType == 1 && item->toolType == ToolType::Pickaxe) removed = true; // Stone
-            else if (obsType == 2 && item->toolType == ToolType::Scythe) removed = true; // Weed
+            else if (obsType == 2 && item->toolType == ToolType::Scythe) 
+            {
+                removed = true; // Weed
+                // Drop Hay
+                if (GameScene::sInventory) {
+                    Item hay;
+                    hay.type = ItemType::Resource;
+                    hay.name = "Hay";
+                    hay.iconPath = "block/Hay.png";
+                    hay.quantity = 1;
+                    hay.maxStack = 99;
+                    GameScene::sInventory->addItem(hay);
+                    Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                    
+                    // Show visual drop feedback
+                    if (_player) {
+                         _player->showToolFeedback("block/Hay.png");
+                    }
+                }
+            }
         }
         
         if (removed)
@@ -2751,8 +3224,11 @@ void BackgroundLayer::spawnObstacles(int count)
         Vec2 pos(cxPos, cyPos);
         Rect tileRect(x * tileSize.width, mapHeight - (y + 1) * tileSize.height, tileSize.width, tileSize.height);
 
-        // Check forbidden zones (Home, Exit, Pool, Boundaries)
-        if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) continue;
+        // Check forbidden zones (Home, Exit, Pool, Boundaries, Henhouse)
+    if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) continue;
+    
+    // Check Henhouse
+    if (_hasHenhouseRect && (_henhouseRect.intersectsRect(tileRect) || _henhouseDoorRect.intersectsRect(tileRect))) continue;
         
         // --- NEW: Prevent spawning near Home Door (Entrance Buffer Zone) ---
         if (_hasHomeRect)
@@ -2931,6 +3407,64 @@ int BackgroundLayer::getObstacleType(const Vec2& tileIndex)
     return -1;
 }
 
+bool BackgroundLayer::tryEatGrass(const cocos2d::Vec2& tileIndex)
+{
+    if (!_map) return false;
+    int key = (int)tileIndex.y * (int)_map->getMapSize().width + (int)tileIndex.x;
+    auto it = _obstacles.find(key);
+    if (it != _obstacles.end())
+    {
+        // Type 2 is Weed/Fiber/Grass
+        if (it->second.type == 2)
+        {
+            removeObstacle(tileIndex);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool BackgroundLayer::isColliding(const cocos2d::Rect& box)
+{
+    // Check Boundaries
+    if (_hasBoundary)
+    {
+        if (box.intersectsRect(_boundaryLeftRect) || box.intersectsRect(_boundaryRightRect) ||
+            box.intersectsRect(_boundaryTopRect) || box.intersectsRect(_boundaryBottomRect))
+            return true;
+    }
+
+    // Check Buildings
+    if (_hasHomeRect && box.intersectsRect(_homeRect))
+    {
+        // For simple collision (animals), just block. 
+        // Ignore door logic for animals for now (they shouldn't enter home anyway).
+        return true;
+    }
+    if (_hasHenhouseRect && box.intersectsRect(_henhouseRect)) return true;
+    
+    if (_hasPoolRect && !_poolRects.empty())
+    {
+        for (const auto& r : _poolRects)
+        {
+            if (box.intersectsRect(r)) return true;
+        }
+    }
+    
+    if (_hasHouseRect && !_houseRects.empty())
+    {
+        for (const auto& r : _houseRects)
+        {
+            if (box.intersectsRect(r)) return true;
+        }
+    }
+    
+    // Check Obstacles
+    if (checkCollisionWithObstacles(box)) return true;
+
+    return false;
+}
+
 bool BackgroundLayer::checkCollisionWithObstacles(const Rect& box)
 {
     if (!_map) return false;
@@ -3027,6 +3561,7 @@ void GameScene::update(float dt)
         ForageSystem::getInstance()->update(_clock);
     }
     CropSystem::getInstance()->updateDailyGrowth();
+    AnimalSystem::getInstance()->update(dt); // Update animals
 
     // Time-based checks (Midnight Warning & 2:00 AM Fainting)
     // Moved here to ensure it runs even if BackgroundLayer is blocked (e.g. by confirmation dialog)
@@ -3124,8 +3659,11 @@ bool BackgroundLayer::isValidSpawnPosition(int x, int y)
     // Calculate tile position for boundary checks
     Rect tileRect(x * tileSize.width, mapHeight - (y + 1) * tileSize.height, tileSize.width, tileSize.height);
 
-    // Check forbidden zones (Home, Exit, Pool, Boundaries)
+    // Check forbidden zones (Home, Exit, Pool, Boundaries, Henhouse)
     if (_hasHomeRect && (_homeRect.intersectsRect(tileRect) || _homeDoorRect.intersectsRect(tileRect) || _homeDoorTunnelRect.intersectsRect(tileRect))) return false;
+    
+    // Check Henhouse
+    if (_hasHenhouseRect && (_henhouseRect.intersectsRect(tileRect) || _henhouseDoorRect.intersectsRect(tileRect))) return false;
 
     // --- Prevent spawning near Home Door (Entrance Buffer Zone) ---
     if (_hasHomeRect)

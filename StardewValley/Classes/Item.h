@@ -8,7 +8,8 @@ enum class ItemType
 {
     Tool,
     Seed,
-    Crop
+    Crop,
+    Resource
 };
 
 enum class ToolType

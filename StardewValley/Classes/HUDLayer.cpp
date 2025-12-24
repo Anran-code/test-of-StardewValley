@@ -4,6 +4,7 @@
 #include "Inventory.h"
 #include "GameScene.h"
 #include "EnergySystem.h"
+#include "ExperienceSystem.h"
 
 USING_NS_CC;
 
@@ -27,7 +28,13 @@ HudLayer::HudLayer()
     , _dateLabel(nullptr)
     , _weekLabel(nullptr)
     , _moneyLabel(nullptr)
+    , _bpDateLabel(nullptr)
+    , _bpFarmingXPLabel(nullptr)
+    , _bpFishingXPLabel(nullptr)
+    , _bpForagingXPLabel(nullptr)
     , _lowEnergyWarned(false)
+    , _bucketWindow(nullptr)
+    , _bucketCountLabel(nullptr)
 {
 }
 
@@ -100,6 +107,25 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         addChild(_backpack, 10); 
     }
 
+    _bucketWindow = LayerColor::create(Color4B(30, 30, 30, 220), 220.0f, 260.0f);
+    if (_bucketWindow)
+    {
+        _bucketWindow->setVisible(false);
+        _bucketWindow->setIgnoreAnchorPointForPosition(false);
+        _bucketWindow->setAnchorPoint(Vec2(0.5f, 0.5f));
+        _bucketWindow->setPosition(Vec2(visibleSize.width * 0.8f + origin.x, visibleSize.height * 0.5f + origin.y));
+        addChild(_bucketWindow, 20);
+
+        _bucketCountLabel = Label::createWithSystemFont("0", "Arial", 18);
+        if (_bucketCountLabel)
+        {
+            Size winSize = _bucketWindow->getContentSize();
+            _bucketCountLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+            _bucketCountLabel->setPosition(Vec2(winSize.width * 0.5f, 18.0f));
+            _bucketWindow->addChild(_bucketCountLabel, 1);
+        }
+    }
+
     // Selector
     _selector = Sprite::create("CloseSelected.png"); // Using CloseSelected as a placeholder for selector frame, or create a simple rect
     if (!_selector)
@@ -127,6 +153,10 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
     _bpCurrentGoldLabel = Label::createWithSystemFont("", "Arial", 24); 
     _bpTotalEarningsLabel = Label::createWithSystemFont("", "Arial", 24);
     _bpDateLabel = Label::createWithSystemFont("", "Arial", 24);
+
+    _bpFarmingXPLabel = Label::createWithSystemFont("", "Arial", 20);
+    _bpFishingXPLabel = Label::createWithSystemFont("", "Arial", 20);
+    _bpForagingXPLabel = Label::createWithSystemFont("", "Arial", 20);
 
     if (_timeLabel)
     {
@@ -168,6 +198,22 @@ bool HudLayer::initWithSystems(GameClock* clock, Wallet* wallet, Inventory* inve
         _bpDateLabel->setColor(Color3B::BLACK);
         _bpDateLabel->setVisible(false);
         addChild(_bpDateLabel, 1001);
+    }
+    
+    if (_bpFarmingXPLabel) {
+        _bpFarmingXPLabel->setColor(Color3B::BLACK);
+        _bpFarmingXPLabel->setVisible(false);
+        addChild(_bpFarmingXPLabel, 1001);
+    }
+    if (_bpFishingXPLabel) {
+        _bpFishingXPLabel->setColor(Color3B::BLACK);
+        _bpFishingXPLabel->setVisible(false);
+        addChild(_bpFishingXPLabel, 1001);
+    }
+    if (_bpForagingXPLabel) {
+        _bpForagingXPLabel->setColor(Color3B::BLACK);
+        _bpForagingXPLabel->setVisible(false);
+        addChild(_bpForagingXPLabel, 1001);
     }
 
     auto listener = EventListenerKeyboard::create();
@@ -260,16 +306,16 @@ void HudLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
 {
     if (keyCode == EventKeyboard::KeyCode::KEY_E)
     {
-        if (_backpack)
-        {
-            _backpack->setVisible(!_backpack->isVisible());
-            updateInventoryUI(); // Force UI refresh immediately
-        }
+        toggleBackpack();
     }
     else if (keyCode == EventKeyboard::KeyCode::KEY_ESCAPE)
     {
         if (_backpack && _backpack->isVisible())
         {
+            if (_bucketWindowVisible)
+            {
+                closeBucketWindow();
+            }
             _backpack->setVisible(false);
             updateInventoryUI();
             event->stopPropagation();
@@ -323,6 +369,76 @@ void HudLayer::onScroll(Event* event)
         _inventory->setSelectedSlot(current);
         updateSelectorPosition();
     }
+}
+
+void HudLayer::toggleBackpack()
+{
+    if (_backpack)
+    {
+        bool wasVisible = _backpack->isVisible();
+        _backpack->setVisible(!wasVisible);
+        if (wasVisible && _bucketWindowVisible)
+        {
+            closeBucketWindow();
+        }
+        updateInventoryUI();
+    }
+}
+
+void HudLayer::openBackpack()
+{
+    if (_backpack && !_backpack->isVisible())
+    {
+        _backpack->setVisible(true);
+        updateInventoryUI();
+    }
+}
+
+bool HudLayer::isBackpackVisible() const
+{
+    return _backpack && _backpack->isVisible();
+}
+
+void HudLayer::openBucketWindow()
+{
+    if (!_bucketWindow) return;
+    if (!_backpack) return;
+    if (!_backpack->isVisible())
+    {
+        _backpack->setVisible(true);
+    }
+    _bucketWindowVisible = true;
+    _bucketWindow->setVisible(true);
+    if (_bucketCountLabel)
+    {
+        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
+    }
+    updateInventoryUI();
+}
+
+void HudLayer::closeBucketWindow()
+{
+    _bucketWindowVisible = false;
+    if (_bucketWindow)
+    {
+        _bucketWindow->setVisible(false);
+    }
+    for (auto sp : _bucketItemSprites)
+    {
+        if (sp) sp->removeFromParent();
+    }
+    _bucketItemSprites.clear();
+    _bucketItems.clear();
+    _bucketItemIndices.clear();
+    if (_bucketCountLabel)
+    {
+        _bucketCountLabel->setString("0");
+    }
+}
+
+bool HudLayer::isBucketWindowVisible() const
+{
+    return _bucketWindowVisible;
 }
 
 void HudLayer::updateInventoryUI()
@@ -505,10 +621,14 @@ void HudLayer::updateInventoryUI()
         float infoBottom = bpBottom + (INFO_AREA_BOTTOM * bpScale);
         float infoW = INFO_AREA_W * bpScale;
         float infoH = INFO_AREA_H * bpScale;
-        float infoCenterX = infoLeft + infoW * 0.5f;
+        
+        // Split into two columns
+        float leftColCenterX = infoLeft + (infoW * 0.25f);
+        float rightColCenterX = infoLeft + (infoW * 0.75f);
+        
         float infoCenterY = infoBottom + infoH * 0.5f; // Center Y of the info box
         
-        // Distribute vertically
+        // Distribute vertically for Left Column (Money/Date)
         float lineSpacing = 50.0f * bpScale; 
         
         float line1Y = infoCenterY + lineSpacing;
@@ -519,7 +639,7 @@ void HudLayer::updateInventoryUI()
         {
             _bpCurrentGoldLabel->setVisible(true);
             _bpCurrentGoldLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
-            _bpCurrentGoldLabel->setPosition(Vec2(infoCenterX, line1Y));
+            _bpCurrentGoldLabel->setPosition(Vec2(leftColCenterX, line1Y));
             
             char buf[64];
             std::snprintf(buf, sizeof(buf), "Current Funds: %d g", _wallet->getMoney());
@@ -530,7 +650,7 @@ void HudLayer::updateInventoryUI()
         {
             _bpTotalEarningsLabel->setVisible(true);
             _bpTotalEarningsLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
-            _bpTotalEarningsLabel->setPosition(Vec2(infoCenterX, line2Y));
+            _bpTotalEarningsLabel->setPosition(Vec2(leftColCenterX, line2Y));
             
             char buf[64];
             std::snprintf(buf, sizeof(buf), "Total Earnings: %d g", _wallet->getMoney()); 
@@ -541,7 +661,7 @@ void HudLayer::updateInventoryUI()
         {
             _bpDateLabel->setVisible(true);
             _bpDateLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
-            _bpDateLabel->setPosition(Vec2(infoCenterX, line3Y));
+            _bpDateLabel->setPosition(Vec2(leftColCenterX, line3Y));
             
             const char* s =
                 (_clock->getSeason() == GameClock::Season::Spring) ? "Spring" :
@@ -551,6 +671,50 @@ void HudLayer::updateInventoryUI()
             char buf[128];
             std::snprintf(buf, sizeof(buf), "Year %d, %s, Day %d", _clock->getYear(), s, _clock->getDay());
             _bpDateLabel->setString(buf);
+        }
+        
+        // Right Column (XP)
+        auto expSys = ExperienceSystem::getInstance();
+        if (expSys)
+        {
+            if (_bpFarmingXPLabel)
+            {
+                _bpFarmingXPLabel->setVisible(true);
+                _bpFarmingXPLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+                _bpFarmingXPLabel->setPosition(Vec2(rightColCenterX, line1Y));
+                
+                int lvl = expSys->getLevel(SkillType::Farming);
+                int xp = expSys->getCurrentExperience(SkillType::Farming);
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "Farming: Lvl %d (%d XP)", lvl, xp);
+                _bpFarmingXPLabel->setString(buf);
+            }
+            
+            if (_bpFishingXPLabel)
+            {
+                _bpFishingXPLabel->setVisible(true);
+                _bpFishingXPLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+                _bpFishingXPLabel->setPosition(Vec2(rightColCenterX, line2Y));
+                
+                int lvl = expSys->getLevel(SkillType::Fishing);
+                int xp = expSys->getCurrentExperience(SkillType::Fishing);
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "Fishing: Lvl %d (%d XP)", lvl, xp);
+                _bpFishingXPLabel->setString(buf);
+            }
+            
+            if (_bpForagingXPLabel)
+            {
+                _bpForagingXPLabel->setVisible(true);
+                _bpForagingXPLabel->setAnchorPoint(Vec2(0.5f, 0.5f));
+                _bpForagingXPLabel->setPosition(Vec2(rightColCenterX, line3Y));
+                
+                int lvl = expSys->getLevel(SkillType::Foraging);
+                int xp = expSys->getCurrentExperience(SkillType::Foraging);
+                char buf[64];
+                std::snprintf(buf, sizeof(buf), "Foraging: Lvl %d (%d XP)", lvl, xp);
+                _bpForagingXPLabel->setString(buf);
+            }
         }
         
         // Debug Drawing for Backpack Hit Areas
@@ -564,11 +728,14 @@ void HudLayer::updateInventoryUI()
             _debugBounds->drawRect(Vec2(cbLeft, cbBottom), Vec2(cbLeft + cbW, cbBottom + cbH), Color4F::RED);
             
             // Draw Trash Can
-            float trLeft = bpLeft + (TRASH_LEFT * bpScale);
-            float trBottom = bpBottom + (TRASH_BOTTOM * bpScale);
-            float trW = TRASH_W * bpScale;
-            float trH = TRASH_H * bpScale;
-            _debugBounds->drawRect(Vec2(trLeft, trBottom), Vec2(trLeft + trW, trBottom + trH), Color4F::MAGENTA);
+            if (!_bucketWindowVisible)
+            {
+                float trLeft = bpLeft + (TRASH_LEFT * bpScale);
+                float trBottom = bpBottom + (TRASH_BOTTOM * bpScale);
+                float trW = TRASH_W * bpScale;
+                float trH = TRASH_H * bpScale;
+                _debugBounds->drawRect(Vec2(trLeft, trBottom), Vec2(trLeft + trW, trBottom + trH), Color4F::MAGENTA);
+            }
             
             // Draw Slots
             for (int i = 0; i < Inventory::BACKPACK_SIZE; i++)
@@ -652,6 +819,45 @@ void HudLayer::updateInventoryUI()
                 }
             }
         }
+
+        if (_bucketWindowVisible && _bucketWindow)
+        {
+            for (auto sp : _bucketItemSprites)
+            {
+                if (sp) sp->removeFromParent();
+            }
+            _bucketItemSprites.clear();
+
+            Size winSize = _bucketWindow->getContentSize();
+            Vec2 winPos = _bucketWindow->getPosition();
+            float left = winPos.x - winSize.width * 0.5f;
+            float bottom = winPos.y - winSize.height * 0.5f;
+
+            float cellSize = 48.0f;
+            float padding = 8.0f;
+            int cols = 3;
+
+            for (size_t i = 0; i < _bucketItems.size(); ++i)
+            {
+                const Item& item = _bucketItems[i];
+                auto sprite = Sprite::create(item.iconPath);
+                if (!sprite) continue;
+
+                int col = static_cast<int>(i % cols);
+                int row = static_cast<int>(i / cols);
+
+                float x = left + padding + cellSize * 0.5f + col * (cellSize + padding);
+                float y = bottom + winSize.height - padding - cellSize * 0.5f - row * (cellSize + padding);
+
+                float sX = cellSize / sprite->getContentSize().width;
+                float sY = cellSize / sprite->getContentSize().height;
+                float scale = std::min(sX, sY);
+                sprite->setScale(scale);
+                sprite->setPosition(Vec2(x, y));
+                addChild(sprite, 25);
+                _bucketItemSprites.push_back(sprite);
+            }
+        }
     }
     else
     {
@@ -677,6 +883,9 @@ void HudLayer::updateInventoryUI()
         if (_bpCurrentGoldLabel) _bpCurrentGoldLabel->setVisible(false);
         if (_bpTotalEarningsLabel) _bpTotalEarningsLabel->setVisible(false);
         if (_bpDateLabel) _bpDateLabel->setVisible(false);
+        if (_bpFarmingXPLabel) _bpFarmingXPLabel->setVisible(false);
+        if (_bpFishingXPLabel) _bpFishingXPLabel->setVisible(false);
+        if (_bpForagingXPLabel) _bpForagingXPLabel->setVisible(false);
         
         // Ensure standard HUD labels are visible and in place
         auto visibleSize = Director::getInstance()->getVisibleSize();
@@ -811,6 +1020,7 @@ bool HudLayer::isPointInCloseButton(const Vec2& p)
 bool HudLayer::isPointInTrashCan(const Vec2& p)
 {
     if (!_backpack || !_backpack->isVisible()) return false;
+    if (_bucketWindowVisible) return false;
     
     Vec2 localPos = _backpack->convertToNodeSpace(p);
     Rect trashRect(TRASH_LEFT, TRASH_BOTTOM, TRASH_W, TRASH_H);
@@ -853,6 +1063,10 @@ void HudLayer::onMouseDown(Event* event)
         // 1. 检测关闭按钮
         if (isPointInCloseButton(clickPos))
         {
+            if (_bucketWindowVisible)
+            {
+                closeBucketWindow();
+            }
             _backpack->setVisible(false);
             _consumingClick = true;
             event->stopPropagation();
@@ -965,25 +1179,45 @@ void HudLayer::onMouseUp(Event* event)
         
         bool actionTaken = false;
         
-        // Check Trash Can
-        if (isPointInTrashCan(pos))
+        if (_bucketWindowVisible && _bucketWindow)
         {
-            const auto& item = _inventory->getItem(_dragSourceIndex);
-            if (item.type != ItemType::Tool)
+            Vec2 winPos = _bucketWindow->getPosition();
+            Size winSize = _bucketWindow->getContentSize();
+            Rect winRect(winPos.x - winSize.width * 0.5f, winPos.y - winSize.height * 0.5f, winSize.width, winSize.height);
+            if (winRect.containsPoint(pos))
             {
-                _inventory->removeItem(_dragSourceIndex, 9999); // Remove all
-                actionTaken = true;
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
+                {
+                    _bucketItems.push_back(item);
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    if (_bucketCountLabel)
+                    {
+                        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
+                    }
+                    actionTaken = true;
+                }
             }
         }
         else
         {
-            // Check Drop Target
-            int targetSlot = getSlotIndexFromPoint(pos);
-            if (targetSlot != -1)
+            if (isPointInTrashCan(pos))
             {
-                // Swap
-                _inventory->swapItems(_dragSourceIndex, targetSlot);
-                actionTaken = true;
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
+                {
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    actionTaken = true;
+                }
+            }
+            else
+            {
+                int targetSlot = getSlotIndexFromPoint(pos);
+                if (targetSlot != -1)
+                {
+                    _inventory->swapItems(_dragSourceIndex, targetSlot);
+                    actionTaken = true;
+                }
             }
         }
         
@@ -1017,6 +1251,10 @@ bool HudLayer::onTouchBegan(Touch* touch, Event* event)
         // 检测关闭按钮
         if (isPointInCloseButton(p))
         {
+            if (_bucketWindowVisible)
+            {
+                closeBucketWindow();
+            }
             _backpack->setVisible(false);
             _consumingClick = true; // 标记正在处理点击
             updateInventoryUI();
@@ -1129,24 +1367,47 @@ void HudLayer::onTouchEnded(Touch* touch, Event* event)
 
         bool actionTaken = false;
 
-        // 检测是否扔进垃圾桶
-        if (isPointInTrashCan(pos))
+        if (_bucketWindowVisible && _bucketWindow)
         {
-            const auto& item = _inventory->getItem(_dragSourceIndex);
-            if (item.type != ItemType::Tool)
+            Vec2 winPos = _bucketWindow->getPosition();
+            Size winSize = _bucketWindow->getContentSize();
+            Rect winRect(winPos.x - winSize.width * 0.5f, winPos.y - winSize.height * 0.5f, winSize.width, winSize.height);
+            if (winRect.containsPoint(pos))
             {
-                _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
-                actionTaken = true;
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
+                {
+                    _bucketItems.push_back(item);
+                    _inventory->removeItem(_dragSourceIndex, 9999);
+                    if (_bucketCountLabel)
+                    {
+                        _bucketCountLabel->setString(std::to_string(_bucketItems.size()));
+                    }
+                    actionTaken = true;
+                }
             }
         }
         else
         {
-            // 检测是否放入背包格子 (交换/放置)
-            int targetSlot = getSlotIndexFromPoint(pos);
-            if (targetSlot != -1)
+            // 检测是否扔进垃圾桶
+            if (isPointInTrashCan(pos))
             {
-                _inventory->swapItems(_dragSourceIndex, targetSlot);
-                actionTaken = true;
+                const auto& item = _inventory->getItem(_dragSourceIndex);
+                if (item.type != ItemType::Tool)
+                {
+                    _inventory->removeItem(_dragSourceIndex, 9999); // 删除全部
+                    actionTaken = true;
+                }
+            }
+            else
+            {
+                // 检测是否放入背包格子 (交换/放置)
+                int targetSlot = getSlotIndexFromPoint(pos);
+                if (targetSlot != -1)
+                {
+                    _inventory->swapItems(_dragSourceIndex, targetSlot);
+                    actionTaken = true;
+                }
             }
         }
 
