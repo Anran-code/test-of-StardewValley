@@ -153,6 +153,7 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClCompile Include="..\Classes\Animal.cpp" />
     <ClCompile Include="..\Classes\AnimalSystem.cpp" />
     <ClCompile Include="..\Classes\AppDelegate.cpp" />
+    <ClCompile Include="..\Classes\Basket.cpp" />
     <ClCompile Include="..\Classes\HelloWorldScene.cpp" />
     <ClCompile Include="..\Classes\Menu.cpp" />
     <ClCompile Include="..\Classes\GameScene.cpp" />
@@ -162,19 +163,17 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClCompile Include="..\Classes\HudLayer.cpp" />
     <ClCompile Include="..\Classes\CropSystem.cpp" />
     <ClCompile Include="..\Classes\Inventory.cpp" />
-<<<<<<< HEAD
     <ClCompile Include="..\Classes\ExperienceSystem.cpp" />
     <ClCompile Include="..\Classes\EnergySystem.cpp" />
     <ClCompile Include="..\Classes\ForageSystem.cpp" />
     <ClCompile Include="..\Classes\PauseLayer.cpp" />
-=======
->>>>>>> parent of b9ea4bf (Update basket)
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Classes\Animal.h" />
     <ClInclude Include="..\Classes\AnimalSystem.h" />
     <ClInclude Include="..\Classes\AppDelegate.h" />
+    <ClInclude Include="..\Classes\Basket.h" />
     <ClInclude Include="..\Classes\HelloWorldScene.h" />
     <ClInclude Include="..\Classes\Menu.h" />
     <ClInclude Include="..\Classes\GameScene.h" />

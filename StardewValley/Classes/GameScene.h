@@ -95,12 +95,12 @@ private:
     cocos2d::Rect _homeExitDoorRect;
     cocos2d::Rect _henhouseRect; // Added: collision for henhouse building
     cocos2d::Rect _henhouseDoorRect;
-    cocos2d::Rect _bucketRect;
     cocos2d::Rect _bedRect;
     std::vector<cocos2d::Rect> _poolRects;
     std::vector<cocos2d::Rect> _houseRects;
     cocos2d::Rect _townHomewayRect;
     cocos2d::Rect _rightExitRect;
+    cocos2d::Rect _bucketRect;
     cocos2d::Rect _boundaryLeftRect;
     cocos2d::Rect _boundaryRightRect;
     cocos2d::Rect _boundaryTopRect;
@@ -148,6 +148,7 @@ private:
 
     // Sleep/Faint input handling
     bool _waitingForSleepInput;
+    bool _waitingForEarningsInput;
     cocos2d::Label* _sleepLabel;
     
     // Pause Menu
@@ -186,8 +187,6 @@ public:
     static bool sHasFarmTownwayPos;
     static cocos2d::Vec2 sFarmHenhouseDoorPos;
     static bool sHasFarmHenhouseDoorPos;
-    static cocos2d::Rect sFarmHenhouseRect;
-    static bool sHasFarmHenhouseRect;
     static bool sSpawnAtFarmStart;
     static bool sStartAtHomeBed;
 
@@ -195,9 +194,11 @@ public:
     static class GameClock* sClock;
     static class Wallet* sWallet;
     static class HudLayer* sHud;
+    static class Basket* sBasket;
     static bool sDebugMode;
     static bool sMidnightWarned;
     static bool sWasFainted; // Track if player fainted (exhaustion or late night)
+    static int sTodayEarnings;
 
     virtual bool init();
     bool initWithStartType(BackgroundType type);
@@ -215,8 +216,6 @@ private:
     class Wallet* _wallet;
 
     class HudLayer* _hud;
-    static class Basket* sBasket;
-    
     Inventory* _inventory; // Member inventory pointer
 
     virtual void update(float dt) override;

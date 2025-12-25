@@ -15,7 +15,7 @@ public:
     
     // Lifecycle
     void init(BackgroundLayer* layer, cocos2d::TMXTiledMap* map);
-    void cleanupVisuals(BackgroundLayer* layer);
+    void cleanupVisuals();
     void updateDailyGrowth(); // Called when day changes
     void update(float dt); // Called every frame for movement/AI
     
@@ -27,7 +27,6 @@ public:
     void removeAnimal(Animal* animal);
     
     // Interaction
-    bool hasEgg(const cocos2d::Vec2& tilePos) const;
     bool tryHarvestEgg(const cocos2d::Vec2& tilePos);
     bool tryIncubateEgg(const cocos2d::Vec2& tilePos, const std::string& eggName);
     
@@ -88,8 +87,6 @@ private:
     // Constants
     const int DAYS_TO_MATURE = 3;
     const int INCUBATION_MINUTES = 9000;
-    
-    bool _showHatchNotification = false;
 };
 
 #endif // __ANIMAL_SYSTEM_H__

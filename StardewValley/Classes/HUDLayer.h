@@ -30,6 +30,7 @@ public:
     void openBucketWindow();
     void closeBucketWindow();
     bool isBucketWindowVisible() const;
+    int settleBucketAndGetTotal();
 
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onScroll(cocos2d::Event* event); // Mouse scroll for toolbar selection
@@ -39,6 +40,8 @@ public:
     void onTouchMoved(cocos2d::Touch* touch, cocos2d::Event* event);
     void onTouchEnded(cocos2d::Touch* touch, cocos2d::Event* event);
     void onTouchCancelled(cocos2d::Touch* touch, cocos2d::Event* event);
+
+    void handleBucketClick(const cocos2d::Vec2& pos, cocos2d::EventMouse::MouseButton button);
     void onMouseMove(cocos2d::Event* event); // Added for drag
 
     // Energy System UI
@@ -119,9 +122,15 @@ private:
     // Backpack Drag State
     bool _isDragging = false;
     int _dragSourceIndex = -1;
+    cocos2d::EventMouse::MouseButton _dragButton = cocos2d::EventMouse::MouseButton::BUTTON_LEFT;
     cocos2d::Sprite* _draggedItemSprite = nullptr;
     cocos2d::Label* _draggedItemQty = nullptr;
     bool _bucketWindowVisible = false;
+    bool _isDraggingFromBucket = false;
+    int _dragBucketIndex = -1;
+    CropType _dragBucketType = CropType::Parsnip;
+    int _dragBucketCount = 0;
+    cocos2d::Vec2 _dragStartPos;
 
     cocos2d::Label* _timeLabel;
     cocos2d::Label* _dateLabel;
@@ -146,9 +155,10 @@ private:
     std::vector<cocos2d::Sprite*> _itemSprites; // Sprites for items in slots
     std::vector<cocos2d::Label*> _quantityLabels; // Labels for quantities
     std::vector<cocos2d::DrawNode*> _waterBars; // Water bars for watering cans
-    std::vector<Item> _bucketItems;
-    std::vector<int> _bucketItemIndices;
     std::vector<cocos2d::Sprite*> _bucketItemSprites;
-};
+    std::vector<cocos2d::Label*> _bucketQuantityLabels;
+    std::vector<CropType> _bucketTypes;
+    std::vector<int> _bucketCounts;
+}; 
 
 #endif

@@ -43,20 +43,9 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
     _hasHopper = false;
     _hasIncubator = false;
     bool isHenhouse = false;
-    if (layer)
-    {
-        isHenhouse = (layer->getType() == BackgroundType::Henhouse);
-    }
     
-    if (_map && isHenhouse)
+    if (_map)
     {
-        if (_showHatchNotification)
-        {
-            _showHatchNotification = false;
-            std::string msg = "A new chick has hatched!";
-            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
-        }
-
         // 1. Hopper
         auto bucketGroup = _map->getObjectGroup("bucket");
         if (bucketGroup)
@@ -136,38 +125,21 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
             }
         }
     }
+    
+    // Update isHenhouse status based on findings
+    isHenhouse = !_troughs.empty() || _hasHopper || _hasIncubator;
         
     if (_animals.empty())
     {
-        if (map)
+        if (map && isHenhouse)
         {
             Size mapSize = map->getMapSize();
             Size tileSize = map->getTileSize();
             float centerX = mapSize.width * tileSize.width * 0.5f;
             float centerY = mapSize.height * tileSize.height * 0.5f;
             
-            // Add initial animals
             addAnimal(Animal::Type::Blue, Animal::Age::Baby, Vec2(centerX - 50, centerY));
             addAnimal(Animal::Type::White, Animal::Age::Baby, Vec2(centerX + 50, centerY));
-            
-            if (!isHenhouse)
-            {
-                for (auto animal : _animals)
-                {
-                    animal->setLocation(Animal::Location::Outside);
-                    
-                    if (GameScene::sHasFarmHenhouseDoorPos)
-                    {
-                         float offX = (rand() % 100) - 50;
-                         float offY = (rand() % 100) - 100;
-                         animal->setPosition(GameScene::sFarmHenhouseDoorPos + Vec2(offX, offY));
-                    }
-                    else
-                    {
-                        animal->setPosition(Vec2(centerX, centerY));
-                    }
-                }
-            }
         }
     }
     else
@@ -204,118 +176,51 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
         }
     }
     
-    // Process Pending Eggs 
-    if (_bgLayer && _bgLayer->getType() == BackgroundType::Farm && _map)
-    {
-        Size tileSize = _map->getTileSize();
-        Size mapSize = _map->getMapSize();
-        float mapHeight = mapSize.height * tileSize.height;
-
-        for (auto& egg : _eggs)
-        {
-            if (egg.tilePos.x == -1 && egg.tilePos.y == -1)
-            {
-                // Assign a valid position on the Farm
-                bool foundSpot = false;
-                int attempts = 30; // Try harder to find a spot
-                
-                int centerX = mapSize.width / 2;
-                int centerY = mapSize.height / 2;
-                
-                if (GameScene::sHasFarmHenhouseDoorPos)
-                {
-                    Vec2 doorPos = GameScene::sFarmHenhouseDoorPos;
-                    centerX = doorPos.x / tileSize.width;
-                    centerY = (mapHeight - doorPos.y) / tileSize.height;
-                }
-                
-                for (int i = 0; i < attempts; i++)
-                {
-                    // Random offset 
-                    int rX = centerX + (rand() % 30) - 15; 
-                    int rY = centerY + (rand() % 20) - 10;
-                    
-                    // Bounds check
-                    if (rX < 0 || rX >= mapSize.width || rY < 0 || rY >= mapSize.height) continue;
-                    
-                    // Check validity using BackgroundLayer 
-                    if (!_bgLayer->isValidSpawnPosition(rX, rY)) continue;
-                    
-                    // Check if occupied by other eggs
-                    bool occupied = false;
-                    for (const auto& otherEgg : _eggs) {
-                        if (otherEgg.tilePos.x == rX && otherEgg.tilePos.y == rY) { occupied = true; break; }
-                    }
-                    if (occupied) continue;
-                    
-                    // Found spot
-                    egg.tilePos = Vec2(rX, rY);
-                    
-                    float wx = (rX + 0.5f) * tileSize.width;
-                    float wy = mapHeight - (rY + 0.5f) * tileSize.height;
-                    egg.worldPos = Vec2(wx, wy);
-                    
-                    foundSpot = true;
-                    break;
-                }
-                
-            }
-        }
-    }
-
-    // Re-create egg sprites
-    if (_map)
+    // Re-create egg sprites (Only in Henhouse)
+    if (isHenhouse)
     {
         for (auto& egg : _eggs)
         {
-            if (egg.tilePos.x == -1 && egg.tilePos.y == -1) continue;
-
             if (egg.sprite) 
             {
                 egg.sprite->removeFromParent();
                 egg.sprite = nullptr;
             }
-                        
-            if (!isHenhouse)
-            {
-                std::string filename;
-                filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
-                    
-                if (!FileUtils::getInstance()->isFileExist(filename)) continue;
+            
+            std::string filename;
+            if (egg.type == Animal::Type::Blue)
+                filename = egg.isLarge ? "animals/Large Blue Egg.png" : "animals/Blue Egg.png";
+            else
+                filename = egg.isLarge ? "animals/Large White Egg.png" : "animals/White Egg.png";
                 
-                auto sprite = Sprite::create(filename);
-                if (sprite)
-                {
-                    if (egg.worldPos.lengthSquared() > 0.1f)
+            if (!FileUtils::getInstance()->isFileExist(filename)) continue;
+            
+            auto sprite = Sprite::create(filename);
+                    if (sprite)
                     {
-                        sprite->setPosition(egg.worldPos);
+                        // Use stored worldPos if available (check if non-zero)
+                        if (egg.worldPos.lengthSquared() > 0.1f)
+                        {
+                            sprite->setPosition(egg.worldPos);
+                        }
+                        else
+                        {
+                            // Fallback to recalculating from tilePos
+                            Size tileSize = _map->getTileSize();
+                            Size mapSize = _map->getMapSize();
+                            float mapHeight = mapSize.height * tileSize.height;
+                            float cx = (egg.tilePos.x + 0.5f) * tileSize.width;
+                            float cy = mapHeight - (egg.tilePos.y + 0.5f) * tileSize.height;
+                            sprite->setPosition(Vec2(cx, cy));
+                        }
+                        
+                        sprite->setScale(0.8f);
+                        if (_layer) _layer->addChild(sprite, 2);
+                        egg.sprite = sprite;
                     }
-                    else
-                    {
-                        Size tileSize = _map->getTileSize();
-                        Size mapSize = _map->getMapSize();
-                        float mapHeight = mapSize.height * tileSize.height;
-                        float cx = (egg.tilePos.x + 0.5f) * tileSize.width;
-                        float cy = mapHeight - (egg.tilePos.y + 0.5f) * tileSize.height;
-                        sprite->setPosition(Vec2(cx, cy));
-                    }
-                    
-                    // Scale to fit tile
-                    Size tileSize = _map->getTileSize();
-                    float targetSize = tileSize.width * 0.8f; 
-                    float scale = targetSize / sprite->getContentSize().width;
-                    sprite->setScale(scale);
-                    
-                    if (_layer) _layer->addChild(sprite, 2); // Egg z-order 2 (below player 3)
-                    egg.sprite = sprite;
-                }
-            }
         }
-    }
-
-    // Re-create Hay Sprites
-    if (isHenhouse)
-    {
+        
+        // Re-create Hay Sprites
         for (auto& t : _troughs)
         {
             if (t.sprite)
@@ -355,15 +260,12 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
         }
     }
 }
-void AnimalSystem::cleanupVisuals(BackgroundLayer* layer)
+void AnimalSystem::cleanupVisuals()
 {
-    if (_layer == layer)
-    {
-        _layer = nullptr;
-        _map = nullptr;
-        for (auto& egg : _eggs) egg.sprite = nullptr;
-        for (auto& trough : _troughs) trough.sprite = nullptr;
-    }
+    _layer = nullptr;
+    _map = nullptr;
+    for (auto& egg : _eggs) egg.sprite = nullptr;
+    for (auto& trough : _troughs) trough.sprite = nullptr;
 }
 
 void AnimalSystem::addAnimal(Animal::Type type, Animal::Age age, const Vec2& position)
@@ -410,21 +312,23 @@ void AnimalSystem::updateDailyGrowth()
         }
         else
         {
+            
             fed = true; 
-        }
-        
-        animal->setLocation(Animal::Location::Outside);
+            
+            animal->setLocation(Animal::Location::Outside);
 
-        if (GameScene::sHasFarmHenhouseDoorPos)
-        {
-            float offX = (rand() % 100) - 50;
-            float offY = (rand() % 100) - 100; // Move down from door
-            animal->setPosition(GameScene::sFarmHenhouseDoorPos + Vec2(offX, offY));
-        }
-        else
-        {
-            // Fallback
-            animal->setPosition(Vec2(500, 300));
+            if (GameScene::sHasFarmHenhouseDoorPos)
+            {
+                // Add some random offset so they don't stack
+                float offX = (rand() % 100) - 50;
+                float offY = (rand() % 100) - 100; // Move down from door
+                animal->setPosition(GameScene::sFarmHenhouseDoorPos + Vec2(offX, offY));
+            }
+            else
+            {
+                // Fallback
+                animal->setPosition(Vec2(500, 300));
+            }
         }
         
         // 2. Growth / Produce
@@ -438,107 +342,51 @@ void AnimalSystem::updateDailyGrowth()
         // Produce Eggs (Adults only, and only if fed)
         if (fed && animal->getAge() == Animal::Age::Adult)
         {
-            bool isLarge = (rand() % 100) < 20;
-            EggData newEgg;
-            newEgg.tilePos = Vec2(-1, -1); 
-            newEgg.worldPos = Vec2::ZERO;
-            newEgg.isLarge = isLarge;
-            newEgg.type = animal->getType();
-            newEgg.sprite = nullptr;
-            
-            _eggs.push_back(newEgg);
+            Vec2 pos = animal->getPosition();
+            if (_map)
+            {
+                Size tileSize = _map->getTileSize();
+                Size mapSize = _map->getMapSize();
+                float mapHeight = mapSize.height * tileSize.height;
+
+                int tx = pos.x / tileSize.width;
+                int ty = (mapHeight - pos.y) / tileSize.height;
+
+                bool occupied = false;
+                for (const auto& e : _eggs) {
+                    if (e.tilePos.x == tx && e.tilePos.y == ty) { occupied = true; break; }
+                }
+
+                if (!occupied)
+                {
+                    bool isLarge = (rand() % 100) < 20;
+                    EggData newEgg;
+                    newEgg.tilePos = Vec2(tx, ty);
+                    newEgg.worldPos = pos; // Store actual world position
+                    newEgg.isLarge = isLarge;
+                    newEgg.type = animal->getType();
+                    newEgg.sprite = nullptr;
+
+                    std::string filename;
+                    if (newEgg.type == Animal::Type::Blue)
+                        filename = isLarge ? "animals/Large Blue Egg.png" : "animals/Blue Egg.png";
+                    else
+                        filename = isLarge ? "animals/Large White Egg.png" : "animals/White Egg.png";
+
+                    auto sprite = Sprite::create(filename);
+                    if (sprite)
+                    {
+                        sprite->setPosition(pos); 
+                        
+                        sprite->setScale(0.8f);
+                        if (_layer) _layer->addChild(sprite, 2);
+                        newEgg.sprite = sprite;
+                    }
+                    _eggs.push_back(newEgg);
+                }
+            }
         }   // Reset for new day
         animal->setFed(false);
-    }
-
-    for (auto& inc : _incubators)
-    {
-        if (inc.active)
-        {
-            inc.minutesRemaining -= 1200;
-            if (inc.minutesRemaining <= 0)
-            {
-                // Hatch
-                inc.active = false;
-                
-                // Add new baby animal
-                addAnimal(inc.hatchType, Animal::Age::Baby, Vec2(400, 300));
-                
-                // Flag to show notification next time we enter Henhouse
-                _showHatchNotification = true;
-            }
-        }
-    }
-    
-    // Cleanup inactive incubators
-    _incubators.erase(std::remove_if(_incubators.begin(), _incubators.end(), 
-        [](const IncubatorData& d) { return !d.active; }), _incubators.end());
-    
-    if (_bgLayer && _bgLayer->getType() == BackgroundType::Farm && _map)
-    {
-        Size tileSize = _map->getTileSize();
-        Size mapSize = _map->getMapSize();
-        float mapHeight = mapSize.height * tileSize.height;
-
-        for (auto& egg : _eggs)
-        {
-            if (egg.tilePos.x == -1 && egg.tilePos.y == -1)
-            {
-                // Assign a valid position on the Farm
-                bool foundSpot = false;
-                int attempts = 30; 
-                
-                int centerX = mapSize.width / 2;
-                int centerY = mapSize.height / 2;
-                
-                if (GameScene::sHasFarmHenhouseDoorPos)
-                {
-                    Vec2 doorPos = GameScene::sFarmHenhouseDoorPos;
-                    centerX = doorPos.x / tileSize.width;
-                    centerY = (mapHeight - doorPos.y) / tileSize.height;
-                }
-                
-                for (int i = 0; i < attempts; i++)
-                {
-                    int rX = centerX + (rand() % 30) - 15; 
-                    int rY = centerY + (rand() % 20) - 10;
-                    
-                    if (rX < 0 || rX >= mapSize.width || rY < 0 || rY >= mapSize.height) continue;
-                    if (!_bgLayer->isValidSpawnPosition(rX, rY)) continue;
-                    
-                    bool occupied = false;
-                    for (const auto& otherEgg : _eggs) {
-                        if (otherEgg.tilePos.x == rX && otherEgg.tilePos.y == rY) { occupied = true; break; }
-                    }
-                    if (occupied) continue;
-                    
-                    egg.tilePos = Vec2(rX, rY);
-                    float wx = (rX + 0.5f) * tileSize.width;
-                    float wy = mapHeight - (rY + 0.5f) * tileSize.height;
-                    egg.worldPos = Vec2(wx, wy);
-                    
-                    foundSpot = true;
-                    
-                    // Create sprite immediately since we are on Farm
-                    std::string filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
-                    if (FileUtils::getInstance()->isFileExist(filename))
-                    {
-                        auto sprite = Sprite::create(filename);
-                        if (sprite)
-                        {
-                            sprite->setPosition(egg.worldPos);
-                            float targetSize = tileSize.width * 0.8f; 
-                            float scale = targetSize / sprite->getContentSize().width;
-                            sprite->setScale(scale);
-                            if (_layer) _layer->addChild(sprite, 2); 
-                            egg.sprite = sprite;
-                        }
-                    }
-                    
-                    break;
-                }
-            }
-        }
     }
 }
 
@@ -583,7 +431,6 @@ void AnimalSystem::update(float dt)
         }
     }
 
-
     bool isFarm = false;
     
     for (auto animal : _animals)
@@ -627,12 +474,12 @@ void AnimalSystem::update(float dt)
             {
                 // Revert position
                 animal->setPosition(oldPos);
-                
-                animal->setState(Animal::State::Idle);
-                animal->setStateTimer(0.5f + (rand() % 10)/10.0f); // Short pause
+                // Force AI to pick new direction/state to avoid getting stuck
+                animal->pickNewState();
             }
             else
             {
+                // Z-order based on Y
                 Size mapSize = _map->getMapSize();
                 Size tileSize = _map->getTileSize();
                 float mapHeight = mapSize.height * tileSize.height;
@@ -753,56 +600,38 @@ void AnimalSystem::removeAnimal(Animal* animal)
     // Implementation if needed
 }
 
-bool AnimalSystem::hasEgg(const Vec2& tilePos) const
-{
-    for (const auto& egg : _eggs)
-    {
-        if (egg.tilePos.equals(tilePos)) return true;
-    }
-    return false;
-}
-
 bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos)
 {
-    std::vector<Vec2> checkPositions = {
-        tilePos,
-        tilePos + Vec2(1, 0), tilePos + Vec2(-1, 0),
-        tilePos + Vec2(0, 1), tilePos + Vec2(0, -1),
-        tilePos + Vec2(1, 1), tilePos + Vec2(-1, -1),
-        tilePos + Vec2(1, -1), tilePos + Vec2(-1, 1)
-    };
-
-    for (const auto& checkPos : checkPositions)
+    for (auto it = _eggs.begin(); it != _eggs.end(); ++it)
     {
-        for (auto it = _eggs.begin(); it != _eggs.end(); ++it)
+        if (it->tilePos.equals(tilePos))
         {
-            if (it->tilePos.equals(checkPos))
+            if (GameScene::sInventory)
             {
-                if (GameScene::sInventory)
-                {
-                    Item eggItem;
-                    eggItem.type = ItemType::Resource; 
-                    eggItem.name = it->isLarge ? "Large Egg" : "Egg"; 
-                    eggItem.quantity = 1;
-                    eggItem.maxStack = 99;
+                Item eggItem;
+                eggItem.type = ItemType::Resource; 
+                eggItem.name = it->isLarge ? "Large Egg" : "Egg"; 
+                if (it->type == Animal::Type::Blue) eggItem.name = it->isLarge ? "Large Blue Egg" : "Blue Egg";
+                else eggItem.name = it->isLarge ? "Large White Egg" : "White Egg";
+                
+                if (it->type == Animal::Type::Blue)
+                    eggItem.iconPath = it->isLarge ? "animals/Large Blue Egg.png" : "animals/Blue Egg.png";
+                else
+                    eggItem.iconPath = it->isLarge ? "animals/Large White Egg.png" : "animals/White Egg.png";
                     
-                    eggItem.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
-                    
-                    GameScene::sInventory->addItem(eggItem);
-                    
-                    if (true) 
-                    {
-                        if (it->sprite)
-                        {
-                            it->sprite->removeFromParent();
-                        }
-                        
-                        _eggs.erase(it);
-                        return true;
-                    }
-                }
-                return false;
+                eggItem.quantity = 1;
+                eggItem.maxStack = 99;
+                
+                GameScene::sInventory->addItem(eggItem);
+                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                
+                std::string msg = "You picked up a " + eggItem.name;
+                Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
             }
+            
+            if (it->sprite) it->sprite->removeFromParent();
+            _eggs.erase(it);
+            return true;
         }
     }
     return false;
@@ -810,47 +639,7 @@ bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos)
 
 bool AnimalSystem::tryIncubateEgg(const Vec2& tilePos, const std::string& eggName)
 {
-    if (!_hasIncubator) return false;
-    
-    if (!_map) return false;
-    Size tileSize = _map->getTileSize();
-    Size mapSize = _map->getMapSize();
-    float mapHeight = mapSize.height * tileSize.height;
-    
-    Rect tileRect(tilePos.x * tileSize.width, mapHeight - (tilePos.y + 1) * tileSize.height, tileSize.width, tileSize.height);
-    
-    if (_incubatorRect.intersectsRect(tileRect))
-    {
-        
-        bool alreadyActive = false;
-        for (const auto& inc : _incubators) {
-            if (inc.active) { alreadyActive = true; break; }
-        }
-        
-        if (!alreadyActive)
-        {
-            IncubatorData data;
-            data.active = true;
-            data.minutesRemaining = INCUBATION_MINUTES; 
-            data.hatchType = (eggName.find("Blue") != std::string::npos) ? Animal::Type::Blue : Animal::Type::White; 
-
-            data.hatchType = (rand() % 10 == 0) ? Animal::Type::Blue : Animal::Type::White;
-            
-            _incubators.push_back(data);
-            
-            std::string msg = "Incubating egg...";
-            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
-            
-            return true;
-        }
-        else
-        {
-            std::string msg = "Incubator is full.";
-            Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
-        }
-    }
-    
-    return false;
+    return false; // Placeholder
 }
 
 bool AnimalSystem::tryDepositHay(const cocos2d::Vec2& tilePos)
