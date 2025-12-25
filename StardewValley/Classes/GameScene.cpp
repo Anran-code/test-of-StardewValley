@@ -2085,6 +2085,12 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         return;
     }
 
+    // Block interaction if Basket Window is open
+    if (GameScene::sHud && GameScene::sHud->isBucketWindowVisible())
+    {
+        return;
+    }
+
     if (_isFishing)
     {
         if (_fishingGame)
@@ -2669,6 +2675,12 @@ bool GameScene::initWithStartType(BackgroundType type)
 // BackgroundLayer implementation
 void BackgroundLayer::onMouseDown(Event* event)
 {
+    // Block interaction if Basket Window is open
+    if (GameScene::sHud && GameScene::sHud->isBucketWindowVisible())
+    {
+        return;
+    }
+
     EventMouse* e = (EventMouse*)event;
 
     // Special case for sleep input (Click to continue -> show earnings)
@@ -2778,6 +2790,12 @@ void BackgroundLayer::onMouseDown(Event* event)
     // Handle Right Click (Eat)
     if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_RIGHT)
     {
+        // 0. Block interaction if Bucket Window is visible
+        if (GameScene::sHud && GameScene::sHud->isBucketWindowVisible())
+        {
+             return;
+        }
+
         if (GameScene::sInventory)
         {
             int slot = GameScene::sInventory->getSelectedSlot();
@@ -2809,6 +2827,9 @@ void BackgroundLayer::onMouseDown(Event* event)
     }
 
     if (e->getMouseButton() != EventMouse::MouseButton::BUTTON_LEFT) return;
+
+    // 0. Block interaction if Bucket Window is visible
+    if (GameScene::sHud && GameScene::sHud->isBucketWindowVisible()) return;
 
     // Use the tile the player is currently facing (interaction block)
     Vec2 clickPos = e->getLocation();
