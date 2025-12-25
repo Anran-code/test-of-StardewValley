@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\extensions\assets-manager\AssetsManager.cpp;C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\AssetsManager.obj
 C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\extensions\assets-manager\AssetsManagerEx.cpp;C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\AssetsManagerEx.obj
 C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\extensions\assets-manager\CCEventAssetsManagerEx.cpp;C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\CCEventAssetsManagerEx.obj
@@ -574,6 +575,8 @@ C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\CCTransi
 C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\CCTransitionProgress.cpp;C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\CCTransitionProgress.obj
 C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\CCTweenFunction.cpp;C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\CCTweenFunction.obj
 =======
+=======
+>>>>>>> 0d8af77b7327126b91713bdf3cf000c187461e00
 D:\Git\test-of-StardewValley\StardewValley\cocos2d\extensions\assets-manager\AssetsManager.cpp;D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\AssetsManager.obj
 D:\Git\test-of-StardewValley\StardewValley\cocos2d\extensions\assets-manager\AssetsManagerEx.cpp;D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\AssetsManagerEx.obj
 D:\Git\test-of-StardewValley\StardewValley\cocos2d\extensions\assets-manager\CCEventAssetsManagerEx.cpp;D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\CCEventAssetsManagerEx.obj
@@ -1148,4 +1151,7 @@ D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\CCTransition.cpp;D:\
 D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\CCTransitionPageTurn.cpp;D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\CCTransitionPageTurn.obj
 D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\CCTransitionProgress.cpp;D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\CCTransitionProgress.obj
 D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\CCTweenFunction.cpp;D:\Git\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Debug.win32\CCTweenFunction.obj
+<<<<<<< HEAD
 >>>>>>> parent of b9ea4bf (Update basket)
+=======
+>>>>>>> 0d8af77b7327126b91713bdf3cf000c187461e00

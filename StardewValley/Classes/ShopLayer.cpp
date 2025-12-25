@@ -2,13 +2,14 @@
 #include "Wallet.h"
 #include "Basket.h"
 #include "CropSystem.h"
+#include "Inventory.h"
 
 USING_NS_CC;
 
-ShopLayer* ShopLayer::create(Wallet* wallet, Basket* basket, CropSystem* crops)
+ShopLayer* ShopLayer::create(Wallet* wallet, Basket* basket, CropSystem* crops, Inventory* inventory)
 {
     ShopLayer* ret = new (std::nothrow) ShopLayer();
-    if (ret && ret->initWithSystems(wallet, basket, crops))
+    if (ret && ret->initWithSystems(wallet, basket, crops, inventory))
     {
         ret->autorelease();
         return ret;
@@ -17,7 +18,7 @@ ShopLayer* ShopLayer::create(Wallet* wallet, Basket* basket, CropSystem* crops)
     return nullptr;
 }
 
-bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crops)
+bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crops, Inventory* inventory)
 {
     if (!Layer::init())
     {
@@ -26,9 +27,38 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
     _wallet = wallet;
     _basket = basket;
     _crops = crops;
+    _inventory = inventory;
 
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
+
+    // 1. Background
+    auto bg = Sprite::create("ui/menu_bg.png");
+    if (bg)
+    {
+        bg->setPosition(origin + visibleSize / 2);
+        // Scale to fit screen if needed, or just center it
+        // Assuming 1280x720 design, let's keep it centered
+        addChild(bg, 0);
+    }
+    else
+    {
+        // Fallback
+        auto colorLayer = LayerColor::create(Color4B(0, 0, 0, 200));
+        addChild(colorLayer, 0);
+    }
+
+    // 2. Close Button
+    auto closeBtn = MenuItemImage::create("ui/btn_exit.png", "ui/btn_exit.png", [this](Ref* sender) {
+        this->removeFromParent();
+    });
+    if (closeBtn)
+    {
+        closeBtn->setPosition(Vec2(origin.x + visibleSize.width - 50, origin.y + visibleSize.height - 50));
+        auto closeMenu = Menu::create(closeBtn, nullptr);
+        closeMenu->setPosition(Vec2::ZERO);
+        addChild(closeMenu, 10);
+    }
 
     float leftPanelX = origin.x + visibleSize.width * 0.3f;
     float rightPanelX = origin.x + visibleSize.width * 0.7f;
@@ -36,38 +66,43 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
 
     _items.clear();
     _itemLabels.clear();
-    _items.push_back({ "Parsnip Seeds", 20, 20, "Crop/Parsnip_Seeds.png", [this]() -> bool {
-        if (_wallet && _wallet->spendMoney(20)) { this->refreshBasketView(); return true; }
-        return false;
-    }});
-    _items.push_back({ "Cauliflower Seeds", 80, 10, "Crop/Cauliflower_Seeds.png", [this]() -> bool {
-        if (_wallet && _wallet->spendMoney(80)) { this->refreshBasketView(); return true; }
-        return false;
-    }});
-    _items.push_back({ "Potato Seeds", 50, 15, "Crop/Potato_Seeds.png", [this]() -> bool {
-        if (_wallet && _wallet->spendMoney(50)) { this->refreshBasketView(); return true; }
-        return false;
-    }});
-    _items.push_back({ "Hoe", 250, 2, "tools/hoe.png", [this]() -> bool {
-        if (_wallet && _wallet->spendMoney(250)) { this->refreshBasketView(); return true; }
-        return false;
-    }});
-    _items.push_back({ "Axe", 250, 2, "tools/axe.png", [this]() -> bool {
-        if (_wallet && _wallet->spendMoney(250)) { this->refreshBasketView(); return true; }
-        return false;
-    }});
-    _items.push_back({ "Pickaxe", 250, 2, "tools/pickaxe.png", [this]() -> bool {
-        if (_wallet && _wallet->spendMoney(250)) { this->refreshBasketView(); return true; }
-        return false;
-    }});
-    _items.push_back({ "Watering Can", 200, 2, "tools/watering_Can.png", [this]() -> bool {
-        if (_wallet && _wallet->spendMoney(200)) { this->refreshBasketView(); return true; }
-        return false;
-    }});
-    _items.push_back({ "Fishing Rod", 500, 1, "tools/Pole.png", [this]() -> bool {
-        if (_wallet && _wallet->spendMoney(500)) { this->refreshBasketView(); return true; }
-        return false;
-    }});
+
+    // Helper to add item
+    auto addSeed = [&](const std::string& name, int price, int stock, const std::string& img, CropType type) {
+        _items.push_back({ name, price, stock, img, [this, price, type, name, img]() -> bool {
+            if (_wallet && _wallet->spendMoney(price)) {
+                if (_inventory) {
+                    _inventory->addItem(Item::createSeed(type, name, img, 1));
+                }
+                this->refreshBasketView();
+                return true;
+            }
+            return false;
+        }, nullptr });
+    };
+
+    auto addTool = [&](const std::string& name, int price, int stock, const std::string& img, ToolType type) {
+        _items.push_back({ name, price, stock, img, [this, price, type, name, img]() -> bool {
+            if (_wallet && _wallet->spendMoney(price)) {
+                 if (_inventory) {
+                    _inventory->addItem(Item::createTool(type, name, img));
+                }
+                this->refreshBasketView();
+                return true;
+            }
+            return false;
+        }, nullptr });
+    };
+
+    addSeed("Parsnip Seeds", 20, 20, "Crop/Parsnip_Seeds.png", CropType::Parsnip);
+    addSeed("Cauliflower Seeds", 80, 10, "Crop/Cauliflower_Seeds.png", CropType::Cauliflower);
+    addSeed("Potato Seeds", 50, 15, "Crop/Potato_Seeds.png", CropType::Potato);
+    
+    addTool("Hoe", 250, 2, "tools/hoe.png", ToolType::Hoe);
+    addTool("Axe", 250, 2, "tools/axe.png", ToolType::Axe);
+    addTool("Pickaxe", 250, 2, "tools/pickaxe.png", ToolType::Pickaxe);
+    addTool("Watering Can", 200, 2, "tools/watering_Can.png", ToolType::WateringCan);
+    addTool("Fishing Rod", 500, 1, "tools/Pole.png", ToolType::FishingRod);
 
     float rowY = topY;
     float rowGap = 55.0f;
@@ -181,6 +216,13 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
     }
 
     refreshBasketView();
+    
+    // Consume clicks so game doesn't receive them
+    auto listener = EventListenerTouchOneByOne::create();
+    listener->setSwallowTouches(true);
+    listener->onTouchBegan = [](Touch* t, Event* e) { return true; };
+    _eventDispatcher->addEventListenerWithSceneGraphPriority(listener, this);
+    
     return true;
 }
 

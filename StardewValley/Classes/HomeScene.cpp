@@ -268,7 +268,7 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
         // Open Shop
         if (Director::getInstance()->getRunningScene()->getChildByName("ShopLayer")) return;
         
-        auto shop = ShopLayer::create(HomeScene::sWallet, HomeScene::sBasket, CropSystem::getInstance());
+        auto shop = ShopLayer::create(HomeScene::sWallet, HomeScene::sBasket, CropSystem::getInstance(), HomeScene::sInventory);
         if (shop)
         {
             shop->setName("ShopLayer");
@@ -433,7 +433,7 @@ void BackgroundLayer::update(float dt)
                       _player->stopMove(true);
                       _player->stopMove(false);
                       
-                      auto shop = ShopLayer::create(HomeScene::sWallet, HomeScene::sBasket, CropSystem::getInstance());
+                      auto shop = ShopLayer::create(HomeScene::sWallet, HomeScene::sBasket, CropSystem::getInstance(), HomeScene::sInventory);
                       if (shop)
                       {
                           shop->setName("ShopLayer");

@@ -3,6 +3,7 @@
   <ProjectOutputs>
     <ProjectOutput>
 <<<<<<< HEAD
+<<<<<<< HEAD
       <FullPath>C:\Users\A\Desktop\test-of-StardewValley\StardewValley\proj.win32\Debug.win32\libcocos2d.dll</FullPath>
     </ProjectOutput>
     <ProjectOutput>
@@ -13,6 +14,12 @@
     <ProjectOutput>
       <FullPath>D:\Git\test-of-StardewValley\StardewValley\proj.win32\Debug.win32\StardewValley.exe</FullPath>
 >>>>>>> parent of b9ea4bf (Update basket)
+=======
+      <FullPath>D:\Git\test-of-StardewValley\StardewValley\proj.win32\Debug.win32\libcocos2d.dll</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>D:\Git\test-of-StardewValley\StardewValley\proj.win32\Debug.win32\StardewValley.exe</FullPath>
+>>>>>>> 0d8af77b7327126b91713bdf3cf000c187461e00
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

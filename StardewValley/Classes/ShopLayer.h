@@ -9,12 +9,13 @@
 class Wallet;
 class Basket;
 class CropSystem;
+class Inventory;
 
 class ShopLayer : public cocos2d::Layer
 {
 public:
-    static ShopLayer* create(Wallet* wallet, Basket* basket, CropSystem* crops);
-    bool initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crops);
+    static ShopLayer* create(Wallet* wallet, Basket* basket, CropSystem* crops, Inventory* inventory);
+    bool initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crops, Inventory* inventory);
     void refreshBasketView();
 
     CREATE_FUNC(ShopLayer);
@@ -33,6 +34,7 @@ private:
     Wallet* _wallet;
     Basket* _basket;
     CropSystem* _crops;
+    Inventory* _inventory;
     std::vector<StoreItem> _items;
     cocos2d::Label* _basketTitle;
     cocos2d::Label* _basketDetails;
