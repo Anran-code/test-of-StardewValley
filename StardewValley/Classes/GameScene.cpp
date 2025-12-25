@@ -352,6 +352,22 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     }
                 }
 
+                auto henhouseOutGroup = _map->getObjectGroup("henhouse out");
+                if (henhouseOutGroup)
+                {
+                    const auto& objs = henhouseOutGroup->getObjects();
+                    if (!objs.empty())
+                    {
+                        const auto& dict = objs.front().asValueMap();
+                        float ox = dict.at("x").asFloat();
+                        float oy = dict.at("y").asFloat();
+                        float ow = dict.at("width").asFloat();
+                        float oh = dict.at("height").asFloat();
+                        GameScene::sFarmHenhouseOutPos = Vec2(ox + ow * 0.5f, oy + oh * 0.5f);
+                        GameScene::sHasFarmHenhouseOutPos = true;
+                    }
+                }
+
                 auto doorGroup = _map->getObjectGroup("door");
                 if (doorGroup)
                 {
@@ -2533,6 +2549,8 @@ Vec2 GameScene::sFarmTownwayPos = Vec2::ZERO;
 bool GameScene::sHasFarmTownwayPos = false;
 Vec2 GameScene::sFarmHenhouseDoorPos = Vec2::ZERO;
 bool GameScene::sHasFarmHenhouseDoorPos = false;
+Vec2 GameScene::sFarmHenhouseOutPos = Vec2::ZERO;
+bool GameScene::sHasFarmHenhouseOutPos = false;
 bool GameScene::sSpawnAtFarmStart = false;
 bool GameScene::sStartAtHomeBed = false;
 
@@ -2958,7 +2976,13 @@ void BackgroundLayer::onMouseDown(Event* event)
         // Return to Farm
         if (_canEnterHenhouse && _hasHenhouseDoor && _map && _groundLayer && _player)
         {
-            if (GameScene::sHasFarmHenhouseDoorPos)
+            if (GameScene::sHasFarmHenhouseOutPos)
+            {
+                GameScene::sLastFarmPlayerPos = GameScene::sFarmHenhouseOutPos;
+                GameScene::sHasLastFarmPlayerPos = true;
+                GameScene::sSpawnAtFarmStart = false;
+            }
+            else if (GameScene::sHasFarmHenhouseDoorPos)
             {
                 GameScene::sLastFarmPlayerPos = GameScene::sFarmHenhouseDoorPos;
                 GameScene::sHasLastFarmPlayerPos = true;

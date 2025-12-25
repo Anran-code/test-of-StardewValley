@@ -187,6 +187,8 @@ public:
     static bool sHasFarmTownwayPos;
     static cocos2d::Vec2 sFarmHenhouseDoorPos;
     static bool sHasFarmHenhouseDoorPos;
+    static cocos2d::Vec2 sFarmHenhouseOutPos;
+    static bool sHasFarmHenhouseOutPos;
     static bool sSpawnAtFarmStart;
     static bool sStartAtHomeBed;
 
