@@ -83,7 +83,7 @@ struct TileSlot
 class GameClock;
 class Wallet;
 class Inventory;
-// class Basket;
+class Basket;
 
 class CropSystem
 {
@@ -92,7 +92,7 @@ public:
 
     void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory);
     void setMap(cocos2d::TMXTiledMap* map); // New method to handle map switching
-    // void setBasket(Basket* basket);
+    void setBasket(Basket* basket);
     void setSelectedCrop(CropType type);
     void tillTile(const cocos2d::Vec2& tileIndex);
     bool plantSelected(const cocos2d::Vec2& tileIndex);
@@ -114,6 +114,7 @@ public:
     int getSellPrice(CropType type) const;
     const CropData* getCropData(CropType type) const;
     const CropInstance* getCropAt(const cocos2d::Vec2& tileIndex) const;
+    int sellBasket();
 
 private:
     static CropSystem* sInstance;
@@ -124,7 +125,7 @@ private:
     GameClock* _clock;
     Wallet* _wallet;
     Inventory* _inventory;
-    // Basket* _basket;
+    Basket* _basket;
     CropType _selected;
     int _lastProcessedDay;
     int _lastProcessedSeason;

@@ -16,6 +16,22 @@ bool Basket::addCrop(CropType type, int count)
     return true;
 }
 
+bool Basket::removeCrop(CropType type, int count)
+{
+    auto it = _items.find(type);
+    if (it == _items.end()) return false;
+    if (count <= 0) return false;
+    if (count >= it->second)
+    {
+        _items.erase(it);
+    }
+    else
+    {
+        it->second -= count;
+    }
+    return true;
+}
+
 int Basket::getCount(CropType type) const
 {
     auto it = _items.find(type);
@@ -38,14 +54,13 @@ int Basket::distinctTypes() const
     return (int)_items.size();
 }
 
-int Basket::calculateTotalSellValue(const CropSystem* crops) const
+int Basket::getTotalCount() const
 {
-    if (!crops) return 0;
     int total = 0;
     for (const auto& kv : _items)
     {
-        int price = crops->getSellPrice(kv.first);
-        total += price * kv.second;
+        total += kv.second;
     }
     return total;
 }
+

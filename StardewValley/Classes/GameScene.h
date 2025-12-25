@@ -148,6 +148,7 @@ private:
 
     // Sleep/Faint input handling
     bool _waitingForSleepInput;
+    bool _waitingForEarningsInput;
     cocos2d::Label* _sleepLabel;
     
     // Pause Menu
@@ -193,9 +194,11 @@ public:
     static class GameClock* sClock;
     static class Wallet* sWallet;
     static class HudLayer* sHud;
+    static class Basket* sBasket;
     static bool sDebugMode;
     static bool sMidnightWarned;
     static bool sWasFainted; // Track if player fainted (exhaustion or late night)
+    static int sTodayEarnings;
 
     virtual bool init();
     bool initWithStartType(BackgroundType type);
@@ -213,8 +216,6 @@ private:
     class Wallet* _wallet;
 
     class HudLayer* _hud;
-    static class Basket* sBasket;
-    
     Inventory* _inventory; // Member inventory pointer
 
     virtual void update(float dt) override;
