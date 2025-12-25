@@ -2519,7 +2519,7 @@ void BackgroundLayer::onExit()
     {
         CropSystem::getInstance()->setMap(nullptr);
     }
-    AnimalSystem::getInstance()->cleanupVisuals();
+    AnimalSystem::getInstance()->cleanupVisuals(this);
     Layer::onExit();
 }
 
@@ -3065,7 +3065,7 @@ void BackgroundLayer::onMouseDown(Event* event)
         }
     }
 
-    // --- 3. Foraging (Harvest) ---
+    // --- 3. Foraging & Egg (Harvest) ---
     if (_type == BackgroundType::Farm)
     {
         // Get feedback data before harvest
@@ -3079,6 +3079,12 @@ void BackgroundLayer::onMouseDown(Event* event)
         if (ForageSystem::getInstance()->tryHarvest(targetTile))
         {
             if (!forageIcon.empty() && _player) _player->showToolFeedback(forageIcon);
+            return;
+        }
+
+        // Try Harvest Egg
+        if (AnimalSystem::getInstance()->tryHarvestEgg(targetTile))
+        {
             return;
         }
     }

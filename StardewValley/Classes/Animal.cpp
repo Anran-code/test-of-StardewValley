@@ -26,10 +26,10 @@ bool Animal::init(Type type, Age age)
     _currentDirection = Direction::Down;
     _currentState = State::Idle;
     _stateTimer = 0.0f;
-    _moveSpeed = 30.0f; 
+    _moveSpeed = 30.0f;
     _daysAlive = 0;
     _isFed = false;
-    _cellSize = Size(16, 16); 
+    _cellSize = Size(16, 16);
 
     // Determine texture file
     std::string prefix = (_age == Age::Baby) ? "Baby" : "";
@@ -40,14 +40,14 @@ bool Animal::init(Type type, Age age)
     {
         return false;
     }
-    
+
     // Disable antialiasing for pixel art
     if (getTexture()) {
         getTexture()->setAliasTexParameters();
     }
 
     initAnimations();
-    
+
     // Start AI loop
     scheduleUpdate();
     pickNewState();
@@ -60,25 +60,25 @@ void Animal::growUp()
     if (_age == Age::Adult) return;
 
     _age = Age::Adult;
-    
+
     // Determine new texture file
     std::string color = (_type == Type::Blue) ? "Blue" : "White";
     _textureFile = "animals/" + color + " Chicken.png"; // Remove "Baby" prefix
 
     // Reload texture
     setTexture(_textureFile);
-    
+
     // Clear old animations and re-init
     _animations.clear();
     stopAllActions();
     initAnimations();
-    
+
     // Restart logic
     pickNewState();
 }
 
 
-    void Animal::initAnimations()
+void Animal::initAnimations()
 {
     auto texture = getTexture();
     if (!texture) return;
@@ -94,20 +94,20 @@ void Animal::growUp()
         auto animation = Animation::createWithSpriteFrames(frames, delay);
         if (loop) animation->setLoops(-1); // Infinite loop
         _animations.insert(name, animation);
-    };
+        };
 
     // Row 0: Walk Down 
     createAnim("walk_down", 0, 0, 4, 0.15f, true);
-    
+
     // Row 1: Walk Right
     createAnim("walk_right", 1, 0, 4, 0.15f, true);
-    
+
     // Row 2: Walk Up
     createAnim("walk_up", 2, 0, 4, 0.15f, true);
-    
+
     // Row 3: Walk Left 
     createAnim("walk_left", 3, 0, 4, 0.15f, true);
-    
+
     // Col 0: Idle Down, Col 1: Sit Down
     // Col 2: Idle Right, Col 3: Sit Right
     createAnim("idle_down", 4, 0, 1, 1.0f, false);
@@ -134,7 +134,7 @@ void Animal::update(float dt)
     {
         Vec2 dir = getDirectionVector();
         Vec2 newPos = getPosition() + dir * _moveSpeed * dt;
-        
+
         setPosition(newPos);
     }
 
@@ -235,27 +235,26 @@ void Animal::pickNewState()
 {
     // Simple Random AI
     int r = rand() % 100;
-    
-    // 40% Chance to Walk
-    if (r < 40)
+
+    // 60% Chance to Walk
+    if (r < 60)
     {
         setState(State::Walk);
-        _stateTimer = 1.0f + (rand() % 20) / 10.0f; // 1-3 seconds
-        
-        // Pick random direction
+        _stateTimer = 1.0f + (rand() % 20) / 10.0f;
+
         int d = rand() % 4;
         setDirection(static_cast<Direction>(d));
     }
-    // 30% Chance to Idle
-    else if (r < 70)
+    // 20% Chance to Idle
+    else if (r < 80)
     {
         setState(State::Idle);
-        _stateTimer = 1.0f + (rand() % 30) / 10.0f; // 1-4 seconds
+        _stateTimer = 1.0f + (rand() % 30) / 10.0f;
     }
-    // 30% Chance to Sit/Sleep
+    // 20% Chance to Sit/Sleep
     else
     {
         setState(State::Sit);
-        _stateTimer = 3.0f + (rand() % 50) / 10.0f; // 3-8 seconds
+        _stateTimer = 3.0f + (rand() % 50) / 10.0f;
     }
 }
