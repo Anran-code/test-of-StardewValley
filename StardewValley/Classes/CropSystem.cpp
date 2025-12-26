@@ -28,9 +28,9 @@ CropSystem::CropSystem()
 {
 }
 
-void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory)
+void CropSystem::init(TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory, bool isFarmMap)
 {
-    if (map) setMap(map);
+    if (map) setMap(map, isFarmMap);
     
     if (clock) _clock = clock;
     if (wallet) _wallet = wallet;
@@ -50,9 +50,9 @@ void CropSystem::setBasket(Basket* basket)
     _basket = basket;
 }
 
-void CropSystem::setMap(TMXTiledMap* map)
+void CropSystem::setMap(TMXTiledMap* map, bool isFarmMap)
 {
-    if (_map == map) return;
+    if (_map == map && _isFarmMap == isFarmMap) return;
 
     // Clear sprite pointers as they belong to the old map
     if (!_tiles.empty())
@@ -70,6 +70,7 @@ void CropSystem::setMap(TMXTiledMap* map)
     }
 
     _map = map;
+    _isFarmMap = isFarmMap;
     _groundLayer = nullptr;
 
     if (_map)
@@ -120,6 +121,65 @@ bool CropSystem::canTill(const Vec2& tileIndex) const
     // Also usually need to check for obstacles, but obstacles are handled in HomeScene.
     // CropSystem only cares about soil state.
     return !slot.tilled && !slot.crop;
+}
+
+void CropSystem::onTileClicked(const Vec2& tileIndex)
+{
+    if (!_isFarmMap) return;
+    if (!inBounds(tileIndex)) return;
+
+    // Get selected item from inventory
+    const Item* item = _inventory ? _inventory->getSelectedItem() : nullptr;
+
+    if (item && item->quantity > 0)
+    {
+        if (item->type == ItemType::Tool)
+        {
+            if (item->toolType == ToolType::Hoe)
+            {
+                tillTile(tileIndex);
+            }
+            else if (item->toolType == ToolType::WateringCan)
+            {
+                waterTile(tileIndex);
+            }
+            else if (item->toolType == ToolType::Pickaxe)
+            {
+                destroyTile(tileIndex);
+            }
+            else if (item->toolType == ToolType::Scythe)
+            {
+                // Scythe can harvest some crops or clear weeds (if we had weeds)
+                // For now, try harvest
+                harvestTile(tileIndex);
+            }
+            return;
+        }
+        else if (item->type == ItemType::Seed)
+        {
+            // Try to plant
+            if (canPlant(tileIndex, item->cropType))
+            {
+                setSelectedCrop(item->cropType);
+                if (plantSelected(tileIndex))
+                {
+                    // Consume seed
+                    _inventory->removeItem(_inventory->getSelectedSlot(), 1);
+                }
+            }
+            return;
+        }
+    }
+
+    // Fallback: Harvest or Interact with hands
+    if (canHarvest(tileIndex))
+    {
+        harvestTile(tileIndex);
+    }
+    else if (canClearWithered(tileIndex))
+    {
+        removeWithered(tileIndex);
+    }
 }
 
 void CropSystem::tillTile(const Vec2& tileIndex)

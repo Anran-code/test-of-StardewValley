@@ -186,7 +186,8 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _map->addChild(_player, 10);
 
     // Init Systems with Map
-    CropSystem::getInstance()->init(_map, HomeScene::sClock, HomeScene::sWallet, HomeScene::sInventory);
+    bool isFarm = (type == BackgroundType::Farm);
+    CropSystem::getInstance()->init(_map, HomeScene::sClock, HomeScene::sWallet, HomeScene::sInventory, isFarm);
 
     // Obstacles
     if (type == BackgroundType::Farm) {
@@ -333,6 +334,9 @@ void BackgroundLayer::onKeyReleased(EventKeyboard::KeyCode keyCode, Event* event
 
 void BackgroundLayer::onMouseDown(Event* event)
 {
+    // Prevent interaction if Shop is open
+    if (Director::getInstance()->getRunningScene()->getChildByName("ShopLayer")) return;
+
     EventMouse* e = (EventMouse*)event;
     if (e->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
     {
@@ -391,34 +395,64 @@ void BackgroundLayer::update(float dt)
                 return;
             }
             
-            // Shop Entrance (Assume specific area, e.g., center building door)
-            // Let's define a "ShopZone" rect.
-            // For now, hardcode a likely position if map objects aren't reliable.
-            // Or better, check for "ShopDoor" object.
+            // Shop Entrance Logic
             bool enteredShop = false;
-            auto objectGroup = _map->getObjectGroup("Objects");
-            if (objectGroup)
+            
+            // Debug Log for Player Pos in Town
+            // static int logCounter = 0;
+            // if (logCounter++ % 60 == 0) cocos2d::log("Player Town Pos: (%f, %f)", pos.x, pos.y);
+
+            // 1. Try "shop_door" object group (from TMX)
+            if (_map)
             {
-                auto shopObj = objectGroup->getObject("ShopDoor");
-                if (!shopObj.empty())
+                // Try "shop_door" (lowercase as seen in TMX)
+                auto objectGroup = _map->getObjectGroup("shop_door");
+                if (objectGroup)
                 {
-                    float x = shopObj["x"].asFloat();
-                    float y = shopObj["y"].asFloat();
-                    float w = shopObj["width"].asFloat();
-                    float h = shopObj["height"].asFloat();
-                    Rect shopRect(x, y, w, h);
-                    if (shopRect.containsPoint(pos))
+                    auto objects = objectGroup->getObjects();
+                    if (!objects.empty())
                     {
-                        enteredShop = true;
+                        auto shopObj = objects[0].asValueMap();
+                        float x = shopObj["x"].asFloat();
+                        float y = shopObj["y"].asFloat();
+                        float w = shopObj["width"].asFloat();
+                        float h = shopObj["height"].asFloat();
+                        
+                        // Fix Y coordinate: TMX y is from top, Cocos is from bottom.
+                        // Map Height in pixels
+                        Size mapSize = _map->getMapSize();
+                        Size tileSize = _map->getTileSize();
+                        float mapPixelH = mapSize.height * tileSize.height;
+                        
+                        // TMX Rect (x, y) is Top-Left. 
+                        // Cocos Rect (x, y) is Bottom-Left.
+                        // So cocosY = mapPixelH - y - h. (Wait, verify if Cocos auto-converts? 
+                        // Usually TMXTiledMap does NOT auto-convert objects coordinates to Cocos space fully unless used in specific ways.
+                        // But let's assume we need to flip.)
+                        
+                        // Let's broaden the search area significantly to ensure it works.
+                        float centerX = x + w / 2;
+                        float centerY_flipped = mapPixelH - y - h / 2;
+                        
+                        // Create a hit box around center
+                        Rect shopRect(centerX - 40, centerY_flipped - 40, 80, 80);
+                        
+                        if (shopRect.containsPoint(pos))
+                        {
+                            enteredShop = true;
+                        }
                     }
                 }
             }
-            
-            // Fallback if no object: Middle of map, slightly up
-            if (!enteredShop && objectGroup == nullptr) 
+
+            // Fallback: Fixed Rect if object layer missing or failed
+            // Based on TMX inspection: x=608, y=320 (Top-Down).
+            // Map Height = 60 * 16 = 960.
+            // Y (Bottom-Up) = 960 - 320 = 640.
+            // So target is around (608, 640).
+            if (!enteredShop)
             {
-                 // Mock shop area for testing if map lacks objects
-                 Rect mockShop(mapW * 0.4f, mapH * 0.5f, mapW * 0.2f, 50);
+                 Rect mockShop(580, 580, 100, 120); // Center around (630, 640)
                  if (mockShop.containsPoint(pos))
                  {
                      enteredShop = true;
@@ -440,7 +474,9 @@ void BackgroundLayer::update(float dt)
                           Director::getInstance()->getRunningScene()->addChild(shop, 2000);
                           
                           // Move player back a bit so they don't re-trigger immediately on close
-                          _player->setPosition(pos + Vec2(0, -30)); 
+                          // Shop Rect is roughly 80x80 or 100x120. Half height is 40-60.
+                          // Move back 60 pixels to be safe.
+                          _player->setPosition(pos + Vec2(0, -60)); 
                       }
                   }
              }

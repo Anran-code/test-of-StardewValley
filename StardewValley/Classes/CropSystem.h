@@ -90,10 +90,11 @@ class CropSystem
 public:
     static CropSystem* getInstance();
 
-    void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory);
-    void setMap(cocos2d::TMXTiledMap* map); // New method to handle map switching
+    void init(cocos2d::TMXTiledMap* map, GameClock* clock, Wallet* wallet, Inventory* inventory, bool isFarmMap = true);
+    void setMap(cocos2d::TMXTiledMap* map, bool isFarmMap = true); // New method to handle map switching
     void setBasket(Basket* basket);
     void setSelectedCrop(CropType type);
+    void onTileClicked(const cocos2d::Vec2& tileIndex);
     void tillTile(const cocos2d::Vec2& tileIndex);
     bool plantSelected(const cocos2d::Vec2& tileIndex);
     void waterTile(const cocos2d::Vec2& tileIndex);
@@ -132,6 +133,7 @@ private:
     std::vector<std::vector<TileSlot>> _tiles;
     std::unordered_map<CropType, CropData> _data;
     std::unordered_set<int> _activeTileIndices;
+    bool _isFarmMap = true;
 
     void loadCropData();
     void ensureGridSize();
