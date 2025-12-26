@@ -48,6 +48,9 @@
     <ClCompile Include="..\Classes\Basket.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\Classes\Fishing.cpp" />
+    <ClCompile Include="..\Classes\Obstacles.cpp" />
+    <ClCompile Include="..\Classes\Sleep.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
