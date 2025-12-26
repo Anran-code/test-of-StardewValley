@@ -814,7 +814,7 @@ bool AnimalSystem::hasEgg(const Vec2& tilePos) const
     return false;
 }
 
-bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos)
+bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos, std::string* outIconPath)
 {
     std::vector<Vec2> checkPositions = {
         tilePos,
@@ -847,6 +847,11 @@ bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos)
                         // Fallback for old data or default chickens
                         eggItem.name = it->isLarge ? "Large Egg" : "Egg";
                         eggItem.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                    }
+
+                    if (outIconPath)
+                    {
+                        *outIconPath = eggItem.iconPath;
                     }
 
                     eggItem.quantity = 1;

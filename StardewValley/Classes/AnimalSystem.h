@@ -28,7 +28,7 @@ public:
 
     // Interaction
     bool hasEgg(const cocos2d::Vec2& tilePos) const;
-    bool tryHarvestEgg(const cocos2d::Vec2& tilePos);
+    bool tryHarvestEgg(const cocos2d::Vec2& tilePos, std::string* outIconPath = nullptr);
     bool tryIncubateEgg(const cocos2d::Vec2& tilePos, const std::string& eggName);
 
     // Feeding

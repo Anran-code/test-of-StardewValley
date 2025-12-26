@@ -430,12 +430,6 @@ void BackgroundLayer::onMouseDown(Event* event)
 
     if (_type == BackgroundType::Henhouse)
     {
-        if (AnimalSystem::getInstance()->tryHarvestEgg(targetTile))
-        {
-            if (_player) _player->showToolFeedback("animals/White Egg.png");
-            return;
-        }
-
         if (_canEnterHenhouse && _hasHenhouseDoor && _map && _groundLayer && _player)
         {
             if (GameScene::sHasFarmHenhouseOutPos)
@@ -501,6 +495,16 @@ void BackgroundLayer::onMouseDown(Event* event)
 
     if (_type == BackgroundType::Farm)
     {
+        std::string harvestedIcon;
+        if (AnimalSystem::getInstance()->tryHarvestEgg(targetTile, &harvestedIcon))
+        {
+             if (_player && !harvestedIcon.empty()) 
+             {
+                 _player->showToolFeedback(harvestedIcon);
+             }
+             return;
+        }
+
         std::string forageIcon = "";
         const ForageItem* fItem = ForageSystem::getInstance()->getItemAt(targetTile);
         if (fItem) {
