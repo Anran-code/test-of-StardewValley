@@ -6,10 +6,10 @@
 class Animal : public cocos2d::Sprite
 {
 public:
-    enum class Type { Blue, White };
+    enum class Type { Blue, White, Rabbit, Cat };
     enum class Age { Baby, Adult };
     enum class Direction { Down, Right, Up, Left };
-    enum class State { Idle, Walk, Eat, Sleep, Sit };
+    enum class State { Idle, Walk, Eat, Sleep, Sit, Groom, LieDown };
 
     static Animal* create(Type type, Age age);
 
@@ -37,6 +37,10 @@ public:
     bool isFed() const { return _isFed; }
     void setFed(bool val) { _isFed = val; }
 
+    int getDaysSinceLastProduct() const { return _daysSinceLastProduct; }
+    void incrementDaysSinceLastProduct() { _daysSinceLastProduct++; }
+    void resetDaysSinceLastProduct() { _daysSinceLastProduct = 0; }
+
     // Location
     enum class Location { Inside, Outside };
     void setLocation(Location loc) { _location = loc; }
@@ -60,6 +64,7 @@ private:
     float _moveSpeed;
     int _daysAlive;
     bool _isFed;
+    int _daysSinceLastProduct;
 
     // Animation Cache
     cocos2d::Map<std::string, cocos2d::Animation*> _animations;

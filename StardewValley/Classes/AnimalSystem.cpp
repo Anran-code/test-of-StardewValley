@@ -149,6 +149,9 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
             // Add initial animals
             addAnimal(Animal::Type::Blue, Animal::Age::Baby, Vec2(centerX - 50, centerY));
             addAnimal(Animal::Type::White, Animal::Age::Baby, Vec2(centerX + 50, centerY));
+            addAnimal(Animal::Type::Rabbit, Animal::Age::Baby, Vec2(centerX - 30, centerY + 30));
+            addAnimal(Animal::Type::Rabbit, Animal::Age::Baby, Vec2(centerX + 30, centerY + 30));
+            addAnimal(Animal::Type::Cat, Animal::Age::Adult, Vec2(centerX, centerY - 60));
 
             if (!isHenhouse)
             {
@@ -279,7 +282,16 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
             if (!isHenhouse)
             {
                 std::string filename;
-                filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                if (!egg.productType.empty())
+                {
+                     if (egg.productType == "Wool") filename = "animals/Wool.png";
+                     else if (egg.productType == "Rabbit's Foot") filename = "animals/Rabbit's_Foot.png";
+                     else filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                }
+                else
+                {
+                    filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                }
 
                 if (!FileUtils::getInstance()->isFileExist(filename)) continue;
 
@@ -383,6 +395,9 @@ void AnimalSystem::updateDailyGrowth()
     // Feeding Logic (Inside Henhouse)
     for (auto animal : _animals)
     {
+        // Skip Cat for growth/produce logic
+        if (animal->getType() == Animal::Type::Cat) continue;
+
         bool fed = animal->isFed();
         if (GameScene::sDebugMode) fed = true;
 
@@ -430,23 +445,46 @@ void AnimalSystem::updateDailyGrowth()
         // 2. Growth / Produce
         animal->incrementDaysAlive();
 
-        if (animal->getAge() == Animal::Age::Baby && animal->getDaysAlive() >= DAYS_TO_MATURE)
+        int daysToMature = (animal->getType() == Animal::Type::Rabbit) ? 6 : DAYS_TO_MATURE;
+        if (animal->getAge() == Animal::Age::Baby && animal->getDaysAlive() >= daysToMature)
         {
             animal->growUp();
         }
 
-        // Produce Eggs (Adults only, and only if fed)
-        if (fed && animal->getAge() == Animal::Age::Adult)
+        // Produce Logic
+        if (animal->getAge() == Animal::Age::Adult)
         {
-            bool isLarge = (rand() % 100) < 20;
-            EggData newEgg;
-            newEgg.tilePos = Vec2(-1, -1);
-            newEgg.worldPos = Vec2::ZERO;
-            newEgg.isLarge = isLarge;
-            newEgg.type = animal->getType();
-            newEgg.sprite = nullptr;
+            if (animal->getType() == Animal::Type::Rabbit)
+            {
+                animal->incrementDaysSinceLastProduct();
+                if (animal->getDaysSinceLastProduct() >= 4)
+                {
+                    bool isFoot = (rand() % 100) < 20;
+                    EggData product;
+                    product.tilePos = Vec2(-1, -1);
+                    product.worldPos = Vec2::ZERO;
+                    product.isLarge = false;
+                    product.type = animal->getType();
+                    product.sprite = nullptr;
+                    product.productType = isFoot ? "Rabbit's Foot" : "Wool";
+                    _eggs.push_back(product);
+                    
+                    animal->resetDaysSinceLastProduct();
+                }
+            }
+            else if (fed) // Chickens need food to lay eggs
+            {
+                bool isLarge = (rand() % 100) < 20;
+                EggData newEgg;
+                newEgg.tilePos = Vec2(-1, -1);
+                newEgg.worldPos = Vec2::ZERO;
+                newEgg.isLarge = isLarge;
+                newEgg.type = animal->getType();
+                newEgg.sprite = nullptr;
+                newEgg.productType = isLarge ? "Large Egg" : "Egg";
 
-            _eggs.push_back(newEgg);
+                _eggs.push_back(newEgg);
+            }
         }   // Reset for new day
         animal->setFed(false);
     }
@@ -520,7 +558,18 @@ void AnimalSystem::updateDailyGrowth()
                     foundSpot = true;
 
                     // Create sprite immediately since we are on Farm
-                    std::string filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                    std::string filename;
+                    if (!egg.productType.empty())
+                    {
+                         if (egg.productType == "Wool") filename = "animals/Wool.png";
+                         else if (egg.productType == "Rabbit's Foot") filename = "animals/Rabbit's_Foot.png";
+                         else filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                    }
+                    else
+                    {
+                        filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                    }
+
                     if (FileUtils::getInstance()->isFileExist(filename))
                     {
                         auto sprite = Sprite::create(filename);
@@ -552,6 +601,9 @@ void AnimalSystem::update(float dt)
 
         for (auto animal : _animals)
         {
+            // Cat never goes inside
+            if (animal->getType() == Animal::Type::Cat) continue;
+
             // 1. Update Logical State
             if (animal->getLocation() == Animal::Location::Outside)
             {
@@ -782,11 +834,23 @@ bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos)
                 {
                     Item eggItem;
                     eggItem.type = ItemType::Resource;
-                    eggItem.name = it->isLarge ? "Large Egg" : "Egg";
+                    
+                    if (!it->productType.empty())
+                    {
+                         eggItem.name = it->productType;
+                         if (it->productType == "Wool") eggItem.iconPath = "animals/Wool.png";
+                         else if (it->productType == "Rabbit's Foot") eggItem.iconPath = "animals/Rabbit's_Foot.png";
+                         else eggItem.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                    }
+                    else
+                    {
+                        // Fallback for old data or default chickens
+                        eggItem.name = it->isLarge ? "Large Egg" : "Egg";
+                        eggItem.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                    }
+
                     eggItem.quantity = 1;
                     eggItem.maxStack = 99;
-
-                    eggItem.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
 
                     GameScene::sInventory->addItem(eggItem);
 

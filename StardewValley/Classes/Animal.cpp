@@ -29,12 +29,35 @@ bool Animal::init(Type type, Age age)
     _moveSpeed = 30.0f;
     _daysAlive = 0;
     _isFed = false;
-    _cellSize = Size(16, 16);
+    _daysSinceLastProduct = 0;
+    
+    if (type == Type::Cat) {
+        _cellSize = Size(32, 32);
+    } else {
+        _cellSize = Size(16, 16);
+    }
 
     // Determine texture file
     std::string prefix = (_age == Age::Baby) ? "Baby" : "";
-    std::string color = (_type == Type::Blue) ? "Blue" : "White";
-    _textureFile = "animals/" + prefix + color + " Chicken.png";
+    std::string color;
+    if (_type == Type::Blue) color = "Blue Chicken";
+    else if (_type == Type::White) color = "White Chicken";
+    else if (_type == Type::Rabbit) {
+        color = "Rabbit";
+        if (_age == Age::Baby) prefix = "Baby"; 
+        else prefix = "";
+    }
+    
+    // Construct filename
+      if (_type == Type::Rabbit) {
+         _textureFile = "animals/" + prefix + color + ".png";
+      } else if (_type == Type::Cat) {
+         _textureFile = "animals/cat.png";
+      } else {
+         std::string cPrefix = (_age == Age::Baby) ? "Baby" : "";
+         std::string cColor = (_type == Type::Blue) ? "Blue" : "White";
+         _textureFile = "animals/" + cPrefix + cColor + " Chicken.png";
+      }
 
     if (!Sprite::initWithFile(_textureFile, Rect(0, 0, _cellSize.width, _cellSize.height)))
     {
@@ -62,8 +85,15 @@ void Animal::growUp()
     _age = Age::Adult;
 
     // Determine new texture file
-    std::string color = (_type == Type::Blue) ? "Blue" : "White";
-    _textureFile = "animals/" + color + " Chicken.png"; // Remove "Baby" prefix
+    if (_type == Type::Rabbit)
+    {
+        _textureFile = "animals/Rabbit.png";
+    }
+    else
+    {
+        std::string color = (_type == Type::Blue) ? "Blue" : "White";
+        _textureFile = "animals/" + color + " Chicken.png"; 
+    }
 
     // Reload texture
     setTexture(_textureFile);
@@ -124,6 +154,22 @@ void Animal::initAnimations()
 
     // Row 6: Eat 
     createAnim("eat", 6, 0, 4, 0.2f, true);
+
+    if (_type == Type::Cat)
+    {
+        // Cat specific animations
+        // Row 4: Sit (4 frames)
+        createAnim("sit", 4, 0, 4, 0.2f, false);
+        
+        // Row 5: Groom (4 frames)
+        createAnim("groom", 5, 0, 4, 0.2f, true);
+
+        // Row 6: Lie Down (4 frames)
+        createAnim("lie_down", 6, 0, 4, 0.2f, false);
+
+        // Row 7: Sleep (First 2 frames)
+        createAnim("sleep", 7, 0, 2, 1.0f, true);
+    }
 }
 
 void Animal::update(float dt)
@@ -206,13 +252,29 @@ void Animal::updateAnimation()
     }
     else if (_currentState == State::Sit || _currentState == State::Sleep)
     {
-        switch (_currentDirection)
+        if (_type == Type::Cat)
         {
-            case Direction::Down: animName = "sit_down"; break;
-            case Direction::Up: animName = "sit_up"; break;
-            case Direction::Left: animName = "sit_left"; break;
-            case Direction::Right: animName = "sit_right"; break;
+            if (_currentState == State::Sit) animName = "sit";
+            else if (_currentState == State::Sleep) animName = "sleep";
         }
+        else
+        {
+            switch (_currentDirection)
+            {
+                case Direction::Down: animName = "sit_down"; break;
+                case Direction::Up: animName = "sit_up"; break;
+                case Direction::Left: animName = "sit_left"; break;
+                case Direction::Right: animName = "sit_right"; break;
+            }
+        }
+    }
+    else if (_currentState == State::Groom)
+    {
+        animName = "groom";
+    }
+    else if (_currentState == State::LieDown)
+    {
+        animName = "lie_down";
     }
 
     if (!animName.empty())
@@ -233,7 +295,46 @@ void Animal::startEating()
 
 void Animal::pickNewState()
 {
-    // Simple Random AI
+    // Cat Logic
+    if (_type == Type::Cat)
+    {
+        int r = rand() % 100;
+        // 40% Walk
+        if (r < 40)
+        {
+            setState(State::Walk);
+            _stateTimer = 2.0f + (rand() % 30) / 10.0f;
+            int d = rand() % 4;
+            setDirection(static_cast<Direction>(d));
+        }
+        // 20% Sit
+        else if (r < 60)
+        {
+            setState(State::Sit);
+            _stateTimer = 3.0f + (rand() % 30) / 10.0f;
+        }
+        // 15% Groom
+        else if (r < 75)
+        {
+            setState(State::Groom);
+            _stateTimer = 4.0f; // Fixed duration for grooming loop
+        }
+        // 10% Lie Down
+        else if (r < 85)
+        {
+            setState(State::LieDown);
+            _stateTimer = 5.0f;
+        }
+        // 15% Sleep
+        else
+        {
+            setState(State::Sleep);
+            _stateTimer = 8.0f + (rand() % 50) / 10.0f;
+        }
+        return;
+    }
+
+    // Simple Random AI (Chicken/Rabbit)
     int r = rand() % 100;
 
     // 60% Chance to Walk

@@ -57,6 +57,7 @@ private:
         cocos2d::Sprite* sprite;
         bool isLarge;
         Animal::Type type; // Blue or White egg
+        std::string productType; // "Egg", "Large Egg", "Wool", "Rabbit's Foot"
     };
 
     struct TroughData {
