@@ -154,11 +154,15 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClCompile Include="..\Classes\AnimalSystem.cpp" />
     <ClCompile Include="..\Classes\AppDelegate.cpp" />
     <ClCompile Include="..\Classes\Basket.cpp" />
+    <ClCompile Include="..\Classes\Fishing.cpp" />
     <ClCompile Include="..\Classes\HelloWorldScene.cpp" />
+    <ClCompile Include="..\Classes\Input.cpp" />
     <ClCompile Include="..\Classes\Menu.cpp" />
     <ClCompile Include="..\Classes\GameScene.cpp" />
+    <ClCompile Include="..\Classes\Obstacles.cpp" />
     <ClCompile Include="..\Classes\Player.cpp" />
     <ClCompile Include="..\Classes\GameClock.cpp" />
+    <ClCompile Include="..\Classes\Sleep.cpp" />
     <ClCompile Include="..\Classes\Wallet.cpp" />
     <ClCompile Include="..\Classes\HudLayer.cpp" />
     <ClCompile Include="..\Classes\CropSystem.cpp" />
@@ -174,6 +178,7 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClInclude Include="..\Classes\AnimalSystem.h" />
     <ClInclude Include="..\Classes\AppDelegate.h" />
     <ClInclude Include="..\Classes\Basket.h" />
+    <ClInclude Include="..\Classes\FishingMiniGame.h" />
     <ClInclude Include="..\Classes\HelloWorldScene.h" />
     <ClInclude Include="..\Classes\Menu.h" />
     <ClInclude Include="..\Classes\GameScene.h" />

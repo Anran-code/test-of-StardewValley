@@ -154,6 +154,8 @@ private:
     // Pause Menu
     PauseLayer* _pauseMenu;
 
+    bool handleSleepMouseDown(cocos2d::EventMouse* e);
+
     void onKeyPressed(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
     void onKeyReleased(cocos2d::EventKeyboard::KeyCode keyCode, cocos2d::Event* event);
  
@@ -187,6 +189,8 @@ public:
     static bool sHasFarmTownwayPos;
     static cocos2d::Vec2 sFarmHenhouseDoorPos;
     static bool sHasFarmHenhouseDoorPos;
+    static cocos2d::Vec2 sFarmHenhouseOutPos;
+    static bool sHasFarmHenhouseOutPos;
     static bool sSpawnAtFarmStart;
     static bool sStartAtHomeBed;
 

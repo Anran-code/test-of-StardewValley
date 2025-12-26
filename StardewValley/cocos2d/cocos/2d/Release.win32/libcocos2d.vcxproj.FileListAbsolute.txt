@@ -1,1 +1,2 @@
 E:\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Release.win32\libcocos2d.dll
+C:\Users\A\Desktop\test-of-StardewValley\StardewValley\cocos2d\cocos\2d\Release.win32\libcocos2d.dll

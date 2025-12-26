@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="85" height="60" tilewidth="16" tileheight="16" infinite="0" nextlayerid="20" nextobjectid="4379">
+<map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="85" height="60" tilewidth="16" tileheight="16" infinite="0" nextlayerid="21" nextobjectid="4381">
  <tileset firstgid="1" source="outdoors_spring.tsx"/>
  <tileset firstgid="1976" source="stone.tsx"/>
  <tileset firstgid="2444" source="tree.tsx"/>
@@ -283,6 +283,9 @@
  </objectgroup>
  <objectgroup id="18" name="henhouse door">
   <object id="4377" x="653.909" y="305" width="17.0909" height="30.7273"/>
+ </objectgroup>
+ <objectgroup id="20" name="henhouse out">
+  <object id="4379" x="656" y="352" width="16" height="16"/>
  </objectgroup>
  <objectgroup id="17" name="townway">
   <object id="4373" x="1232" y="608" width="38.4215" height="153.333"/>
