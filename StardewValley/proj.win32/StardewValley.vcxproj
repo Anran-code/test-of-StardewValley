@@ -163,6 +163,7 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClCompile Include="..\Classes\Obstacles.cpp" />
     <ClCompile Include="..\Classes\Player.cpp" />
     <ClCompile Include="..\Classes\GameClock.cpp" />
+    <ClCompile Include="..\Classes\ShopLayer.cpp" />
     <ClCompile Include="..\Classes\Sleep.cpp" />
     <ClCompile Include="..\Classes\Wallet.cpp" />
     <ClCompile Include="..\Classes\HudLayer.cpp" />
@@ -172,7 +173,6 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClCompile Include="..\Classes\EnergySystem.cpp" />
     <ClCompile Include="..\Classes\ForageSystem.cpp" />
     <ClCompile Include="..\Classes\PauseLayer.cpp" />
-    <ClCompile Include="..\Classes\ShopLayer.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -187,6 +187,7 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClInclude Include="..\Classes\GameScene.h" />
     <ClInclude Include="..\Classes\Player.h" />
     <ClInclude Include="..\Classes\GameClock.h" />
+    <ClInclude Include="..\Classes\ShopLayer.h" />
     <ClInclude Include="..\Classes\Wallet.h" />
     <ClInclude Include="..\Classes\HudLayer.h" />
     <ClInclude Include="..\Classes\CropSystem.h" />
@@ -195,7 +196,6 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClInclude Include="..\Classes\EnergySystem.h" />
     <ClInclude Include="..\Classes\ForageSystem.h" />
     <ClInclude Include="..\Classes\PauseLayer.h" />
-    <ClInclude Include="..\Classes\ShopLayer.h" />
     <ClInclude Include="..\Classes\Item.h" />
     <ClInclude Include="main.h" />
   </ItemGroup>

@@ -8,9 +8,7 @@ class Inventory
 {
 public:
     static const int TOOLBAR_SIZE = 12;
-    static const int BACKPACK_SIZE = 36; // Total slots including toolbar? Or separate? 
-                                         // Stardew usually has 12/24/36 slots, with top row being toolbar.
-                                         // Let's assume specific slots.
+    static const int BACKPACK_SIZE = 36; 
 
     Inventory();
 

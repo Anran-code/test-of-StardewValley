@@ -55,6 +55,9 @@
     <ClCompile Include="..\Classes\AIStrategy.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\Classes\ShopLayer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
@@ -98,6 +101,9 @@
     </ClInclude>
     <ClInclude Include="..\Classes\FishingMiniGame.h" />
     <ClInclude Include="..\Classes\AIStrategy.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\ShopLayer.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

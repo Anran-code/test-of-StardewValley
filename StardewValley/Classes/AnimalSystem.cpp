@@ -401,10 +401,10 @@ void AnimalSystem::updateDailyGrowth()
         if (animal->getType() == Animal::Type::Cat) continue;
 
         bool fed = animal->isFed();
-        if (GameScene::sDebugMode) fed = true;
 
         // 1. Try eat Hay from Trough
-        if (!fed && animal->getLocation() == Animal::Location::Inside)
+        // Try to eat regardless of location state to support debug skipping
+        if (!fed /*&& animal->getLocation() == Animal::Location::Inside*/) 
         {
             for (auto& trough : _troughs)
             {
@@ -424,10 +424,6 @@ void AnimalSystem::updateDailyGrowth()
                     break; // One hay per animal
                 }
             }
-        }
-        else
-        {
-            fed = true;
         }
 
         animal->setLocation(Animal::Location::Outside);
@@ -459,7 +455,7 @@ void AnimalSystem::updateDailyGrowth()
             if (animal->getType() == Animal::Type::Rabbit)
             {
                 animal->incrementDaysSinceLastProduct();
-                if (animal->getDaysSinceLastProduct() >= 4)
+                if (animal->getDaysSinceLastProduct() >= 4 && fed)
                 {
                     bool isFoot = (rand() % 100) < 20;
                     ProductData product;
@@ -646,33 +642,6 @@ void AnimalSystem::update(float dt)
     {
         Vec2 oldPos = animal->getPosition();
         animal->update(dt);
-
-        // Eating Grass Logic (Outside)
-        if (animal->getLocation() == Animal::Location::Outside &&
-            animal->getCurrentState() == Animal::State::Eat)
-        {
-            if (_map && _layer)
-            {
-                Size tileSize = _map->getTileSize();
-                Size mapSize = _map->getMapSize();
-                float mapHeight = mapSize.height * tileSize.height;
-                Vec2 pos = animal->getPosition();
-
-                int tx = pos.x / tileSize.width;
-                int ty = (mapHeight - pos.y) / tileSize.height;
-
-                if (_bgLayer && _bgLayer->getType() == BackgroundType::Farm)
-                {
-                    // Use newly added method
-                    if (_bgLayer->tryEatGrass(Vec2(tx, ty)))
-                    {
-                        // Ate grass!
-                        animal->startEating();
-                        animal->setFed(true);
-                    }
-                }
-            }
-        }
 
         if (_map)
         {
