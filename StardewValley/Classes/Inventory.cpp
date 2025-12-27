@@ -1,4 +1,5 @@
 #include "Inventory.h"
+#include "cocos2d.h"
 
 Inventory::Inventory()
 {
@@ -25,6 +26,7 @@ Inventory::Inventory()
 
 void Inventory::addItem(Item item)
 {
+    bool updated = false;
     // Try to stack first
     if (item.maxStack > 1)
     {
@@ -36,7 +38,12 @@ void Inventory::addItem(Item item)
                 int add = std::min(space, item.quantity);
                 slot.quantity += add;
                 item.quantity -= add;
-                if (item.quantity <= 0) return;
+                updated = true;
+                if (item.quantity <= 0) 
+                {
+                    cocos2d::Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
+                    return;
+                }
             }
         }
     }
@@ -47,8 +54,14 @@ void Inventory::addItem(Item item)
         if (slot.quantity == 0)
         {
             slot = item;
+            cocos2d::Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
             return;
         }
+    }
+
+    if (updated)
+    {
+        cocos2d::Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
     }
 }
 
@@ -79,6 +92,7 @@ void Inventory::removeItem(int slotIndex, int count)
     {
         _items[slotIndex].quantity -= count;
         if (_items[slotIndex].quantity < 0) _items[slotIndex].quantity = 0;
+        cocos2d::Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
     }
 }
 
@@ -89,4 +103,5 @@ void Inventory::swapItems(int slotA, int slotB)
     if (slotA == slotB) return;
 
     std::swap(_items[slotA], _items[slotB]);
+    cocos2d::Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
 }
