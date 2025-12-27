@@ -38,6 +38,7 @@ struct Item
     // Tool Stats
     float currentWater = 0.0f;
     float maxWater = 0.0f;
+    int toolLevel = 0; // 0=Basic, 1=Copper, 2=Steel, 3=Gold, 4=Iridium
 
     Item() : type(ItemType::Tool), quantity(0), maxStack(1) {}
     
@@ -49,6 +50,7 @@ struct Item
         i.iconPath = path;
         i.quantity = 1;
         i.maxStack = 1;
+        i.toolLevel = 0;
         
         if (t == ToolType::WateringCan)
         {

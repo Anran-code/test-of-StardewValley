@@ -9,7 +9,7 @@
 #include "AnimalSystem.h"
 #include "SimpleAudioEngine.h"
 #include "Basket.h"
-// #include "ShopLayer.h" // Ignore Shop related includes
+#include "ShopLayer.h"
 
 USING_NS_CC;
 
@@ -62,6 +62,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasHouseRect = false;
     _hasHenhouseRect = false; // Added
     _hasTownHomewayRect = false;
+    _hasShopRect = false;
     _hasBucket = false;
     _exitedHomeDoor = false;
     _enteredHome = false;
@@ -79,6 +80,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasHenhouseDoor = false;
     _canEnterHenhouse = false;
     _enteredHenhouse = false;
+    _enteredShop = false; // Added
 
     _sleepDialogActive = false;
     _isSleeping = false;
@@ -652,6 +654,28 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     _townHomewayRect = Rect(hx, hy, hw, hh);
                     _hasTownHomewayRect = true;
                 }
+            }
+
+            auto shopGroup = _map->getObjectGroup("shop_door");
+            if (shopGroup)
+            {
+                const auto& objs = shopGroup->getObjects();
+                if (!objs.empty())
+                {
+                    const auto& dict = objs.front().asValueMap();
+                    float sx = dict.at("x").asFloat();
+                    float sy = dict.at("y").asFloat();
+                    float sw = dict.at("width").asFloat();
+                    float sh = dict.at("height").asFloat();
+                    _shopRect = Rect(sx, sy, sw, sh);
+                    _hasShopRect = true;
+                }
+            }
+            else
+            {
+                 // Fallback to mock coordinates if object group missing
+                 _shopRect = Rect(580, 580, 100, 120); 
+                 _hasShopRect = true;
             }
 
             auto player = Player::create("player.png", tileSize.height);
@@ -1443,6 +1467,20 @@ void BackgroundLayer::update(float dt)
         }
     }
 
+    if (_type == BackgroundType::Town && _hasShopRect && _player)
+    {
+        Rect box = _player->getBoundingBox();
+        if (box.intersectsRect(_shopRect))
+        {
+            // Shop interaction is now handled in onMouseDown (requires click)
+            _enteredShop = true;
+        }
+        else
+        {
+            _enteredShop = false;
+        }
+    }
+
     if (_type == BackgroundType::Home && _hasHomeExitDoor && !_exitedHomeDoor && _map && _groundLayer)
     {
         Vec2 tileIndex = getFacingTile();
@@ -1632,6 +1670,14 @@ void BackgroundLayer::update(float dt)
                 Vec2 r2(_townHomewayRect.getMaxX(), _townHomewayRect.getMaxY());
                 _facingDebug->drawSolidRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 0.2f)); // Yellow for way back
                 _facingDebug->drawRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 1.0f));
+            }
+
+            if (_hasShopRect)
+            {
+                Vec2 r1(_shopRect.getMinX(), _shopRect.getMinY());
+                Vec2 r2(_shopRect.getMaxX(), _shopRect.getMaxY());
+                _facingDebug->drawSolidRect(r1, r2, Color4F(0.5f, 0.0f, 1.0f, 0.2f)); // Purple for shop
+                _facingDebug->drawRect(r1, r2, Color4F(0.5f, 0.0f, 1.0f, 1.0f));
             }
 
             if (_hasHouseRect && !_houseRects.empty())

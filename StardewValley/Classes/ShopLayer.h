@@ -29,6 +29,7 @@ private:
         std::string image;
         std::function<bool()> onBuy;
         cocos2d::MenuItemImage* icon;
+        bool isTool;
     };
 
     Wallet* _wallet;

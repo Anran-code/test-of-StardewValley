@@ -4,6 +4,7 @@
 #include "AnimalSystem.h"
 #include "EnergySystem.h"
 #include "HudLayer.h"
+#include "ShopLayer.h"
 
 USING_NS_CC;
 
@@ -302,6 +303,27 @@ void BackgroundLayer::onMouseDown(Event* event)
 
     Vec2 clickPos = e->getLocation();
     if (GameScene::sHud && (GameScene::sHud->isPointInToolbarWorld(clickPos) || GameScene::sHud->isConsumingClick())) return;
+    
+    // Check for Shop Interaction in Town (Left Click)
+    if (_type == BackgroundType::Town && _hasShopRect && _player)
+    {
+        Rect box = _player->getBoundingBox();
+        if (box.intersectsRect(_shopRect))
+        {
+             if (!Director::getInstance()->getRunningScene()->getChildByName("ShopLayer"))
+             {
+                 auto shop = ShopLayer::create(GameScene::sWallet, GameScene::sBasket, CropSystem::getInstance(), GameScene::sInventory);
+                 if (shop)
+                 {
+                     shop->setName("ShopLayer");
+                     Director::getInstance()->getRunningScene()->addChild(shop, 2000);
+                     _enteredShop = true;
+                     return; // Consume click
+                 }
+             }
+        }
+    }
+
     Vec2 targetTile = getFacingTile();
     
     if (!_map) return;
@@ -601,11 +623,15 @@ void BackgroundLayer::onMouseDown(Event* event)
             removeObstacle(targetTile);
             if (item->toolType == ToolType::Axe)
             {
-                EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_AXE);
+                float cost = EnergySystem::COST_AXE - (item->toolLevel * 0.5f);
+                if (cost < 0.5f) cost = 0.5f;
+                EnergySystem::getInstance()->consumeEnergy(cost);
             }
             else if (item->toolType == ToolType::Pickaxe)
             {
-                EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_PICKAXE);
+                float cost = EnergySystem::COST_PICKAXE - (item->toolLevel * 0.5f);
+                if (cost < 0.5f) cost = 0.5f;
+                EnergySystem::getInstance()->consumeEnergy(cost);
             }
             return;
         }
@@ -621,7 +647,11 @@ void BackgroundLayer::onMouseDown(Event* event)
         {
         case ToolType::Hoe:
             CropSystem::getInstance()->tillTile(targetTile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_HOE);
+            {
+                 float cost = EnergySystem::COST_HOE - (item->toolLevel * 0.5f);
+                 if (cost < 0.5f) cost = 0.5f;
+                 EnergySystem::getInstance()->consumeEnergy(cost);
+            }
             break;
         case ToolType::WateringCan:
         {
@@ -654,7 +684,9 @@ void BackgroundLayer::onMouseDown(Event* event)
                      if (CropSystem::getInstance()->canWater(targetTile))
                      {
                          CropSystem::getInstance()->waterTile(targetTile);
-                         EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_WATERING_CAN);
+                         float cost = EnergySystem::COST_WATERING_CAN - (mutableItem.toolLevel * 0.5f);
+                         if (cost < 0.5f) cost = 0.5f;
+                         EnergySystem::getInstance()->consumeEnergy(cost);
                          mutableItem.currentWater -= 1.0f;
                          Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("INVENTORY_UPDATED");
                      }
@@ -672,7 +704,11 @@ void BackgroundLayer::onMouseDown(Event* event)
             break;
         case ToolType::Pickaxe:
             CropSystem::getInstance()->destroyTile(targetTile);
-            EnergySystem::getInstance()->consumeEnergy(EnergySystem::COST_PICKAXE);
+            {
+                 float cost = EnergySystem::COST_PICKAXE - (item->toolLevel * 0.5f);
+                 if (cost < 0.5f) cost = 0.5f;
+                 EnergySystem::getInstance()->consumeEnergy(cost);
+            }
             break;
         default:
             break;

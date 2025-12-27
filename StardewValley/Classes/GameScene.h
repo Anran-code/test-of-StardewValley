@@ -99,6 +99,7 @@ private:
     std::vector<cocos2d::Rect> _poolRects;
     std::vector<cocos2d::Rect> _houseRects;
     cocos2d::Rect _townHomewayRect;
+    cocos2d::Rect _shopRect; // Added shop rect
     cocos2d::Rect _rightExitRect;
     cocos2d::Rect _bucketRect;
     cocos2d::Rect _boundaryLeftRect;
@@ -110,6 +111,7 @@ private:
     bool _hasBedRect;
     bool _hasPoolRect;
     bool _hasTownHomewayRect;
+    bool _hasShopRect; // Added shop flag
     bool _hasHouseRect;
     bool _hasHenhouseRect; // Added
     bool _hasBucket;
@@ -126,6 +128,7 @@ private:
     bool _hasHenhouseDoor;
     bool _canEnterHenhouse;
     bool _enteredHenhouse;
+    bool _enteredShop; // Added shop entry flag
 
     bool _sleepDialogActive;
     bool _isSleeping;

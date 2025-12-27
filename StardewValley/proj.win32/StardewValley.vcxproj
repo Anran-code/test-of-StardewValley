@@ -172,6 +172,7 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClCompile Include="..\Classes\EnergySystem.cpp" />
     <ClCompile Include="..\Classes\ForageSystem.cpp" />
     <ClCompile Include="..\Classes\PauseLayer.cpp" />
+    <ClCompile Include="..\Classes\ShopLayer.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -194,6 +195,7 @@ xcopy "$(ProjectDir)..\Resources" "$(OutDir)\Resources\" /D /E /I /F /Y
     <ClInclude Include="..\Classes\EnergySystem.h" />
     <ClInclude Include="..\Classes\ForageSystem.h" />
     <ClInclude Include="..\Classes\PauseLayer.h" />
+    <ClInclude Include="..\Classes\ShopLayer.h" />
     <ClInclude Include="..\Classes\Item.h" />
     <ClInclude Include="main.h" />
   </ItemGroup>
