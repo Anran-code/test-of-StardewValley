@@ -1640,6 +1640,8 @@ int HudLayer::settleBucketAndGetTotal()
     {
         _bucketCountLabel->setString("0");
     }
+
+    updateInventoryUI();
     
     return total;
 }

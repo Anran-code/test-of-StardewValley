@@ -260,11 +260,9 @@ bool ShopLayer::initWithSystems(Wallet* wallet, Basket* basket, CropSystem* crop
     {
         sellItem = MenuItemLabel::create(sellAllLabel, [this](Ref* sender) {
             if (!_basket || !_crops || !_wallet) return;
-            int total = _basket->calculateTotalSellValue(_crops);
+            int total = _crops->sellBasket();
             if (total > 0)
             {
-                _wallet->addMoney(total);
-                _basket->clear();
                 refreshBasketView();
             }
         });

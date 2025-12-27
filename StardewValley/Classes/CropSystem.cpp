@@ -3,6 +3,7 @@
 #include "Inventory.h"
 #include "ExperienceSystem.h"
 #include "Basket.h"
+#include "GameScene.h"
 
 using namespace cocos2d;
 
@@ -1148,6 +1149,7 @@ int CropSystem::sellBasket()
     {
         _wallet->addMoney(total);
         _basket->clear();
+        GameScene::sTodayEarnings += total;
     }
     return total;
 }
