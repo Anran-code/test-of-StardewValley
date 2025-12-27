@@ -173,6 +173,11 @@ void BackgroundLayer::onKeyPressed(EventKeyboard::KeyCode keyCode, Event* event)
                 CropSystem::getInstance()->updateDailyGrowth();
                 ForageSystem::getInstance()->newDay(GameScene::sClock->getSeason());
                 AnimalSystem::getInstance()->updateDailyGrowth();
+                if (GameScene::sHud)
+                {
+                    int earned = GameScene::sHud->settleBucketAndGetTotal();
+                    GameScene::sTodayEarnings = earned;
+                }
             }
             break;
         case EventKeyboard::KeyCode::KEY_DOWN_ARROW:
