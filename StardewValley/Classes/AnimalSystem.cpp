@@ -28,7 +28,7 @@ AnimalSystem::AnimalSystem()
 AnimalSystem::~AnimalSystem()
 {
     _animals.clear();
-    _eggs.clear();
+    _products.clear();
     _troughs.clear();
 }
 
@@ -37,7 +37,7 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
     _layer = layer;
     _bgLayer = layer;
     _map = map;
-    for (auto& egg : _eggs) egg.sprite = nullptr;
+    for (auto& product : _products) product.sprite = nullptr;
     for (auto& t : _troughs) t.sprite = nullptr;
 
     _hasHopper = false;
@@ -207,16 +207,16 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
         }
     }
 
-    // Process Pending Eggs 
+    // Process Pending Products 
     if (_bgLayer && _bgLayer->getType() == BackgroundType::Farm && _map)
     {
         Size tileSize = _map->getTileSize();
         Size mapSize = _map->getMapSize();
         float mapHeight = mapSize.height * tileSize.height;
 
-        for (auto& egg : _eggs)
+        for (auto& product : _products)
         {
-            if (egg.tilePos.x == -1 && egg.tilePos.y == -1)
+            if (product.tilePos.x == -1 && product.tilePos.y == -1)
             {
                 // Assign a valid position on the Farm
                 bool foundSpot = false;
@@ -244,19 +244,19 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
                     // Check validity using BackgroundLayer 
                     if (!_bgLayer->isValidSpawnPosition(rX, rY)) continue;
 
-                    // Check if occupied by other eggs
+                    // Check if occupied by other products
                     bool occupied = false;
-                    for (const auto& otherEgg : _eggs) {
-                        if (otherEgg.tilePos.x == rX && otherEgg.tilePos.y == rY) { occupied = true; break; }
+                    for (const auto& otherProduct : _products) {
+                        if (otherProduct.tilePos.x == rX && otherProduct.tilePos.y == rY) { occupied = true; break; }
                     }
                     if (occupied) continue;
 
                     // Found spot
-                    egg.tilePos = Vec2(rX, rY);
+                    product.tilePos = Vec2(rX, rY);
 
                     float wx = (rX + 0.5f) * tileSize.width;
                     float wy = mapHeight - (rY + 0.5f) * tileSize.height;
-                    egg.worldPos = Vec2(wx, wy);
+                    product.worldPos = Vec2(wx, wy);
 
                     foundSpot = true;
                     break;
@@ -266,60 +266,62 @@ void AnimalSystem::init(BackgroundLayer* layer, TMXTiledMap* map)
         }
     }
 
-    // Re-create egg sprites
+    // Re-create product sprites
     if (_map)
     {
-        for (auto& egg : _eggs)
+        for (auto& product : _products)
         {
-            if (egg.tilePos.x == -1 && egg.tilePos.y == -1) continue;
+            if (product.tilePos.x == -1 && product.tilePos.y == -1) continue;
 
-            if (egg.sprite)
+            // Remove old sprite if exists
+            if (product.sprite)
             {
-                egg.sprite->removeFromParent();
-                egg.sprite = nullptr;
+                product.sprite->removeFromParent();
+                product.sprite = nullptr;
             }
 
             if (!isHenhouse)
             {
                 std::string filename;
-                if (!egg.productType.empty())
+                if (!product.productType.empty())
                 {
-                     if (egg.productType == "Wool") filename = "animals/Wool.png";
-                     else if (egg.productType == "Rabbit's Foot") filename = "animals/Rabbit's_Foot.png";
-                     else filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                     if (product.productType == "Wool") filename = "animals/Wool.png";
+                     else if (product.productType == "Rabbit's Foot") filename = "animals/Rabbit's_Foot.png";
+                     else filename = product.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
                 }
                 else
                 {
-                    filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                    filename = product.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
                 }
 
-                if (!FileUtils::getInstance()->isFileExist(filename)) continue;
-
-                auto sprite = Sprite::create(filename);
-                if (sprite)
+                if (FileUtils::getInstance()->isFileExist(filename))
                 {
-                    if (egg.worldPos.lengthSquared() > 0.1f)
+                    auto sprite = Sprite::create(filename);
+                    if (sprite)
                     {
-                        sprite->setPosition(egg.worldPos);
-                    }
-                    else
-                    {
+                        if (product.worldPos.lengthSquared() > 0.1f)
+                        {
+                            sprite->setPosition(product.worldPos);
+                        }
+                        else
+                        {
+                            Size tileSize = _map->getTileSize();
+                            Size mapSize = _map->getMapSize();
+                            float mapHeight = mapSize.height * tileSize.height;
+                            float cx = (product.tilePos.x + 0.5f) * tileSize.width;
+                            float cy = mapHeight - (product.tilePos.y + 0.5f) * tileSize.height;
+                            sprite->setPosition(Vec2(cx, cy));
+                        }
+
+                        // Scale to fit tile
                         Size tileSize = _map->getTileSize();
-                        Size mapSize = _map->getMapSize();
-                        float mapHeight = mapSize.height * tileSize.height;
-                        float cx = (egg.tilePos.x + 0.5f) * tileSize.width;
-                        float cy = mapHeight - (egg.tilePos.y + 0.5f) * tileSize.height;
-                        sprite->setPosition(Vec2(cx, cy));
+                        float targetSize = tileSize.width * 0.8f;
+                        float scale = targetSize / sprite->getContentSize().width;
+                        sprite->setScale(scale);
+
+                        if (_layer) _layer->addChild(sprite, 2); // Product z-order 2 (below player 3)
+                        product.sprite = sprite;
                     }
-
-                    // Scale to fit tile
-                    Size tileSize = _map->getTileSize();
-                    float targetSize = tileSize.width * 0.8f;
-                    float scale = targetSize / sprite->getContentSize().width;
-                    sprite->setScale(scale);
-
-                    if (_layer) _layer->addChild(sprite, 2); // Egg z-order 2 (below player 3)
-                    egg.sprite = sprite;
                 }
             }
         }
@@ -373,7 +375,7 @@ void AnimalSystem::cleanupVisuals(BackgroundLayer* layer)
     {
         _layer = nullptr;
         _map = nullptr;
-        for (auto& egg : _eggs) egg.sprite = nullptr;
+        for (auto& product : _products) product.sprite = nullptr;
         for (auto& trough : _troughs) trough.sprite = nullptr;
     }
 }
@@ -460,14 +462,14 @@ void AnimalSystem::updateDailyGrowth()
                 if (animal->getDaysSinceLastProduct() >= 4)
                 {
                     bool isFoot = (rand() % 100) < 20;
-                    EggData product;
+                    ProductData product;
                     product.tilePos = Vec2(-1, -1);
                     product.worldPos = Vec2::ZERO;
                     product.isLarge = false;
                     product.type = animal->getType();
                     product.sprite = nullptr;
                     product.productType = isFoot ? "Rabbit's Foot" : "Wool";
-                    _eggs.push_back(product);
+                    _products.push_back(product);
                     
                     animal->resetDaysSinceLastProduct();
                 }
@@ -475,7 +477,7 @@ void AnimalSystem::updateDailyGrowth()
             else if (fed) // Chickens need food to lay eggs
             {
                 bool isLarge = (rand() % 100) < 20;
-                EggData newEgg;
+                ProductData newEgg;
                 newEgg.tilePos = Vec2(-1, -1);
                 newEgg.worldPos = Vec2::ZERO;
                 newEgg.isLarge = isLarge;
@@ -483,7 +485,7 @@ void AnimalSystem::updateDailyGrowth()
                 newEgg.sprite = nullptr;
                 newEgg.productType = isLarge ? "Large Egg" : "Egg";
 
-                _eggs.push_back(newEgg);
+                _products.push_back(newEgg);
             }
         }   // Reset for new day
         animal->setFed(false);
@@ -518,9 +520,9 @@ void AnimalSystem::updateDailyGrowth()
         Size mapSize = _map->getMapSize();
         float mapHeight = mapSize.height * tileSize.height;
 
-        for (auto& egg : _eggs)
+        for (auto& product : _products)
         {
-            if (egg.tilePos.x == -1 && egg.tilePos.y == -1)
+            if (product.tilePos.x == -1 && product.tilePos.y == -1)
             {
                 // Assign a valid position on the Farm
                 bool foundSpot = false;
@@ -544,30 +546,32 @@ void AnimalSystem::updateDailyGrowth()
                     if (rX < 0 || rX >= mapSize.width || rY < 0 || rY >= mapSize.height) continue;
                     if (!_bgLayer->isValidSpawnPosition(rX, rY)) continue;
 
+                    // Check if occupied by other products
                     bool occupied = false;
-                    for (const auto& otherEgg : _eggs) {
-                        if (otherEgg.tilePos.x == rX && otherEgg.tilePos.y == rY) { occupied = true; break; }
+                    for (const auto& otherProduct : _products) {
+                        if (otherProduct.tilePos.x == rX && otherProduct.tilePos.y == rY) { occupied = true; break; }
                     }
                     if (occupied) continue;
 
-                    egg.tilePos = Vec2(rX, rY);
+                    // Found spot
+                    product.tilePos = Vec2(rX, rY);
                     float wx = (rX + 0.5f) * tileSize.width;
                     float wy = mapHeight - (rY + 0.5f) * tileSize.height;
-                    egg.worldPos = Vec2(wx, wy);
+                    product.worldPos = Vec2(wx, wy);
 
                     foundSpot = true;
 
                     // Create sprite immediately since we are on Farm
                     std::string filename;
-                    if (!egg.productType.empty())
+                    if (!product.productType.empty())
                     {
-                         if (egg.productType == "Wool") filename = "animals/Wool.png";
-                         else if (egg.productType == "Rabbit's Foot") filename = "animals/Rabbit's_Foot.png";
-                         else filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                         if (product.productType == "Wool") filename = "animals/Wool.png";
+                         else if (product.productType == "Rabbit's Foot") filename = "animals/Rabbit's_Foot.png";
+                         else filename = product.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
                     }
                     else
                     {
-                        filename = egg.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                        filename = product.isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
                     }
 
                     if (FileUtils::getInstance()->isFileExist(filename))
@@ -575,12 +579,12 @@ void AnimalSystem::updateDailyGrowth()
                         auto sprite = Sprite::create(filename);
                         if (sprite)
                         {
-                            sprite->setPosition(egg.worldPos);
+                            sprite->setPosition(product.worldPos);
                             float targetSize = tileSize.width * 0.8f;
                             float scale = targetSize / sprite->getContentSize().width;
                             sprite->setScale(scale);
                             if (_layer) _layer->addChild(sprite, 2);
-                            egg.sprite = sprite;
+                            product.sprite = sprite;
                         }
                     }
 
@@ -805,16 +809,16 @@ void AnimalSystem::removeAnimal(Animal* animal)
     // Implementation if needed
 }
 
-bool AnimalSystem::hasEgg(const Vec2& tilePos) const
+bool AnimalSystem::hasProduct(const Vec2& tilePos) const
 {
-    for (const auto& egg : _eggs)
+    for (const auto& product : _products)
     {
-        if (egg.tilePos.equals(tilePos)) return true;
+        if (product.tilePos.equals(tilePos)) return true;
     }
     return false;
 }
 
-bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos, std::string* outIconPath)
+bool AnimalSystem::tryHarvestProduct(const Vec2& tilePos, std::string* outIconPath)
 {
     std::vector<Vec2> checkPositions = {
         tilePos,
@@ -826,38 +830,38 @@ bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos, std::string* outIconPath)
 
     for (const auto& checkPos : checkPositions)
     {
-        for (auto it = _eggs.begin(); it != _eggs.end(); ++it)
+        for (auto it = _products.begin(); it != _products.end(); ++it)
         {
             if (it->tilePos.equals(checkPos))
             {
                 if (GameScene::sInventory)
                 {
-                    Item eggItem;
-                    eggItem.type = ItemType::Resource;
+                    Item item;
+                    item.type = ItemType::Resource;
                     
                     if (!it->productType.empty())
                     {
-                         eggItem.name = it->productType;
-                         if (it->productType == "Wool") eggItem.iconPath = "animals/Wool.png";
-                         else if (it->productType == "Rabbit's Foot") eggItem.iconPath = "animals/Rabbit's_Foot.png";
-                         else eggItem.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                         item.name = it->productType;
+                         if (it->productType == "Wool") item.iconPath = "animals/Wool.png";
+                         else if (it->productType == "Rabbit's Foot") item.iconPath = "animals/Rabbit's_Foot.png";
+                         else item.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
                     }
                     else
                     {
                         // Fallback for old data or default chickens
-                        eggItem.name = it->isLarge ? "Large Egg" : "Egg";
-                        eggItem.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                        item.name = it->isLarge ? "Large Egg" : "Egg";
+                        item.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
                     }
 
                     if (outIconPath)
                     {
-                        *outIconPath = eggItem.iconPath;
+                        *outIconPath = item.iconPath;
                     }
 
-                    eggItem.quantity = 1;
-                    eggItem.maxStack = 99;
+                    item.quantity = 1;
+                    item.maxStack = 99;
 
-                    GameScene::sInventory->addItem(eggItem);
+                    GameScene::sInventory->addItem(item);
 
                     if (true)
                     {
@@ -866,7 +870,7 @@ bool AnimalSystem::tryHarvestEgg(const Vec2& tilePos, std::string* outIconPath)
                             it->sprite->removeFromParent();
                         }
 
-                        _eggs.erase(it);
+                        _products.erase(it);
                         return true;
                     }
                 }

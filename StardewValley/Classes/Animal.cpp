@@ -2,6 +2,15 @@
 
 USING_NS_CC;
 
+Animal::~Animal()
+{
+    if (_aiStrategy)
+    {
+        delete _aiStrategy;
+        _aiStrategy = nullptr;
+    }
+}
+
 Animal* Animal::create(Type type, Age age)
 {
     Animal* pRet = new (std::nothrow) Animal();
@@ -30,11 +39,14 @@ bool Animal::init(Type type, Age age)
     _daysAlive = 0;
     _isFed = false;
     _daysSinceLastProduct = 0;
+    _aiStrategy = nullptr;
     
     if (type == Type::Cat) {
         _cellSize = Size(32, 32);
+        _aiStrategy = new CatAI();
     } else {
         _cellSize = Size(16, 16);
+        _aiStrategy = new Chicken_Rabbit_AI();
     }
 
     // Determine texture file
@@ -295,67 +307,8 @@ void Animal::startEating()
 
 void Animal::pickNewState()
 {
-    // Cat Logic
-    if (_type == Type::Cat)
+    if (_aiStrategy)
     {
-        int r = rand() % 100;
-        // 40% Walk
-        if (r < 40)
-        {
-            setState(State::Walk);
-            _stateTimer = 2.0f + (rand() % 30) / 10.0f;
-            int d = rand() % 4;
-            setDirection(static_cast<Direction>(d));
-        }
-        // 20% Sit
-        else if (r < 60)
-        {
-            setState(State::Sit);
-            _stateTimer = 3.0f + (rand() % 30) / 10.0f;
-        }
-        // 15% Groom
-        else if (r < 75)
-        {
-            setState(State::Groom);
-            _stateTimer = 4.0f; // Fixed duration for grooming loop
-        }
-        // 10% Lie Down
-        else if (r < 85)
-        {
-            setState(State::LieDown);
-            _stateTimer = 5.0f;
-        }
-        // 15% Sleep
-        else
-        {
-            setState(State::Sleep);
-            _stateTimer = 8.0f + (rand() % 50) / 10.0f;
-        }
-        return;
-    }
-
-    // Simple Random AI (Chicken/Rabbit)
-    int r = rand() % 100;
-
-    // 60% Chance to Walk
-    if (r < 60)
-    {
-        setState(State::Walk);
-        _stateTimer = 1.0f + (rand() % 20) / 10.0f;
-
-        int d = rand() % 4;
-        setDirection(static_cast<Direction>(d));
-    }
-    // 20% Chance to Idle
-    else if (r < 80)
-    {
-        setState(State::Idle);
-        _stateTimer = 1.0f + (rand() % 30) / 10.0f;
-    }
-    // 20% Chance to Sit/Sleep
-    else
-    {
-        setState(State::Sit);
-        _stateTimer = 3.0f + (rand() % 50) / 10.0f;
+        _aiStrategy->decideNextState(this);
     }
 }

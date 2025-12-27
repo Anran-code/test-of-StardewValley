@@ -27,8 +27,8 @@ public:
     void removeAnimal(Animal* animal);
 
     // Interaction
-    bool hasEgg(const cocos2d::Vec2& tilePos) const;
-    bool tryHarvestEgg(const cocos2d::Vec2& tilePos, std::string* outIconPath = nullptr);
+    bool hasProduct(const cocos2d::Vec2& tilePos) const;
+    bool tryHarvestProduct(const cocos2d::Vec2& tilePos, std::string* outIconPath = nullptr);
     bool tryIncubateEgg(const cocos2d::Vec2& tilePos, const std::string& eggName);
 
     // Feeding
@@ -51,12 +51,12 @@ private:
         cocos2d::Vec2 tilePos;
     };
 
-    struct EggData {
+    struct ProductData {
         cocos2d::Vec2 tilePos;
         cocos2d::Vec2 worldPos;
         cocos2d::Sprite* sprite;
         bool isLarge;
-        Animal::Type type; // Blue or White egg
+        Animal::Type type; // Source animal type
         std::string productType; // "Egg", "Large Egg", "Wool", "Rabbit's Foot"
     };
 
@@ -73,7 +73,7 @@ private:
     cocos2d::TMXTiledMap* _map;
 
     std::vector<Animal*> _animals;
-    std::vector<EggData> _eggs;
+    std::vector<ProductData> _products;
     std::vector<IncubatorData> _incubators;
     std::vector<TroughData> _troughs;
 

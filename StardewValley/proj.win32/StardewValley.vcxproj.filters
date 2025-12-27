@@ -52,6 +52,9 @@
     <ClCompile Include="..\Classes\Input.cpp" />
     <ClCompile Include="..\Classes\Obstacles.cpp" />
     <ClCompile Include="..\Classes\Fishing.cpp" />
+    <ClCompile Include="..\Classes\AIStrategy.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
@@ -94,6 +97,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\Classes\FishingMiniGame.h" />
+    <ClInclude Include="..\Classes\AIStrategy.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="game.rc">

@@ -2,6 +2,7 @@
 #define __ANIMAL_H__
 
 #include "cocos2d.h"
+#include "AIStrategy.h"
 
 class Animal : public cocos2d::Sprite
 {
@@ -10,6 +11,8 @@ public:
     enum class Age { Baby, Adult };
     enum class Direction { Down, Right, Up, Left };
     enum class State { Idle, Walk, Eat, Sleep, Sit, Groom, LieDown };
+
+    ~Animal(); 
 
     static Animal* create(Type type, Age age);
 
@@ -72,6 +75,9 @@ private:
     // Texture details
     std::string _textureFile;
     cocos2d::Size _cellSize;
+
+    // AI Strategy
+    AIStrategy* _aiStrategy;
 };
 
 #endif // __ANIMAL_H__

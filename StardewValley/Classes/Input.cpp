@@ -496,7 +496,7 @@ void BackgroundLayer::onMouseDown(Event* event)
     if (_type == BackgroundType::Farm)
     {
         std::string harvestedIcon;
-        if (AnimalSystem::getInstance()->tryHarvestEgg(targetTile, &harvestedIcon))
+        if (AnimalSystem::getInstance()->tryHarvestProduct(targetTile, &harvestedIcon))
         {
              if (_player && !harvestedIcon.empty()) 
              {
