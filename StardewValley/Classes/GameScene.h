@@ -22,13 +22,13 @@ enum class BackgroundType
 class BackgroundLayer : public cocos2d::Layer
 {
 public:
-    ~BackgroundLayer(); // Destructor
+    ~BackgroundLayer(); // 析构函数，清理与当前地图相关的资源
     static BackgroundLayer* create(BackgroundType type);
     virtual bool initWithType(BackgroundType type);
 
     cocos2d::Vec2 getFacingTile() const;
 
-    // Helper for ForageSystem
+    // 提供给 ForageSystem 使用的一些辅助接口
     cocos2d::TMXTiledMap* getMap() const { return _map; }
     cocos2d::TMXLayer* getGroundLayer() const { return _groundLayer; }
     BackgroundType getType() const { return _type; }
@@ -36,11 +36,11 @@ public:
     bool isValidSpawnPosition(int x, int y);
 
 private:
-    void onMouseDown(cocos2d::Event* event); // New mouse handling
+    void onMouseDown(cocos2d::Event* event); // 鼠标点击地图时的处理（用于交互、商店等）
 
-    // Obstacle management
+    // 障碍物管理（木头、石头、杂草等）
     struct Obstacle {
-        int type; // 0: Wood, 1: Stone, 2: Weed
+        int type; // 0 表示木头，1 表示石头，2 表示杂草
         cocos2d::Sprite* sprite;
         bool active;
     };
@@ -53,16 +53,16 @@ private:
     static bool sObstaclesInitialized;
     static int sLastObstacleSeason;
 
-    std::unordered_map<int, Obstacle> _obstacles; // Key: tileIndex y * width + x
+    std::unordered_map<int, Obstacle> _obstacles; // key 使用 tileIndex = y * width + x
     void initObstacles();
-    void spawnObstacles(int count); // Spawn a specific number of obstacles
+    void spawnObstacles(int count); // 在地图上生成指定数量的随机障碍物
     void removeObstacle(const cocos2d::Vec2& tileIndex);
     
 public:
     bool hasObstacle(const cocos2d::Vec2& tileIndex);
     int getObstacleType(const cocos2d::Vec2& tileIndex);
-    bool tryEatGrass(const cocos2d::Vec2& tileIndex); // For Animals
-    bool isColliding(const cocos2d::Rect& box); // Check collisions with buildings/walls/obstacles
+    bool tryEatGrass(const cocos2d::Vec2& tileIndex); // 给动物系统调用，用于吃掉草地
+    bool isColliding(const cocos2d::Rect& box); // 检查与建筑、墙体或障碍物的碰撞
 
 private:
     bool checkCollisionWithObstacles(const cocos2d::Rect& box);
@@ -93,13 +93,13 @@ private:
     cocos2d::Rect _homeDoorRect;
     cocos2d::Rect _homeDoorTunnelRect;
     cocos2d::Rect _homeExitDoorRect;
-    cocos2d::Rect _henhouseRect; // Added: collision for henhouse building
+    cocos2d::Rect _henhouseRect; // 鸡舍建筑的碰撞区域
     cocos2d::Rect _henhouseDoorRect;
     cocos2d::Rect _bedRect;
     std::vector<cocos2d::Rect> _poolRects;
     std::vector<cocos2d::Rect> _houseRects;
     cocos2d::Rect _townHomewayRect;
-    cocos2d::Rect _shopRect; // Added shop rect
+    cocos2d::Rect _shopRect; // 商店建筑的触发区域
     cocos2d::Rect _rightExitRect;
     cocos2d::Rect _bucketRect;
     cocos2d::Rect _boundaryLeftRect;
@@ -111,9 +111,9 @@ private:
     bool _hasBedRect;
     bool _hasPoolRect;
     bool _hasTownHomewayRect;
-    bool _hasShopRect; // Added shop flag
+    bool _hasShopRect; // 是否存在商店区域
     bool _hasHouseRect;
-    bool _hasHenhouseRect; // Added
+    bool _hasHenhouseRect; // 是否存在鸡舍区域
     bool _hasBucket;
     bool _exitedHomeDoor;
     bool _hasRightExit;
@@ -128,12 +128,12 @@ private:
     bool _hasHenhouseDoor;
     bool _canEnterHenhouse;
     bool _enteredHenhouse;
-    bool _enteredShop; // Added shop entry flag
+    bool _enteredShop; // 是否已经进入商店触发区域
 
     bool _sleepDialogActive;
     bool _isSleeping;
 
-    // Seasonal filter support
+    // 季节滤镜相关数据（用于根据季节调整颜色和 BGM）
     GameClock::Season _lastSeason;
     cocos2d::Node* _backgroundNode;
     cocos2d::LayerColor* _seasonOverlay;
@@ -147,14 +147,14 @@ private:
     float _fishingElapsed;
     float _biteTime;
     float _biteWindow;
-    CropType _currentFishType; // Track which fish is on the line
+    CropType _currentFishType; // 当前钓上的鱼的类型
 
-    // Sleep/Faint input handling
+    // 睡觉 / 晕倒相关的输入状态
     bool _waitingForSleepInput;
     bool _waitingForEarningsInput;
     cocos2d::Label* _sleepLabel;
     
-    // Pause Menu
+    // 暂停菜单层（ESC 打开菜单）
     PauseLayer* _pauseMenu;
 
     bool handleSleepMouseDown(cocos2d::EventMouse* e);
@@ -165,7 +165,7 @@ private:
     virtual void update(float dt) override;
     virtual void onExit() override;
     
-    // Force rebuild
+    // 预留字段，强制触发重新编译用（无实际逻辑）
 };
 
 class FarmMapUtils
@@ -197,14 +197,14 @@ public:
     static bool sSpawnAtFarmStart;
     static bool sStartAtHomeBed;
 
-    static Inventory* sInventory; // Shared inventory
+    static Inventory* sInventory; // 共享的背包实例，在整个游戏场景中通用
     static class GameClock* sClock;
     static class Wallet* sWallet;
     static class HudLayer* sHud;
     static class Basket* sBasket;
     static bool sDebugMode;
     static bool sMidnightWarned;
-    static bool sWasFainted; // Track if player fainted (exhaustion or late night)
+    static bool sWasFainted; // 记录玩家当日是否因体力耗尽或太晚而晕倒
     static int sTodayEarnings;
 
     virtual bool init();
@@ -223,9 +223,9 @@ private:
     class Wallet* _wallet;
 
     class HudLayer* _hud;
-    Inventory* _inventory; // Member inventory pointer
+    Inventory* _inventory; // 指向当前场景使用的背包实例
 
     virtual void update(float dt) override;
 };
 
-#endif // __GAME_SCENE_H__
+#endif // __GAME_SCENE_H__ 结束

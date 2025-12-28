@@ -38,7 +38,7 @@ void GameClock::update(float dt)
 
 void GameClock::checkTurnOfDay()
 {
-    // Logic moved to BackgroundLayer to allow for "Fainting" animation
+    // 原本的跨天逻辑已经挪到 BackgroundLayer 中处理，以便配合“熬夜晕倒”动画
     /*
     int minutesSinceSixAM = 0;
     if (_hour >= 6)
@@ -114,8 +114,8 @@ void GameClock::addDay(int days)
 void GameClock::addHour(int hours)
 {
     _hour += hours;
-    // Just wrap hours, don't auto-increment day yet. 
-    // Let checkTurnOfDay handle the 2AM threshold.
+    // 这里只负责把小时数折算到 0~23，不直接修改日期
+    // 是否跨天由 checkTurnOfDay 按“凌晨两点规则”统一处理
     while (_hour >= 24)
     {
         _hour -= 24;
@@ -124,9 +124,7 @@ void GameClock::addHour(int hours)
     while (_hour < 0)
     {
         _hour += 24;
-        addDay(-1); // Backward time travel still reduces day immediately? 
-                    // Stardew doesn't really support backward, but generic clock might.
-                    // For now, keep backward day change, but forward is 2AM only.
+        addDay(-1); // 向后拨时间时，直接减少一天（正常玩法不会用到，这里保留通用时钟的处理方式）
     }
     
     checkTurnOfDay();

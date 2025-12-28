@@ -21,7 +21,7 @@ std::string g_CurrentBgmPath = "";
 
 BackgroundLayer::~BackgroundLayer()
 {
-    // Clear ForageSystem layer reference if this is Farm
+    // 如果是农场场景，离开时需要把 ForageSystem 挂在的图层清掉
     if (_type == BackgroundType::Farm)
     {
         ForageSystem::getInstance()->detachLayer();
@@ -60,7 +60,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasBedRect = false;
     _hasPoolRect = false;
     _hasHouseRect = false;
-    _hasHenhouseRect = false; // Added
+    _hasHenhouseRect = false; // 默认还没有鸡舍区域，后面解析 TMX 时再赋值
     _hasTownHomewayRect = false;
     _hasShopRect = false;
     _hasBucket = false;
@@ -80,7 +80,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _hasHenhouseDoor = false;
     _canEnterHenhouse = false;
     _enteredHenhouse = false;
-    _enteredShop = false; // Added
+    _enteredShop = false; // 默认未进入商店区域
 
     _sleepDialogActive = false;
     _isSleeping = false;
@@ -103,7 +103,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _sleepLabel = nullptr;
     _pauseMenu = nullptr;
     
-    // Force update on first frame
+    // 强制在第一帧就刷新一次季节相关效果
     _lastSeason = (GameClock::Season)-1;
 
     if (_type == BackgroundType::Farm)
@@ -118,7 +118,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             _map = map;
             _backgroundNode = map;
 
-            // Create season overlay
+            // 为农场地图创建一个季节滤镜图层
             Size mapSizeTiles = map->getMapSize();
             Size tileSize = map->getTileSize();
             float mapWidth = mapSizeTiles.width * tileSize.width;
@@ -127,7 +127,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             _seasonOverlay = LayerColor::create(Color4B(0, 0, 0, 0), mapWidth, mapHeight);
             if (_seasonOverlay)
             {
-                addChild(_seasonOverlay, 2); // Above player (Z=1)
+                addChild(_seasonOverlay, 2); // 放在玩家之上，方便整体调色
             }
 
             _groundLayer = _map->getLayer("ground");
@@ -396,7 +396,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     bool found = false;
                     ValueMap dict;
                     
-                    // If strictly "henhouse door" group, take first object
+                    // 如果对象组本身就是 “henhouse door”，直接取第一个对象作为门
                     std::string groupName = henhouseDoorGroup->getGroupName();
                     if (groupName == "henhouse door" || groupName == "Henhouse Door")
                     {
@@ -408,7 +408,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                     }
                     else if (groupName == "Buildings")
                     {
-                        // Look for "Hen House" or "Coop"
+                        // 在 Buildings 分组中查找名称为 “Hen House” 或 “Coop” 的对象
                          for (const auto& obj : henhouseDoorGroup->getObjects()) {
                             ValueMap d = obj.asValueMap();
                             std::string name = d["name"].asString();
@@ -475,14 +475,14 @@ bool BackgroundLayer::initWithType(BackgroundType type)
                 }
         
         CropSystem::getInstance()->init(_map, GameScene::sClock, GameScene::sWallet, GameScene::sInventory);
-        // Explicitly set map (init does it, but redundant call is safe)
+        // 再显式设置一次地图指针（init 已经做过，这里重复调用也安全）
         CropSystem::getInstance()->setMap(_map);
 
-        initObstacles(); // Init obstacles for Farm type
+        initObstacles(); // 初始化农场上的杂物/障碍物
         ForageSystem::getInstance()->init(this);
         AnimalSystem::getInstance()->init(this, map);
         
-        // Initial update for Farm
+        // 农场场景完成加载后，先刷新一次季节滤镜
     updateSeasonFilter();
 
     return true;
@@ -490,11 +490,9 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             else
             {
                  cocos2d::log("Player creation failed completely.");
-                 // Fallback to allow map to show at least? 
-                 // But if we return false, map won't show.
-                 // Let's return true but without player control?
-                 // No, that confuses user.
-                 // Let's create a placeholder player
+                 // 理论上不应该走到这里，这里做一下兜底：
+                 // 至少保证地图能显示出来，不至于整个场景加载失败
+                 // 创建一个占位用的玩家精灵，让玩家看到画面而不是黑屏
                  auto fallbackPlayer = Player::create("HelloWorld.png", tileSize.height);
                  if (fallbackPlayer)
                  {
@@ -673,7 +671,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             }
             else
             {
-                 // Fallback to mock coordinates if object group missing
+                 // 如果 TMX 中没有配置商店对象，就使用一组手写坐标作为兜底
                  _shopRect = Rect(580, 580, 100, 120); 
                  _hasShopRect = true;
             }
@@ -726,7 +724,7 @@ bool BackgroundLayer::initWithType(BackgroundType type)
             _map = map;
             _backgroundNode = map;
             
-            // Init Animal System
+            // 初始化鸡舍中的动物系统，与当前地图绑定
             AnimalSystem::getInstance()->init(this, map);
 
             Size mapSizeTiles = map->getMapSize();
@@ -979,16 +977,15 @@ bool BackgroundLayer::initWithType(BackgroundType type)
     _facingDebug = DrawNode::create();
     addChild(_facingDebug, 100);
 
-    // Create season overlay for static backgrounds
-    // It should cover the whole screen or the sprite?
-    // Let's cover the screen.
+    // 为静态背景（道路、商店等）创建一个季节滤镜图层
+    // 这里直接覆盖整屏，避免和背景精灵尺寸不一致的问题
     _seasonOverlay = LayerColor::create(Color4B(0, 0, 0, 0));
     if (_seasonOverlay)
     {
         addChild(_seasonOverlay, 2);
     }
 
-    // Initial update
+    // 初始化时先刷新一次滤镜，保证进入场景立刻生效
     updateSeasonFilter();
 
     return true;
@@ -1000,13 +997,13 @@ void BackgroundLayer::updateSeasonFilter()
 
     auto season = GameScene::sClock->getSeason();
 
-    // Check for season change to spawn new obstacles (Dynamic update)
+    // 检查季节变化：如果是农场，并且季节发生了改变，就动态刷新障碍物
     if (_type == BackgroundType::Farm)
     {
         int currentSeasonInt = (int)season;
         if (sLastObstacleSeason != -1 && sLastObstacleSeason != currentSeasonInt)
         {
-            // Season changed! Spawn more obstacles
+            // 季节变化后，根据地图大小重新生成一批新的障碍物
             if (_map)
             {
                 Size mapSize = _map->getMapSize();
@@ -1025,33 +1022,30 @@ void BackgroundLayer::updateSeasonFilter()
     switch (season)
     {
     case GameClock::Season::Spring:
-        // Default
+        // 春季：保持默认亮度和无滤镜
         bgmPath = "bgm/Spring.mp3";
         tintColor = Color3B(255, 255, 255);
         overlayColor = Color4B(0, 0, 0, 0);
         break;
     case GameClock::Season::Summer:
-        // Brighter / Sunny
+        // 夏季：整体更亮，叠加一点偏黄的高亮滤镜
         bgmPath = "bgm/Summer.mp3";
         tintColor = Color3B(255, 255, 255);
-        // Additive yellow/white for brightness
+        // 使用叠加混合，让画面看起来更阳光一些
         overlayColor = Color4B(255, 255, 200, 40); 
         overlayBlend = BlendFunc::ADDITIVE;
         break;
     case GameClock::Season::Fall:
-        // Brownish / Autumn / Deep
-        // Darker and deeper brown
+        // 秋季：整体偏棕色，颜色更深一些
         bgmPath = "bgm/Fall.mp3";
         tintColor = Color3B(200, 150, 110);
         overlayColor = Color4B(0, 0, 0, 0);
         break;
     case GameClock::Season::Winter:
-        // Gray / White / Cold / Dim
-        // Lower brightness for "dim" feel
+        // 冬季：偏灰白，降低对比度，营造寒冷、昏暗的感觉
         bgmPath = "bgm/Winter.mp3";
         tintColor = Color3B(180, 180, 190);
-        // Normal blending (not additive) to make it look like a white fog/snow cover
-        // This will reduce contrast and make it look "whiter" but not "brighter"
+        // 使用普通混合而不是叠加，让画面像罩了一层淡淡的白雾/雪，而不是变得更亮
         overlayColor = Color4B(220, 230, 240, 50);
         overlayBlend = BlendFunc::ALPHA_NON_PREMULTIPLIED;
         break;
@@ -1108,7 +1102,7 @@ void BackgroundLayer::showConfirmationDialog(const std::string& message, std::fu
 
     if (_player)
     {
-        // Stop player movement to prevent "ghost walking" while dialog is open
+        // 弹出确认对话框时，先把玩家移动停掉，避免角色在对话期间继续走动
         _player->onKeyReleased(EventKeyboard::KeyCode::KEY_W);
         _player->onKeyReleased(EventKeyboard::KeyCode::KEY_S);
         _player->onKeyReleased(EventKeyboard::KeyCode::KEY_A);
@@ -1127,20 +1121,20 @@ void BackgroundLayer::showConfirmationDialog(const std::string& message, std::fu
     _confirmationOverlay->setContentSize(visibleSize);
     _confirmationOverlay->setAnchorPoint(Vec2::ANCHOR_BOTTOM_LEFT);
     
-    // Position fixed to screen (add to Scene or Parent, not BackgroundLayer which moves)
+    // 覆盖层的位置要固定在屏幕上，而不是跟随地图移动，所以尽量加在场景或父节点上
     Node* parent = this->getParent();
     if (!parent) parent = this;
     
     if (parent == this)
     {
-         // Fallback if no parent (should not happen in game), manual positioning
+         // 理论上应该总有父节点，这里是兜底：没有父节点时，按当前图层位置做一次手动对齐
          Vec2 layerWorldPos = this->getPosition();
          _confirmationOverlay->setPosition(origin - layerWorldPos);
          this->addChild(_confirmationOverlay, 6000);
     }
     else
     {
-         // Add to Scene/Parent directly so it doesn't move with camera
+         // 正常情况直接加到父节点，这样镜头移动时对话框不会跟着地图抖动
          _confirmationOverlay->setPosition(Vec2::ZERO);
          parent->addChild(_confirmationOverlay, 6000);
     }
@@ -1171,7 +1165,7 @@ void BackgroundLayer::showConfirmationDialog(const std::string& message, std::fu
     menu->alignItemsHorizontallyWithPadding(100.0f);
     _confirmationOverlay->addChild(menu);
 
-    // Block touches
+    // 吞掉触摸事件，防止点击穿透到底层地图
     auto listener = EventListenerTouchOneByOne::create();
     listener->setSwallowTouches(true);
     listener->onTouchBegan = [](Touch* touch, Event* event) { return true; };
@@ -1184,9 +1178,9 @@ void BackgroundLayer::showConfirmationDialog(const std::string& message, std::fu
 void BackgroundLayer::update(float dt)
 {
     if (PauseLayer::isGamePaused()) return;
-    if (_confirmationOverlay) return; // Pause game when confirmation dialog is active
+    if (_confirmationOverlay) return; // 有确认对话框时暂停地图更新，防止逻辑继续推进
 
-    // Keep sleep overlay centered on screen
+    // 保持睡觉提示遮罩始终居中在屏幕上，而不是跟随地图偏移
     if (_sleepOverlay && _sleepOverlay->isVisible())
     {
         auto director = Director::getInstance();
@@ -1195,7 +1189,7 @@ void BackgroundLayer::update(float dt)
         _sleepOverlay->setPosition(origin - layerWorldPos);
     }
     
-    // Time-based checks moved to GameScene::update to ensure they run even if layer is blocked
+    // 与时间有关的逻辑已移到 GameScene::update 中，即使本图层被对话框挡住也能继续执行
 
     if (_isFishing)
     {
@@ -1230,11 +1224,11 @@ void BackgroundLayer::update(float dt)
         Vec2 delta = velocity * dt;
         Vec2 pos = _player->getPosition();
 
-        // Use a smaller footprint box for collision (feet only)
-        // This prevents the head/body from getting stuck on obstacles
+        // 使用角色脚部区域作为碰撞盒，减小碰撞体积
+        // 避免头部或身体在台阶、障碍物边缘被“卡住”的情况
         Rect spriteBox = _player->getBoundingBox();
-        float footW = spriteBox.size.width * 0.5f; // 50% width
-        float footH = spriteBox.size.height * 0.25f; // 25% height (bottom)
+        float footW = spriteBox.size.width * 0.5f; // 宽度取精灵一半
+        float footH = spriteBox.size.height * 0.25f; // 高度只取底部四分之一
         Rect box(spriteBox.getMidX() - footW * 0.5f, spriteBox.getMinY(), footW, footH);
 
         if (_hasHomeRect)
@@ -1244,7 +1238,7 @@ void BackgroundLayer::update(float dt)
             bool blockX = boxX.intersectsRect(_homeRect) || (_hasBoundary && (boxX.intersectsRect(_boundaryLeftRect) || boxX.intersectsRect(_boundaryRightRect))) || checkCollisionWithObstacles(boxX);
             if (!blockX && _hasHenhouseRect && boxX.intersectsRect(_henhouseRect))
             {
-                // Allow entering door zone
+                // 允许玩家进入门口区域，但不能穿过鸡舍主体
                 if (!boxX.intersectsRect(_henhouseDoorRect))
                     blockX = true;
             }
@@ -1413,13 +1407,13 @@ void BackgroundLayer::update(float dt)
         _player->setPosition(pos);
     }
 
-    // Dynamic Z-Order for Player (Depth Sorting)
+    // 根据玩家的 Y 坐标动态调整 Z 序，让靠下的对象显示在最前面
     if (_player)
     {
         _player->setLocalZOrder(static_cast<int>(mapHeight - _player->getPositionY()));
     }
 
-    // Reset per-frame interaction flags
+    // 每帧重置一遍交互标记，后面根据玩家位置重新计算
     _canEnterHomeDoor = false;
     _canExitHomeDoor = false;
     _canEnterTownFromRight = false;
@@ -1472,7 +1466,7 @@ void BackgroundLayer::update(float dt)
         Rect box = _player->getBoundingBox();
         if (box.intersectsRect(_shopRect))
         {
-            // Shop interaction is now handled in onMouseDown (requires click)
+            // 商店的实际交互在 onMouseDown 中处理，这里只负责标记玩家是否站在触发区
             _enteredShop = true;
         }
         else
@@ -1508,7 +1502,7 @@ void BackgroundLayer::update(float dt)
     {
         _facingDebug->clear();
 
-        // 1. Always draw facing tile cursor (User requirement: always visible)
+        // 1. 始终绘制玩家正前方的格子光标（方便观察交互目标）
         if (_groundLayer && _map)
         {
             Vec2 tileIndex = getFacingTile();
@@ -1652,7 +1646,7 @@ void BackgroundLayer::update(float dt)
             {
                 Vec2 r1(_bedRect.getMinX(), _bedRect.getMinY());
                 Vec2 r2(_bedRect.getMaxX(), _bedRect.getMaxY());
-                _facingDebug->drawSolidRect(r1, r2, Color4F(0.0f, 0.0f, 1.0f, 0.2f)); // Blue for bed
+                _facingDebug->drawSolidRect(r1, r2, Color4F(0.0f, 0.0f, 1.0f, 0.2f)); // 蓝色区域表示床，可以用来睡觉
                 _facingDebug->drawRect(r1, r2, Color4F(0.0f, 0.0f, 1.0f, 1.0f));
             }
 
@@ -1660,7 +1654,7 @@ void BackgroundLayer::update(float dt)
             {
                 Vec2 r1(_homeExitDoorRect.getMinX(), _homeExitDoorRect.getMinY());
                 Vec2 r2(_homeExitDoorRect.getMaxX(), _homeExitDoorRect.getMaxY());
-                _facingDebug->drawSolidRect(r1, r2, Color4F(0.0f, 1.0f, 0.0f, 0.2f)); // Green for exit
+                _facingDebug->drawSolidRect(r1, r2, Color4F(0.0f, 1.0f, 0.0f, 0.2f)); // 绿色区域表示家门的出口
                 _facingDebug->drawRect(r1, r2, Color4F(0.0f, 1.0f, 0.0f, 1.0f));
             }
 
@@ -1668,7 +1662,7 @@ void BackgroundLayer::update(float dt)
             {
                 Vec2 r1(_townHomewayRect.getMinX(), _townHomewayRect.getMinY());
                 Vec2 r2(_townHomewayRect.getMaxX(), _townHomewayRect.getMaxY());
-                _facingDebug->drawSolidRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 0.2f)); // Yellow for way back
+                _facingDebug->drawSolidRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 0.2f)); // 黄色区域表示从城镇返回农场的路口
                 _facingDebug->drawRect(r1, r2, Color4F(1.0f, 1.0f, 0.0f, 1.0f));
             }
 
@@ -1676,7 +1670,7 @@ void BackgroundLayer::update(float dt)
             {
                 Vec2 r1(_shopRect.getMinX(), _shopRect.getMinY());
                 Vec2 r2(_shopRect.getMaxX(), _shopRect.getMaxY());
-                _facingDebug->drawSolidRect(r1, r2, Color4F(0.5f, 0.0f, 1.0f, 0.2f)); // Purple for shop
+                _facingDebug->drawSolidRect(r1, r2, Color4F(0.5f, 0.0f, 1.0f, 0.2f)); // 紫色区域表示商店触发范围
                 _facingDebug->drawRect(r1, r2, Color4F(0.5f, 0.0f, 1.0f, 1.0f));
             }
 
@@ -1686,7 +1680,7 @@ void BackgroundLayer::update(float dt)
                 {
                     Vec2 p1(r.getMinX(), r.getMinY());
                     Vec2 p2(r.getMaxX(), r.getMaxY());
-                    _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 0.0f, 0.2f)); // Red tint for houses
+                    _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 0.0f, 0.2f)); // 红色区域标记为房屋碰撞体
                     _facingDebug->drawRect(p1, p2, Color4F(1.0f, 0.0f, 0.0f, 1.0f));
                 }
             }
@@ -1711,7 +1705,7 @@ void BackgroundLayer::update(float dt)
                 Size mapSize = _map->getMapSize();
                 float mapHeight = mapSize.height * tileSize.height;
 
-                // Iterate all tiles to find obstacles (inefficient but okay for debug)
+                // 遍历所有障碍物并画出所在瓦片（效率不高，但只用于调试）
                 for (const auto& pair : _obstacles)
                 {
                     int key = pair.first;
@@ -1730,15 +1724,15 @@ void BackgroundLayer::update(float dt)
                     _facingDebug->drawRect(
                         Vec2(obsRect.getMinX(), obsRect.getMinY()),
                         Vec2(obsRect.getMaxX(), obsRect.getMaxY()),
-                        Color4F(1.0f, 0.0f, 0.0f, 1.0f) // Red for obstacles
+                        Color4F(1.0f, 0.0f, 0.0f, 1.0f) // 红色边框表示障碍物所在的格子
                     );
                 }
 
-                // Debug draw for Forage Items
+                // 采集物的调试绘制
                 const auto& forageItems = ForageSystem::getInstance()->getItems();
                 for (const auto& item : forageItems)
                 {
-                    // Only draw items for the current map
+                    // 只绘制当前地图上的采集物，避免跨场景干扰
                     if (item.mapType == _type)
                     {
                         float cx = (item.tilePosition.x + 0.5f) * tileSize.width;
@@ -1753,12 +1747,12 @@ void BackgroundLayer::update(float dt)
                         _facingDebug->drawRect(
                             Vec2(itemRect.getMinX(), itemRect.getMinY()),
                             Vec2(itemRect.getMaxX(), itemRect.getMaxY()),
-                            Color4F(1.0f, 0.5f, 0.0f, 1.0f) // Orange for forage items
+                            Color4F(1.0f, 0.5f, 0.0f, 1.0f) // 橙色边框表示可采集物品
                         );
                     }
                 }
 
-                // Debug draw for Henhouse specific layers
+                // 鸡舍相关的对象层调试绘制（门、饲料槽等）
                 if (_type == BackgroundType::Henhouse)
                 {
                     std::vector<std::string> debugLayers = { "door", "bucket", "eggbucket", "feedinghopper" };
@@ -1779,9 +1773,9 @@ void BackgroundLayer::update(float dt)
                                 Vec2 p1(x, y);
                                 Vec2 p2(x + w, y + h);
                                 
-                                // Draw solid rect with low opacity (Magenta)
+                                // 画一层带透明度的紫色填充
                                 _facingDebug->drawSolidRect(p1, p2, Color4F(1.0f, 0.0f, 1.0f, 0.2f)); 
-                                // Draw border
+                                // 再画边框方便查看范围
                                 _facingDebug->drawRect(p1, p2, Color4F(1.0f, 0.0f, 1.0f, 1.0f));
                             }
                         }
@@ -1799,7 +1793,7 @@ cocos2d::Vec2 BackgroundLayer::getFacingTile() const
         return Vec2(-1, -1);
     }
 
-    // 1. If we have a TMX map, use tile coordinates
+    // 1. 如果存在 TMX 地图，则按瓦片坐标系来计算玩家正前方的格子
     if (_map)
     {
         Size mapSizeTiles = _map->getMapSize();
@@ -1833,19 +1827,9 @@ cocos2d::Vec2 BackgroundLayer::getFacingTile() const
 
         return Vec2(tx, ty);
     }
-    // 2. If no map (static background), calculate pseudo-grid
-    // Assuming static backgrounds (Path, Shop) cover the screen or have a main sprite
-    // For now, we return (-1, -1) or a "screen grid" if needed.
-    // However, the debug drawing relies on this. 
-    // Let's implement a virtual grid for static scenes if needed, or just return (-1, -1) and handle debug drawing separately.
-    // But wait, the user wants to see collision boxes.
-    // Collision boxes (rects) don't rely on tiles. They rely on world coordinates.
-    // The tile cursor (yellow dot) relies on tiles.
-    // If we want to show a cursor on static scenes, we need a virtual grid.
-    
-    // For static scenes, let's use a virtual 16x16 grid based on visible size or the background sprite size.
-    // Find the background sprite (usually child 0 or by tag)
-    // But for now, let's just return (-1, -1) and fix the debug drawing to not crash or skip rects.
+    // 2. 如果没有 TMX 地图（例如静态背景的道路、商店场景）
+    // 当前实现先返回 (-1, -1)，表示没有有效格子
+    // 调试绘制依赖于瓦片坐标的地方需要自行判断，避免访问无效坐标
     
     return Vec2(-1, -1);
 }
@@ -1881,7 +1865,16 @@ Vec2 FarmMapUtils::worldToGrid(const Vec2& worldPos, Sprite* mapSprite, int cols
     Size size = mapSprite->getContentSize();
     float cellWidth = size.width / cols;
     float cellHeight = size.height / rows;
-
+auto map = TMXTiledMap::create("map/outdoors_spring.tmx");
+_map = map;
+_backgroundNode = map;
+addChild(map, 0);auto map = TMXTiledMap::create("map/outdoors_spring.tmx");
+_map = map;
+_backgroundNode = map;
+addChild(map, 0);auto map = TMXTiledMap::create("map/outdoors_spring.tmx");
+_map = map;
+_backgroundNode = map;
+addChild(map, 0);
     float left = -size.width * 0.5f;
     float bottom = -size.height * 0.5f;
 
@@ -1943,7 +1936,7 @@ bool GameScene::sHasFarmHenhouseOutPos = false;
 bool GameScene::sSpawnAtFarmStart = false;
 bool GameScene::sStartAtHomeBed = false;
 
-Inventory* GameScene::sInventory = nullptr; // Define sInventory
+Inventory* GameScene::sInventory = nullptr; // 初始化静态背包指针
 Basket* GameScene::sBasket = nullptr;
 int GameScene::sTodayEarnings = 0;
 
@@ -1981,7 +1974,7 @@ bool GameScene::init()
     auto visibleSize = Director::getInstance()->getVisibleSize();
     Vec2 origin = Director::getInstance()->getVisibleOrigin();
 
-    // Default to Home for new game
+    // 新游戏默认从家里醒来
     GameScene::sStartAtHomeBed = true;
     auto backgroundLayer = BackgroundLayer::create(BackgroundType::Home);
     if (backgroundLayer)
@@ -2092,15 +2085,15 @@ void GameScene::update(float dt)
         ForageSystem::getInstance()->update(_clock);
     }
     CropSystem::getInstance()->updateDailyGrowth();
-    AnimalSystem::getInstance()->update(dt); // Update animals
+    AnimalSystem::getInstance()->update(dt); // 驱动动物系统的行为与状态更新
 
-    // Time-based checks (Midnight Warning & 2:00 AM Fainting)
-    // Moved here to ensure it runs even if BackgroundLayer is blocked (e.g. by confirmation dialog)
+    // 与时间相关的检查（午夜提醒以及凌晨两点强制晕倒）
+    // 放在 GameScene::update 中，即使 BackgroundLayer 被对话框挡住也能正常执行
     if (_clock && !GameScene::sWasFainted)
     {
         int hour = _clock->getHour();
 
-        // Midnight Warning (0:00 to 1:50)
+        // 午夜提醒：在 0:00 到 1:50 之间只弹一次提示
         if (hour >= 0 && hour < 2)
         {
             if (!GameScene::sMidnightWarned)
@@ -2110,14 +2103,14 @@ void GameScene::update(float dt)
                 GameScene::sMidnightWarned = true;
             }
         }
-        // 2:00 AM Fainting
+        // 凌晨两点强制晕倒
         else if (hour == 2)
         {
              std::string msg = "You passed out...";
              Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
              GameScene::sWasFainted = true;
              
-             // Trigger sleep via BackgroundLayer
+             // 通过 BackgroundLayer 触发睡觉流程
              for (auto child : getChildren())
              {
                  auto bg = dynamic_cast<BackgroundLayer*>(child);
@@ -2130,13 +2123,13 @@ void GameScene::update(float dt)
         }
     }
 
-    // Check for fainting (Energy)
+    // 再根据体力检查是否因精力耗尽而晕倒
     if (EnergySystem::getInstance()->isExhausted())
     {
-        // Set to minimal energy to prevent re-triggering loop, actual restore happens in sleep
+        // 将体力设置到一个极低值，避免逻辑被重复触发；真正恢复发生在睡觉结算时
         EnergySystem::getInstance()->setEnergy(1.0f);
         
-        int fee = 100; // Medical fee
+        int fee = 100; // 医疗费用，晕倒后扣除的金钱
         int currentMoney = _wallet ? _wallet->getMoney() : 0;
         int actualFee = fee;
         
@@ -2150,13 +2143,13 @@ void GameScene::update(float dt)
             if (_wallet) _wallet->spendMoney(fee);
         }
 
-        // Show notification
+        // 弹出通知提示玩家被送回家并扣费
         std::string msg = "You fainted! Medical fee: " + std::to_string(actualFee) + "g";
         Director::getInstance()->getEventDispatcher()->dispatchCustomEvent("SHOW_NOTIFICATION", &msg);
 
         GameScene::sWasFainted = true;
 
-        // Trigger sleep via BackgroundLayer
+        // 最后通过 BackgroundLayer 走一遍睡觉流程，进行第二天结算
         for (auto child : getChildren())
         {
             auto bg = dynamic_cast<BackgroundLayer*>(child);

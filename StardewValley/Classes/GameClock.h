@@ -20,7 +20,7 @@ public:
     void setSecondsPerMinute(float spm);
     void setSecondsPerTenMinutes(float sptm);
     
-    // Pause/Resume
+    // 暂停 / 恢复时间流逝
     void pause() { _paused = true; }
     void resume() { _paused = false; }
     bool isPaused() const { return _paused; }
@@ -40,7 +40,7 @@ public:
     void addDay(int days);
     void addHour(int hours);
 
-    // Checks if it's 2:00 AM or later, and advances day if so
+    // 检查是否到达凌晨 2:00 及以后，并在需要时推进日期
     void checkTurnOfDay();
 
     int getWeekdayIndex() const;
@@ -60,4 +60,4 @@ private:
     bool _paused = false;
 };
 
-#endif
+#endif // __GAME_CLOCK_H__ 结束
