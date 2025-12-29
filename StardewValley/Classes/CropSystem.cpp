@@ -913,6 +913,56 @@ void CropSystem::loadCropData()
     _data[CropType::Anchovy] = anchovy;
     _data[CropType::Bream] = bream;
     _data[CropType::LargemouthBass] = largemouthBass;
+
+    // Animal Products
+    CropData egg;
+    egg.itemName = "Egg";
+    egg.itemIcon = "animals/Egg.png";
+    egg.energyRestore = 25;
+    egg.sellPrice = 50;
+    egg.xp = 5;
+    egg.growthDays = 0;
+    egg.regrowDays = 0;
+    egg.baseYield = 1;
+    egg.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
+
+    CropData largeEgg;
+    largeEgg.itemName = "Large Egg";
+    largeEgg.itemIcon = "animals/Large_Egg.png";
+    largeEgg.energyRestore = 38;
+    largeEgg.sellPrice = 95;
+    largeEgg.xp = 10;
+    largeEgg.growthDays = 0;
+    largeEgg.regrowDays = 0;
+    largeEgg.baseYield = 1;
+    largeEgg.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
+
+    CropData wool;
+    wool.itemName = "Wool";
+    wool.itemIcon = "animals/Wool.png";
+    wool.energyRestore = 0;
+    wool.sellPrice = 340;
+    wool.xp = 15;
+    wool.growthDays = 0;
+    wool.regrowDays = 0;
+    wool.baseYield = 1;
+    wool.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
+
+    CropData rabbitsFoot;
+    rabbitsFoot.itemName = "Rabbit's Foot";
+    rabbitsFoot.itemIcon = "animals/Rabbit's_Foot.png";
+    rabbitsFoot.energyRestore = 0;
+    rabbitsFoot.sellPrice = 565;
+    rabbitsFoot.xp = 20;
+    rabbitsFoot.growthDays = 0;
+    rabbitsFoot.regrowDays = 0;
+    rabbitsFoot.baseYield = 1;
+    rabbitsFoot.allowedSeasons = { GameClock::Season::Spring, GameClock::Season::Summer, GameClock::Season::Fall, GameClock::Season::Winter };
+
+    _data[CropType::Egg] = egg;
+    _data[CropType::LargeEgg] = largeEgg;
+    _data[CropType::Wool] = wool;
+    _data[CropType::RabbitsFoot] = rabbitsFoot;
     
     // Forage Register
     _data[CropType::Daffodil] = daffodil;

@@ -6,6 +6,8 @@
 #include "GameClock.h"
 #include <vector>
 
+enum class CropType; // Forward declaration
+
 class BackgroundLayer;
 
 class AnimalSystem
@@ -28,7 +30,7 @@ public:
 
     // Interaction
     bool hasProduct(const cocos2d::Vec2& tilePos) const;
-    bool tryHarvestProduct(const cocos2d::Vec2& tilePos, std::string* outIconPath = nullptr);
+    bool tryHarvestProduct(const cocos2d::Vec2& tilePos, std::string* outIconPath = nullptr, CropType* outType = nullptr);
     bool tryIncubateEgg(const cocos2d::Vec2& tilePos, const std::string& eggName);
 
     // Feeding

@@ -26,6 +26,11 @@ enum class CropType
     Anchovy,
     Bream,
     LargemouthBass,
+    // Animal Products
+    Egg,
+    LargeEgg,
+    Wool,
+    RabbitsFoot,
     // Spring Forage
     Daffodil,
     Leek,

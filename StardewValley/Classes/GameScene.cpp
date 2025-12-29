@@ -1865,16 +1865,7 @@ Vec2 FarmMapUtils::worldToGrid(const Vec2& worldPos, Sprite* mapSprite, int cols
     Size size = mapSprite->getContentSize();
     float cellWidth = size.width / cols;
     float cellHeight = size.height / rows;
-auto map = TMXTiledMap::create("map/outdoors_spring.tmx");
-_map = map;
-_backgroundNode = map;
-addChild(map, 0);auto map = TMXTiledMap::create("map/outdoors_spring.tmx");
-_map = map;
-_backgroundNode = map;
-addChild(map, 0);auto map = TMXTiledMap::create("map/outdoors_spring.tmx");
-_map = map;
-_backgroundNode = map;
-addChild(map, 0);
+
     float left = -size.width * 0.5f;
     float bottom = -size.height * 0.5f;
 

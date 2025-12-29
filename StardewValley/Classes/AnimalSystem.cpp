@@ -787,7 +787,7 @@ bool AnimalSystem::hasProduct(const Vec2& tilePos) const
     return false;
 }
 
-bool AnimalSystem::tryHarvestProduct(const Vec2& tilePos, std::string* outIconPath)
+bool AnimalSystem::tryHarvestProduct(const Vec2& tilePos, std::string* outIconPath, CropType* outType)
 {
     std::vector<Vec2> checkPositions = {
         tilePos,
@@ -799,52 +799,65 @@ bool AnimalSystem::tryHarvestProduct(const Vec2& tilePos, std::string* outIconPa
 
     for (const auto& checkPos : checkPositions)
     {
-        for (auto it = _products.begin(); it != _products.end(); ++it)
+        auto it = _products.begin();
+        while (it != _products.end())
         {
             if (it->tilePos.equals(checkPos))
             {
                 if (GameScene::sInventory)
                 {
-                    Item item;
-                    item.type = ItemType::Resource;
-                    
-                    if (!it->productType.empty())
+                    // Determine CropType and details
+                    CropType type = CropType::Egg;
+                    std::string name = "Egg";
+                    std::string icon = "animals/Egg.png";
+
+                    if (it->productType == "Wool") 
                     {
-                         item.name = it->productType;
-                         if (it->productType == "Wool") item.iconPath = "animals/Wool.png";
-                         else if (it->productType == "Rabbit's Foot") item.iconPath = "animals/Rabbit's_Foot.png";
-                         else item.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                        type = CropType::Wool;
+                        name = "Wool";
+                        icon = "animals/Wool.png";
                     }
-                    else
+                    else if (it->productType == "Rabbit's Foot") 
                     {
-                        // Fallback for old data or default chickens
-                        item.name = it->isLarge ? "Large Egg" : "Egg";
-                        item.iconPath = it->isLarge ? "animals/Large_Egg.png" : "animals/Egg.png";
+                        type = CropType::RabbitsFoot;
+                        name = "Rabbit's Foot";
+                        icon = "animals/Rabbit's_Foot.png";
+                    }
+                    else 
+                    {
+                        if (it->isLarge) 
+                        {
+                             type = CropType::LargeEgg;
+                             name = "Large Egg";
+                             icon = "animals/Large_Egg.png";
+                        }
+                        else 
+                        {
+                             type = CropType::Egg;
+                             name = "Egg";
+                             icon = "animals/Egg.png";
+                        }
                     }
 
-                    if (outIconPath)
-                    {
-                        *outIconPath = item.iconPath;
-                    }
+                    if (outIconPath) *outIconPath = icon;
+                    if (outType) *outType = type;
 
-                    item.quantity = 1;
-                    item.maxStack = 99;
-
+                    // Create Item as Crop so it can be sold
+                    Item item = Item::createCrop(type, name, icon, 1);
                     GameScene::sInventory->addItem(item);
 
-                    if (true)
+                    // Remove product
+                    if (it->sprite)
                     {
-                        if (it->sprite)
-                        {
-                            it->sprite->removeFromParent();
-                        }
-
-                        _products.erase(it);
-                        return true;
+                        it->sprite->removeFromParent();
                     }
+
+                    _products.erase(it);
+                    return true;
                 }
                 return false;
             }
+            ++it;
         }
     }
     return false;
